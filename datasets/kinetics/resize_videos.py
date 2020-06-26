@@ -1,16 +1,16 @@
-# Modified Kinetics video frame extraction script from
+# Kinetics video resizing script based on
 # https://github.com/neuroailab/VIE/tree/master/build_data/kinetics.
 
 # Required libraries: opencv-python, ffmpeg
 
 # Instructions:
-# python extract_frames.py 
+# python resize_frames.py 
 # --csv_path <path_to_the_downloaded_kinetics_split.csv>
 # --video_dir <directory_to_host_downloaded_videos> 
-# --jpg_dir <directory_to_host_the_jpgs> 
+# --out_dir <directory_to_host_the_resized_videos> 
 # --len_idx <number_of_videos>
 #
-# Note: The video frames are scaled to have the shortest edge be 320px. Modify
+# Note: The video frames are resized to have the shortest edge be 256px. Modify
 # the resolution_str variable to change this.
 
 import numpy as np
@@ -41,7 +41,7 @@ def get_parser():
             type=str, action='store',
             help='Directory to hold the downloaded videos')
     parser.add_argument(
-            '--jpg_dir',
+            '--out_dir',
             default='/data5/chengxuz/Dataset/kinetics/jpgs_extracted_test',
             type=str, action='store',
             help='Directory to hold the extracted jpgs, rescaled')
@@ -54,9 +54,6 @@ def get_parser():
     parser.add_argument(
             '--check', default=0, type=int, action='store',
             help='Whether checking the existence')
-    parser.add_argument(
-            '--remove_empty', action='store_true',
-            help='Whether just remove empty folders')
     return parser
 
 
@@ -103,49 +100,44 @@ def load_csv(csv_path, return_cate_lbls=False):
         return all_data, cate_list
 
 
-def extract_one_video(curr_indx, args, csv_data):
+def resize_one_video(curr_indx, args, csv_data):
     curr_data = csv_data[curr_indx]
     mp4_name = '%s_%i_%i.mp4' % (curr_data['id'], curr_data['sta'], curr_data['end'] - curr_data['sta'])
-    save_folder = os.path.join(
-            args.jpg_dir,
-            curr_data['cate'], mp4_name.rstrip('.mp4'))
+    save_file = os.path.join(args.out_dir, curr_data['cate'], mp4_name)
     mp4_path = os.path.join(args.video_dir, curr_data['cate'], mp4_name)
-    if args.remove_empty:
-        if os.path.exists(save_folder) and not os.path.exists(mp4_path):
-            os.rmdir(save_folder)
-        return
 
-    if os.path.exists(save_folder) and args.check==1:
-        print ('Save folder exists')
+    if os.path.exists(save_file) and args.check==1:
+        print ('Output file exists')
         return
 
     if not os.path.exists(mp4_path):
         print ('Video does not exist', mp4_path)
         return
 
+    save_folder = os.path.join(args.out_dir, curr_data['cate'])
+    if not os.path.exists(save_folder):
+        err = os.system('mkdir "%s"' % save_folder)
+        if (err != 0):
+            print('Failed to create save directory')
+            return
+
     vidcap = cv2.VideoCapture(mp4_path)
     vid_height = vidcap.get(cv2.CAP_PROP_FRAME_HEIGHT)
     vid_width = vidcap.get(cv2.CAP_PROP_FRAME_WIDTH)
 
-    err = os.system('mkdir -p "%s"' % save_folder)
-    if (err != 0):
-        print('Failed to create save directory')
-        return
-
     if vid_width < vid_height:
-        resolution_str = '320:-1'
+        resolution_str = '256:-2'  # -2 maintains aspect ratio and keeps even
     else:
-        resolution_str = '-1:320'
+        resolution_str = '-2:256'
 
-    tmpl = '%06d.jpg'
-    cmd = 'ffmpeg -i "{}" -vf scale={},fps=25 "{}" > /dev/null 2>&1'.format(
+    cmd = 'ffmpeg -y -i "{}" -vf scale={} "{}" > /dev/null 2>&1'.format(
             mp4_path,
             resolution_str,
-            os.path.join(save_folder, tmpl))
+            save_file)
     err = os.system(cmd)
     if (err != 0):
         print ('ffmpeg failed, command:',cmd)
-        os.system('echo {} >> ids_failed.txt'.format(mp4_path))
+        os.system('echo {} >> ids_failed_resizing.txt'.format(mp4_path))
 
 
 def main():
@@ -155,7 +147,7 @@ def main():
     csv_data = load_csv(args.csv_path)
     curr_len = min(len(csv_data) - args.sta_idx, args.len_idx)
 
-    _func = functools.partial(extract_one_video, args=args, csv_data=csv_data)
+    _func = functools.partial(resize_one_video, args=args, csv_data=csv_data)
     p = Pool(NUM_THREADS)
     r = list(tqdm(
         p.imap(

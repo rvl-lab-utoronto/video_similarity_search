@@ -1,24 +1,16 @@
+import os
 import torch
 from torch import nn
+import torch.optim as optim
 from models.resnet import generate_model
 from models.triplet_net import Tripletnet
+from datasets import data_loader
+import torch.backends.cudnn as cudnn
 
 
+cudnn.benchmark = True
 
-from datasets.spatial_transforms import (Compose, Normalize, Resize, CenterCrop,
-                                CornerCrop, MultiScaleCornerCrop,
-                                RandomResizedCrop, RandomHorizontalFlip,
-                                ToTensor, ScaleValue, ColorJitter,
-                                PickFirstChannels)
-from datasets.temporal_transforms import (LoopPadding, TemporalRandomCrop,
-                                 TemporalCenterCrop, TemporalEvenCrop,
-                                 SlidingWindow, TemporalSubsampling)
-from datasets.temporal_transforms import Compose as TemporalCompose
-from datasets.dataset import get_training_data, get_validation_data, get_inference_data
-from datasets.utils import Logger, worker_init_fn, get_lr
-
-
-model_depth=200
+model_depth=18
 n_classes=1039
 n_input_channels=3
 resnet_shortcut = 'B'
@@ -26,92 +18,16 @@ conv1_t_size = 7 #kernel size in t dim of conv1
 conv1_t_stride = 1 #stride in t dim of conv1
 no_max_pool = True #max pooling after conv1 is removed
 resnet_widen_factor = 1 #number of feature maps of resnet is multiplied by this value
-sample_size = 112
-train_crop_min_scale = 0.25
-train_crop_min_ratio = 0.75
-sample_duration = 16
+log_interval = 1 #log interval for batch number
 
-video_path = '/media/diskstation/datasets/UCF101/UCF101/jpg'
-annotation_path = '/media/diskstation/datasets/UCF101/UCF101/json/ucf101_01.json'
-dataset='ucf101'
-input_type = 'rgb'
-file_type = 'jpg'
-batch_size=128
-n_threads = 4
-
-no_mean_norm=False
-no_std_norm=False
-mean_dataset = 'kinetics'
-value_scale = 1
-
-def get_mean_std(value_scale, dataset):
-    assert dataset in ['activitynet', 'kinetics', '0.5']
-
-    if dataset == 'activitynet':
-        mean = [0.4477, 0.4209, 0.3906]
-        std = [0.2767, 0.2695, 0.2714]
-    elif dataset == 'kinetics':
-        mean = [0.4345, 0.4051, 0.3775]
-        std = [0.2768, 0.2713, 0.2737]
-    elif dataset == '0.5':
-        mean = [0.5, 0.5, 0.5]
-        std = [0.5, 0.5, 0.5]
-
-    mean = [x * value_scale for x in mean]
-    std = [x * value_scale for x in std]
-
-    return mean, std
-
-mean, std = get_mean_std(value_scale, dataset=mean_dataset)
-
-
-
-def get_normalize_method(mean, std, no_mean_norm, no_std_norm):
-    if no_mean_norm:
-        if no_std_norm:
-            return Normalize([0, 0, 0], [1, 1, 1])
-        else:
-            return Normalize([0, 0, 0], std)
-    else:
-        if no_std_norm:
-            return Normalize(mean, [1, 1, 1])
-        else:
-            return Normalize(mean, std)
-
-
-def get_train_data():
-    normalize = get_normalize_method(mean, std, no_mean_norm,
-                                     no_std_norm)
-
-    spatial_transform = []
-    spatial_transform.append(
-        RandomResizedCrop(sample_size, (train_crop_min_scale, 1.0),
-                        (train_crop_min_ratio, 1.0/train_crop_min_ratio))
-        )
-    spatial_transform.append(RandomHorizontalFlip())
-    spatial_transform.append(ToTensor())
-    spatial_transform.append(normalize)
-    spatial_transform = Compose(spatial_transform)
-
-    temporal_transform = []
-    temporal_transform.append(TemporalRandomCrop(sample_duration))
-    temporal_transform = TemporalCompose(temporal_transform)
-
-    train_data = get_training_data(video_path, annotation_path,
-                                   dataset, input_type, file_type,
-                                   spatial_transform, temporal_transform)
-
-    train_sampler = None
-    print(len(train_data))
-    train_loader = torch.utils.data.DataLoader(train_data,
-                                               batch_size=batch_size,
-                                               shuffle=(train_sampler is None),
-                                               num_workers=n_threads,
-                                               pin_memory=True,
-                                               sampler=train_sampler,
-                                               worker_init_fn=worker_init_fn)
-    return train_loader
-
+cuda = False
+if torch.cuda.is_available():
+    print('cuda is ready')
+    cuda = True
+os.environ["CUDA_VISIBLE_DEVICES"]=str('0,1')
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print(device)
+# print(torch.cuda.device_count())
 
 def load_pretrained_model(model, pretrain_path):
     if pretrain_path:
@@ -124,28 +40,114 @@ def load_pretrained_model(model, pretrain_path):
     return model
 
 
+def train(train_loader, tripletnet, criterion, optimizer, epoch):
+    losses = AverageMeter()
+    accs = AverageMeter()
+    emb_norms=AverageMeter()
+
+    #switching to training mode
+    tripletnet.train()
+    for batch_idx, (inputs, targets) in enumerate(train_loader):
+        if batch_idx>3:
+            break
+        print('batch index:{}'.format(batch_idx))
+        anchor, positive, negative = inputs
+        anchor_target, positive_target, negative_target = targets
+        print(anchor.size(), positive.size(), negative.size())
+
+        if cuda:
+            anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
+        dista, distb, embedded_x, embedded_y, embedded_z = tripletnet(anchor, positive, negative)
+        print('dista', dista)
+        print('distb', distb)
+        # print('embedded_x:{}, embedded_y:{}, embedded_z:{}'.format(embedded_x.size(), embedded_y.size(), embedded_z.size()))
+
+        #1 means, dista should be larger than distb
+        target = torch.FloatTensor(dista.size()).fill_(-1)
+        if cuda:
+            target = target.to(device)
+
+
+        loss_triplet = criterion(dista, distb, target)
+        print('loss_triplet', loss_triplet)
+        loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
+        loss = loss_triplet + 0.001 *loss_embedd
+        print(loss_embedd)
+        #measure accuracy and record loss
+        acc = accuracy(dista, distb)
+        losses.update(loss_triplet, anchor.size(0))
+        accs.update(acc, anchor.size(0))
+        emb_norms.update(loss_embedd/3, anchor.size(0))
+
+        # compute gradient and do optimizer step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+
+        if batch_idx % log_interval == 0:
+            print('Train Epoch: {} [{}/{}]\t'
+                  'Loss: {:.4f} ({:.4f}) \t'
+                  'Acc: {:.2f}% ({:.2f}%) \t'
+                  'Emb_Norm: {:.2f} ({:.2f})'.format(
+                epoch, batch_idx * len(anchor), len(train_loader.dataset),
+                losses.val, losses.avg,
+                100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+def accuracy(dista, distb):
+    margin = 0
+    pred = (dista - distb - margin).cpu().data
+    return (pred > 0).sum()*1.0/dista.size()[0]
+
 
 
 if __name__ == '__main__':
-    pretrain_path = '/home/sherry/pretrained/r3d200_KM_200ep.pth'
+    pretrain_path = '/home/sherry/pretrained/r3d18_KM_200ep.pth'
+    margin = 0.2
+    lr = 0.01
+    momentum=0.5
+    epochs=1
     model=generate_model(model_depth=model_depth, n_classes=n_classes,
                         n_input_channels=n_input_channels, shortcut_type=resnet_shortcut,
                         conv1_t_size=conv1_t_size,
                         conv1_t_stride=conv1_t_stride,
                         no_max_pool=no_max_pool,
                         widen_factor=resnet_widen_factor)
-    # print(model)
-    print('finished generating model')
-
+    print('finished generating model...')
     model = load_pretrained_model(model, pretrain_path)
-    # print(model)
-
     tripletnet = Tripletnet(model)
-    # print(tripletnet)
+    if cuda:
+        if torch.cuda.device_count() > 1:
+            print("Let's use {} GPUs".format(torch.cuda.device_count()))
+            tripletnet = nn.DataParallel(tripletnet)
+        tripletnet.to(device)
 
-    train_loader = get_train_data()
-    print(train_loader)
-    for i, (inputs, targets) in enumerate(train_loader):
-        if i>3:
-            break
-        print(i, inputs.shape, targets)
+    train_data, train_loader = data_loader.get_train_data()
+    # del train_data
+    criterion = torch.nn.MarginRankingLoss(margin=margin)
+    # criterion = criterion.to(device)# EDIT????
+    optimizer = optim.SGD(tripletnet.parameters(), lr=lr, momentum=momentum)
+
+    n_parameters = sum([p.data.nelement() for p in tripletnet.parameters()])
+    print(' + Number of params: {}'.format(n_parameters))
+
+    for epoch in range(1, epochs+1):
+        train(train_loader, tripletnet, criterion, optimizer, epoch)

@@ -5,7 +5,7 @@ from pathlib import Path
 import torch
 import torch.utils.data as data
 
-from .loader import VideoLoader
+from loader import VideoLoader
 
 
 def get_class_labels(data):
@@ -31,7 +31,6 @@ def get_database(data, subset, root_path, video_path_formatter):
                 video_paths.append(Path(value['video_path']))
             else:
                 label = value['annotations']['label']
-                # print(root_path, label, key)
                 video_paths.append(video_path_formatter(root_path, label, key))
 
     return video_ids, video_paths, annotations
@@ -42,7 +41,7 @@ class VideoDataset(data.Dataset):
     def __init__(self,
                  root_path,
                  annotation_path,
-                 subset,
+                 subset, #training, ...
                  spatial_transform=None,
                  temporal_transform=None,
                  target_transform=None,
@@ -90,8 +89,6 @@ class VideoDataset(data.Dataset):
                 label_id = -1
 
             video_path = video_paths[i]
-            # if not video_path.exists():
-                # continue
             if not os.path.exists(video_path):
                 print('not exists', video_path)
                 continue

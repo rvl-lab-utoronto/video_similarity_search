@@ -5,7 +5,7 @@ import functools
 import torch
 from torch.utils.data.dataloader import default_collate
 
-from .videodataset import VideoDataset
+from videodataset import VideoDataset
 
 
 def collate_fn(batch):

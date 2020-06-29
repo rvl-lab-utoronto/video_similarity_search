@@ -189,6 +189,7 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        # print('forwarding in resnet module')
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -214,7 +215,21 @@ def generate_model(model_depth, **kwargs):
     def get_inplanes():
         return [64, 128, 256, 512]
 
-    if model_depth == 200:
+    assert model_depth in [10, 18, 34, 50, 101, 152, 200]
+
+    if model_depth == 10:
+        model = ResNet(BasicBlock, [1, 1, 1, 1], get_inplanes(), **kwargs)
+    elif model_depth == 18:
+        model = ResNet(BasicBlock, [2, 2, 2, 2], get_inplanes(), **kwargs)
+    elif model_depth == 34:
+        model = ResNet(BasicBlock, [3, 4, 6, 3], get_inplanes(), **kwargs)
+    elif model_depth == 50:
+        model = ResNet(Bottleneck, [3, 4, 6, 3], get_inplanes(), **kwargs)
+    elif model_depth == 101:
+        model = ResNet(Bottleneck, [3, 4, 23, 3], get_inplanes(), **kwargs)
+    elif model_depth == 152:
+        model = ResNet(Bottleneck, [3, 8, 36, 3], get_inplanes(), **kwargs)
+    elif model_depth == 200:
         model = ResNet(Bottleneck, [3, 24, 36, 3], get_inplanes(), **kwargs)
     return model
 

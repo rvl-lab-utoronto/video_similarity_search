@@ -89,17 +89,17 @@ def get_validation_data(video_path,
     #     video_loader=loader,
     #     video_path_formatter=video_path_formatter)
     val_data = TripletsData(video_path,
-                                 annotation_path,
-                                 'validation',
-                                 spatial_transform=spatial_transform,
-                                 temporal_transform=temporal_transform,
-                                 target_transform=target_transform,
-                                 video_loader=loader,
-                                 video_path_formatter=video_path_formatter,
-                                 ntriplets=ntriplets)
+                             annotation_path,
+                             'validation',
+                             spatial_transform=spatial_transform,
+                             temporal_transform=temporal_transform,
+                             target_transform=target_transform,
+                             video_loader=loader,
+                             video_path_formatter=video_path_formatter,
+                             ntriplets=ntriplets)
 
 
-
+    print('val_data:{}'.format(len(val_data)))
     return val_data, collate_fn
 
 

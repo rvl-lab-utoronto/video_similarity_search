@@ -109,7 +109,9 @@ def validate(val_loader, tripletnet, criterion, epoch):
     accs = AverageMeter()
 
     tripletnet.eval()
-    for batch_idx, (inputs, targets) in enumerate(test_loader):
+    for batch_idx, (inputs, targets) in enumerate(val_loader):
+        print(inputs)
+        print(targets)
         (anchor, positive, negative) = inputs
         (anchor_target, positive_target, negative_target) = targets
         if cuda:
@@ -140,6 +142,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
         os.makedirs(directory)
     filename = directory + filename
     torch.save(state, filename)
+    print('checkpoint:{} saved...'.format(filename))
     if is_best:
         shutil.copyfile(filename,  os.path.join(directory, 'model_best.pth.tar'))
         print('best_model saved as:{}'.format(os.path.join(directory, 'model_best.pth.tar')))
@@ -183,6 +186,8 @@ if __name__ == '__main__':
     model_name = os.path.basename(pretrain_path).split('_')[0]
     cudnn.benchmark = True
 
+    torch.cuda.empty_cache()
+
     model=generate_model(model_depth=model_depth, n_classes=n_classes,
                         n_input_channels=n_input_channels, shortcut_type=resnet_shortcut,
                         conv1_t_size=conv1_t_size,
@@ -211,6 +216,7 @@ if __name__ == '__main__':
             print("=> no checkpoint found at '{}'".format(resume))
 
     train_data, train_loader = data_loader.get_train_data()
+    val_data, val_loader = data_loader.get_val_data()
 
     criterion = torch.nn.MarginRankingLoss(margin=margin).to(device)
     optimizer = optim.SGD(tripletnet.parameters(), lr=lr, momentum=momentum)
@@ -221,7 +227,7 @@ if __name__ == '__main__':
 
     for epoch in range(1, epochs+1):
         train(train_loader, tripletnet, criterion, optimizer, epoch)
-        acc = test(test_loader, tripletnet, criterion, epoch)
+        acc = validate(val_loader, tripletnet, criterion, epoch)
         print('epoch:{}, acc:{}'.format(epoch, acc))
         is_best = acc > best_acc
 

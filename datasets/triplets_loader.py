@@ -46,13 +46,14 @@ class TripletsData(data.Dataset):
 
         self.target_type = target_type
 
-        self.triplet_label_file = os.path.join(os.path.dirname(root_path), 'triplet_labels.csv')
-        self.triplet_file = os.path.join(os.path.dirname(root_path), 'triplets.csv')
+        self.triplet_label_file = os.path.join(os.path.dirname(root_path), '{subset}_triplet_labels.csv'.format(subset=subset))
+        self.triplet_file = os.path.join(os.path.dirname(root_path), '{subset}_triplets.csv'.format(subset=subset))
 
         if ntriplets:
             print('making [{}] triplets...'.format(ntriplets))
 
             self.make_triplet_list(ntriplets)
+
 
             print('\ttriplet_label_file:{}'.format(self.triplet_label_file))
             print('\ttriplet_file:{}'.format(self.triplet_file))
@@ -136,7 +137,7 @@ class TripletsData(data.Dataset):
             csv_reader = csv.reader(f, delimiter=',')
             lines = [line for line in csv_reader]
         self.triplets = lines
-
+        
     def __getitem__(self, index):
 
         (anchor, positive, negative) = self.triplets[index]
@@ -171,7 +172,6 @@ class TripletsData(data.Dataset):
         triplet_labels = []
         for i in range(ntriplets):
             pairs = random.sample(self.data, 2)
-            # print('anchor/positive:{}, negative:{}'.format(pairs[0]['video'], pairs[1]['video']))
 
             positive = pairs[0]
             anchor = positive.copy()
@@ -218,18 +218,6 @@ class TripletsData(data.Dataset):
 
 
 
-
-        # for class_idx in range(10):
-        # a = np.random.choice(data, replace=False)
-        # print(a)
-            # a = np.random.choice(np.where(np_labels==class_idx)[0], int(ntriplets/10), replace=True)
-            # b = np.random.choice(np.where(np_labels==class_idx)[0], int(ntriplets/10), replace=True)
-            # while np.any((a-b)==0):
-            #     np.random.shuffle(b)
-            # c = np.random.choice(np.where(np_labels!=class_idx)[0], int(ntriplets/10), replace=True)
-            #
-            # for i in range(a.shape[0]):
-            #     triplets.append([int(a[i]), int(c[i]), int(b[i])])
 
 
 #

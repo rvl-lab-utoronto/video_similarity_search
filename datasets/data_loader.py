@@ -21,13 +21,14 @@ sample_size = 112
 train_crop_min_scale = 0.25
 train_crop_min_ratio = 0.75
 sample_duration = 16
+n_val_samples = 3 # number of validation samples for each activity
 
 video_path = '/media/diskstation/datasets/UCF101/jpg'
 annotation_path = '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
 dataset='ucf101'
 input_type = 'rgb'
 file_type = 'jpg'
-batch_size= 32
+batch_size= 16
 n_threads = 4
 
 no_mean_norm=False
@@ -35,7 +36,10 @@ no_std_norm=False
 mean_dataset = 'kinetics'
 value_scale = 1
 
-ntriplets=None
+ntriplets = 9000
+ntesttriplets = 1000
+distributed=False
+
 
 def get_mean_std(value_scale, dataset):
     assert dataset in ['activitynet', 'kinetics', '0.5']
@@ -121,13 +125,75 @@ def get_train_data():
     return train_data, train_loader
 
 
+def get_val_data():
+    normalize = get_normalize_method(mean, std, no_mean_norm,
+                                     no_std_norm)
+    spatial_transform = [
+        Resize(sample_size),
+        CenterCrop(sample_size),
+        ToTensor()
+    ]
+
+    spatial_transform.extend([ScaleValue(value_scale), normalize])
+    spatial_transform = Compose(spatial_transform)
+    #
+    # temporal_transform = []
+    # # if sample_t_stride > 1:
+    # #     temporal_transform.append(TemporalSubsampling(sample_t_stride))
+    # temporal_transform.append(TemporalEvenCrop(sample_duration, n_val_samples))
+    # temporal_transform = TemporalCompose(temporal_transform)
+
+    TempTransform = {}
+    #anchor
+    begin_temporal_transform = []
+    begin_temporal_transform.append(TemporalBeginCrop(sample_duration))
+    begin_temporal_transform = TemporalCompose(begin_temporal_transform)
+    TempTransform['anchor'] = begin_temporal_transform
+
+    #positive
+    end_temporal_transform = []
+    end_temporal_transform.append(TemporalEndCrop(sample_duration))
+    end_temporal_transform = TemporalCompose(end_temporal_transform)
+    TempTransform['positive'] = end_temporal_transform
+
+    #negative
+    temporal_transform = []
+    temporal_transform.append(TemporalRandomCrop(sample_duration))
+    temporal_transform = TemporalCompose(temporal_transform)
+    TempTransform['negative'] = temporal_transform
+
+
+    val_data, collate_fn = get_validation_data(video_path, annotation_path, dataset,
+                                input_type, file_type,
+                                ntesttriplets,
+                                spatial_transform,
+                                TempTransform)
+    #TODO: investigate torch.utils.data.distributed.DistributedSampler()
+    val_sampler = None
+    val_loader = torch.utils.data.DataLoader(val_data,
+                                            batch_size = (batch_size // n_val_samples),
+                                            shuffle=False,
+                                            num_workers=n_threads,
+                                            pin_memory=True,
+                                            sampler=val_sampler,
+                                            worker_init_fn=worker_init_fn,
+                                            collate_fn=collate_fn)
+
+    return val_data, val_loader
+
 
 
 
 if __name__ == '__main__':
-    train_loader = get_train_data()
-    print(train_loader)
-    for i, (inputs, targets) in enumerate(train_loader):
+    # train_loader = get_train_data()
+    # print(train_loader)
+    # for i, (inputs, targets) in enumerate(train_loader):
+    #     if i>3:
+    #         break
+    #     print(i, inputs.shape, targets)
+    val_data, val_loader = get_val_data()
+    print(val_loader)
+    for i, (inputs, targets) in enumerate(val_loader):
         if i>3:
             break
         print(i, inputs.shape, targets)

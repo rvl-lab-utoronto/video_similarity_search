@@ -109,7 +109,7 @@ def validate(val_loader, tripletnet, criterion, epoch):
     accs = AverageMeter()
 
     tripletnet.eval()
-    for batch_idx, (inputs, targets) in enumerate(test_loader):
+    for batch_idx, (inputs, targets) in enumerate(val_loader):
         (anchor, positive, negative) = inputs
         (anchor_target, positive_target, negative_target) = targets
         if cuda:
@@ -120,7 +120,7 @@ def validate(val_loader, tripletnet, criterion, epoch):
         if cuda:
             target = target.to(device)
 
-        test_loss = criterion(dista, distb, taget)
+        test_loss = criterion(dista, distb, target)
 
         # measure accuracy and record loss
         acc = accuracy(dista, distb)
@@ -211,6 +211,7 @@ if __name__ == '__main__':
             print("=> no checkpoint found at '{}'".format(resume))
 
     train_data, train_loader = data_loader.get_train_data()
+    val_data, val_loader = data_loader.get_val_data()
 
     criterion = torch.nn.MarginRankingLoss(margin=margin).to(device)
     optimizer = optim.SGD(tripletnet.parameters(), lr=lr, momentum=momentum)
@@ -221,7 +222,7 @@ if __name__ == '__main__':
 
     for epoch in range(1, epochs+1):
         train(train_loader, tripletnet, criterion, optimizer, epoch)
-        acc = test(test_loader, tripletnet, criterion, epoch)
+        acc = validate(val_loader, tripletnet, criterion, epoch)
         print('epoch:{}, acc:{}'.format(epoch, acc))
         is_best = acc > best_acc
 

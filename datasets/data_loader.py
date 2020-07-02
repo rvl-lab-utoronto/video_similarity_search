@@ -28,7 +28,7 @@ annotation_path = '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
 dataset='ucf101'
 input_type = 'rgb'
 file_type = 'jpg'
-batch_size= 16
+batch_size= 8
 n_threads = 4
 
 no_mean_norm=False

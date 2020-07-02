@@ -129,7 +129,6 @@ def validate(val_loader, tripletnet, criterion, epoch):
             (anchor_target, positive_target, negative_target) = targets
             if cuda:
                 anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
-
             dista, distb, _, _, _ = tripletnet(anchor, positive, negative)
             target = torch.FloatTensor(dista.size()).fill_(-1)
             if cuda:

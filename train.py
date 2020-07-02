@@ -110,8 +110,6 @@ def validate(val_loader, tripletnet, criterion, epoch):
 
     tripletnet.eval()
     for batch_idx, (inputs, targets) in enumerate(val_loader):
-        print(inputs)
-        print(targets)
         (anchor, positive, negative) = inputs
         (anchor_target, positive_target, negative_target) = targets
         if cuda:
@@ -122,7 +120,7 @@ def validate(val_loader, tripletnet, criterion, epoch):
         if cuda:
             target = target.to(device)
 
-        test_loss = criterion(dista, distb, taget)
+        test_loss = criterion(dista, distb, target)
 
         # measure accuracy and record loss
         acc = accuracy(dista, distb)

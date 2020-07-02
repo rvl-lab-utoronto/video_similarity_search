@@ -172,12 +172,14 @@ def get_val_data():
     val_sampler = None
     val_loader = torch.utils.data.DataLoader(val_data,
                                             batch_size = (batch_size // n_val_samples),
+                                            # batch_size = batch_size,
                                             shuffle=False,
                                             num_workers=n_threads,
                                             pin_memory=True,
                                             sampler=val_sampler,
-                                            worker_init_fn=worker_init_fn,
-                                            collate_fn=collate_fn)
+                                            worker_init_fn=worker_init_fn
+                                            # collate_fn=collate_fn
+                                            )
 
     return val_data, val_loader
 
@@ -191,9 +193,17 @@ if __name__ == '__main__':
     #     if i>3:
     #         break
     #     print(i, inputs.shape, targets)
+    train_data, train_loader = get_train_data()
     val_data, val_loader = get_val_data()
-    print(val_loader)
+    a, b = val_data[0]
+    x, y, z= a
+    print(x.shape, y.shape, z.shape)
+    # for i, data in enumerate(train_loader):
+    #     a, b = data
+    #     x, y, z = a
+    #     print(x.shape)
     for i, (inputs, targets) in enumerate(val_loader):
-        if i>3:
-            break
-        print(i, inputs.shape, targets)
+    #     if i>3:
+    #         break
+        a,b,c = inputs
+        print(i, a.shape)

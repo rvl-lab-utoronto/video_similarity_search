@@ -137,9 +137,8 @@ class TripletsData(data.Dataset):
             csv_reader = csv.reader(f, delimiter=',')
             lines = [line for line in csv_reader]
         self.triplets = lines
-        
-    def __getitem__(self, index):
 
+    def __getitem__(self, index):
         (anchor, positive, negative) = self.triplets[index]
 
         anchor = json.loads(anchor)

@@ -14,11 +14,14 @@ from pytorch_memlab import MemReporter
 
 # cudnn.benchmark = True
 
-def get_args():
-    parser.argparse.ArgumentParser("3D ResNet TripletNet")
-    # parser.add_argument("--batch-size", type=int, default=32)
-    # parser.add_argument()
-    pass
+def get_parser():
+    parser = argparse.ArgumentParser("Video Similarity Search Training Script")
+    parser.add_argument(
+            '--pretrain_path',
+            default='/home/sherry/pretrained/r3d18_KM_200ep.pth',
+            type=str, action='store',
+            help='Path to pretrained encoder')
+    return parser
 
 
 model_depth=18
@@ -30,7 +33,7 @@ conv1_t_stride = 1 #stride in t dim of conv1
 no_max_pool = True #max pooling after conv1 is removed
 resnet_widen_factor = 1 #number of feature maps of resnet is multiplied by this value
 log_interval = 5 #log interval for batch number
-root_dir = '/home/sherry'
+root_dir = '.'
 
 resume='/home/sherry/tnet_checkpoints/r3d18/model_best.pth.tar'
 
@@ -192,7 +195,9 @@ def accuracy(dista, distb):
 
 
 if __name__ == '__main__':
-    pretrain_path = '/home/sherry/pretrained/r3d18_KM_200ep.pth'
+    args = get_parser().parse_args()
+
+    pretrain_path = args.pretrain_path
     margin = 0.2
     lr = 0.01
     momentum=0.5

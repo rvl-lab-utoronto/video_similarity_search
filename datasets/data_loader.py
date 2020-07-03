@@ -13,7 +13,7 @@ from temporal_transforms import (LoopPadding, TemporalRandomCrop,
                                  TemporalEndCrop, TemporalBeginCrop,
                                  SlidingWindow, TemporalSubsampling)
 from temporal_transforms import Compose as TemporalCompose
-from utils import Logger, worker_init_fn, get_lr
+from .utils import Logger, worker_init_fn, get_lr
 from dataset import get_training_data, get_validation_data, get_inference_data
 
 

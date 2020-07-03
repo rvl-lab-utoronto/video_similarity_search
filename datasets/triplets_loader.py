@@ -46,8 +46,11 @@ class TripletsData(data.Dataset):
 
         self.target_type = target_type
 
-        self.triplet_label_file = os.path.join(os.path.dirname(root_path), '{subset}_triplet_labels.csv'.format(subset=subset))
-        self.triplet_file = os.path.join(os.path.dirname(root_path), '{subset}_triplets.csv'.format(subset=subset))
+        self.output_dir = os.path.join(os.path.dirname(root_path), 'tmp')
+        self.triplet_label_file = os.path.join(self.output_dir,
+                '{subset}_triplet_labels.csv'.format(subset=subset))
+        self.triplet_file = os.path.join(self.output_dir,
+                '{subset}_triplets.csv'.format(subset=subset))
 
         if ntriplets:
             print('making [{}] triplets...'.format(ntriplets))
@@ -137,8 +140,9 @@ class TripletsData(data.Dataset):
             csv_reader = csv.reader(f, delimiter=',')
             lines = [line for line in csv_reader]
         self.triplets = lines
-
+        
     def __getitem__(self, index):
+
         (anchor, positive, negative) = self.triplets[index]
 
         anchor = json.loads(anchor)
@@ -206,6 +210,8 @@ class TripletsData(data.Dataset):
             triplet_labels.append([anchor_id, positive_id, negative_id])
             triplets.append([anchor, positive, negative])
 
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
 
         with open(self.triplet_label_file, 'w') as f:
             csv_writer = csv.writer(f, delimiter=',')

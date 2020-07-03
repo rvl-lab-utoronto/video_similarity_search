@@ -1,3 +1,7 @@
+"""
+Created by Sherry Chen on Jul 3, 2020
+Load training and validation data and apply temporal/spatial transformation
+"""
 import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -14,7 +18,7 @@ from temporal_transforms import (LoopPadding, TemporalRandomCrop,
                                  SlidingWindow, TemporalSubsampling)
 from temporal_transforms import Compose as TemporalCompose
 from .utils import Logger, worker_init_fn, get_lr
-from dataset import get_training_data, get_validation_data, get_inference_data
+from dataset import get_training_data, get_validation_data
 
 
 sample_size = 112
@@ -28,7 +32,7 @@ annotation_path = '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
 dataset='ucf101'
 input_type = 'rgb'
 file_type = 'jpg'
-batch_size= 8
+batch_size= 16
 n_threads = 4
 
 no_mean_norm=False
@@ -36,8 +40,8 @@ no_std_norm=False
 mean_dataset = 'kinetics'
 value_scale = 1
 
-ntriplets = 1000
-ntesttriplets = 100
+ntriplets = 9000
+ntesttriplets = 1000
 distributed=False
 
 
@@ -111,7 +115,7 @@ def get_train_data():
 
     train_data = get_training_data(video_path, annotation_path,
                                    dataset, input_type, file_type,
-                                   ntriplets,
+                                   ntriplets, True,
                                    spatial_transform, TempTransform)
 
     train_sampler = None
@@ -165,7 +169,7 @@ def get_val_data():
 
     val_data, collate_fn = get_validation_data(video_path, annotation_path, dataset,
                                 input_type, file_type,
-                                ntesttriplets,
+                                ntesttriplets, True,
                                 spatial_transform,
                                 TempTransform)
     #TODO: investigate torch.utils.data.distributed.DistributedSampler()
@@ -194,16 +198,8 @@ if __name__ == '__main__':
     #         break
     #     print(i, inputs.shape, targets)
     train_data, train_loader = get_train_data()
-    val_data, val_loader = get_val_data()
-    a, b = val_data[0]
-    x, y, z= a
-    print(x.shape, y.shape, z.shape)
+
     # for i, data in enumerate(train_loader):
     #     a, b = data
     #     x, y, z = a
     #     print(x.shape)
-    for i, (inputs, targets) in enumerate(val_loader):
-    #     if i>3:
-    #         break
-        a,b,c = inputs
-        print(i, a.shape)

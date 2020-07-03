@@ -1,3 +1,6 @@
+"""
+Modified from https://github.com/kenshohara/3D-ResNets-PyTorch
+"""
 import json
 import os
 from pathlib import Path

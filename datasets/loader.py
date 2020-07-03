@@ -1,3 +1,6 @@
+"""
+Modified from https://github.com/kenshohara/3D-ResNets-PyTorch
+"""
 import io
 import os
 import h5py

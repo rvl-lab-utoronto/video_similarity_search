@@ -1,3 +1,7 @@
+"""
+Created by Sherry Chen on Jul 3, 2020
+Build and Train Triplet network. Supports saving and loading checkpoints,
+"""
 import os
 import argparse
 import shutil
@@ -37,6 +41,10 @@ root_dir = '.'
 
 resume='/home/sherry/tnet_checkpoints/r3d18/model_best.pth.tar'
 
+# resume='/home/sherry/tnet_checkpoints/r3d18/model_best.pth.tar'
+# pretrain = False
+resume = None
+pretrain = None
 
 cuda = False
 if torch.cuda.is_available():
@@ -159,10 +167,10 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
         os.makedirs(directory)
     filename = directory + filename
     torch.save(state, filename)
-    print('checkpoint:{} saved...'.format(filename))
+    print('=> checkpoint:{} saved...'.format(filename))
     if is_best:
         shutil.copyfile(filename,  os.path.join(directory, 'model_best.pth.tar'))
-        print('best_model saved as:{}'.format(os.path.join(directory, 'model_best.pth.tar')))
+        print('=> best_model saved as:{}'.format(os.path.join(directory, 'model_best.pth.tar')))
 
 
 class AverageMeter(object):
@@ -199,11 +207,11 @@ if __name__ == '__main__':
 
     pretrain_path = args.pretrain_path
     margin = 0.2
-    lr = 0.01
+    lr = 0.05
     momentum=0.5
     epochs=20
     best_acc = 0
-
+    start_epoch = 0
     model_name = os.path.basename(pretrain_path).split('_')[0]
     cudnn.benchmark = True
 
@@ -215,15 +223,13 @@ if __name__ == '__main__':
                         conv1_t_stride=conv1_t_stride,
                         no_max_pool=no_max_pool,
                         widen_factor=resnet_widen_factor)
-    print('finished generating model...')
-    model = load_pretrained_model(model, pretrain_path)
+    print('=> finished generating model...')
+    if pretrain:
+        print('=> loading pretrained model')
+        model = load_pretrained_model(model, pretrain_path)
+        print('=> pretrain model:{} is loaded'.format(pretrain_path))
+
     tripletnet = Tripletnet(model)
-    if cuda:
-        # if torch.cuda.device_count() > 1:
-            # print("Let's use {} GPUs".format(torch.cuda.device_count()))
-            # tripletnet = nn.DataParallel(tripletnet, device_ids=[0, 1])
-            # print('devices:{}'.format(tripletnet.device_ids))
-        tripletnet.to(device)
 
     if resume:
         if os.path.isfile(resume):
@@ -236,6 +242,13 @@ if __name__ == '__main__':
                     .format(resume, checkpoint['epoch']))
         else:
             print("=> no checkpoint found at '{}'".format(resume))
+
+    if cuda:
+        # if torch.cuda.device_count() > 1:
+            # print("Let's use {} GPUs".format(torch.cuda.device_count()))
+            # tripletnet = nn.DataParallel(tripletnet, device_ids=[0, 1])
+            # print('devices:{}'.format(tripletnet.device_ids))
+        tripletnet.to(device)
 
     train_data, train_loader = data_loader.get_train_data()
     val_data, val_loader = data_loader.get_val_data()

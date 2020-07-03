@@ -26,7 +26,8 @@ class TripletsData(data.Dataset):
                                        root_path / label / video_id),
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
                  target_type='label',
-                 ntriplets=None):
+                 ntriplets=None,
+                 same_instance=False):
         self.data, self.class_names = self.__make_dataset(
             root_path, annotation_path, subset, video_path_formatter)
 
@@ -49,10 +50,15 @@ class TripletsData(data.Dataset):
         self.triplet_label_file = os.path.join(os.path.dirname(root_path), '{subset}_triplet_labels.csv'.format(subset=subset))
         self.triplet_file = os.path.join(os.path.dirname(root_path), '{subset}_triplets.csv'.format(subset=subset))
 
-        if ntriplets:
-            print('making [{}] triplets...'.format(ntriplets))
 
-            self.make_triplet_list(ntriplets)
+        if ntriplets:
+            if same_instance:
+                print('sampling anchor and positive from the same instance')
+            else:
+                print('sampling anchor and positive from different instances of the same class')
+
+            print('making [{}] triplets...'.format(ntriplets))
+            self.make_triplet_list(ntriplets, same_instance)
 
 
             print('\ttriplet_label_file:{}'.format(self.triplet_label_file))
@@ -113,24 +119,7 @@ class TripletsData(data.Dataset):
         clip = torch.stack(clip, 0).permute(1, 0, 2, 3)
 
         return clip
-    #
-    # def __getitem__(self, index):
-    #     path = self.data[index]['video']
-    #     if isinstance(self.target_type, list):
-    #         target = [self.data[index][t] for t in self.target_type]
-    #     else:
-    #         target = self.data[index][self.target_type]
-    #
-    #     frame_indices = self.data[index]['frame_indices']
-    #     if self.temporal_transform is not None:
-    #         frame_indices = self.temporal_transform(frame_indices)
-    #
-    #     clip = self.__loading(path, frame_indices)
-    #
-    #     if self.target_transform is not None:
-    #         target = self.target_transform(target)
-    #
-    #     return clip, target
+
 
     def _gettriplets(self):
         with open(self.triplet_file, 'r') as f:
@@ -161,19 +150,16 @@ class TripletsData(data.Dataset):
         return (anchor_clip, positive_clip, negative_clip), (anchor_target, positive_target, negative_target)
 
 
-
-
     def __len__(self):
         return len(self.triplets)
 
-    def make_triplet_list(self, ntriplets):
+    def make_triplet_list(self, ntriplets, same_instance=True):
         triplets = []
         triplet_labels = []
         for i in range(ntriplets):
             pairs = random.sample(self.data, 2)
+            anchor = pairs[0]
 
-            positive = pairs[0]
-            anchor = positive.copy()
             negative = pairs[1]
 
             #anchor
@@ -182,17 +168,25 @@ class TripletsData(data.Dataset):
             anchor_id = anchor['video_id']
             frame_indices = anchor['frame_indices']
             anchor['frame_indices'] = self.anchor_temporal_transform(frame_indices)
-            anchor = json.dumps(anchor)
-            # print('anchor_clip path:{}, target:{}, frame_indices:{}, anchor_clip:{}'.format(path, target, anchor['frame_indices'], anchor_clip.size()))
+            # print('anchor path:{}, target:{}, frame_indices:{}'.format(path, target, anchor['frame_indices']))
+
 
             #positive
+            if same_instance:
+                positive = anchor.copy()
+            else:
+                #get the pool of the same class
+                anchor_label = target
+                pool = [d for d in self.data if d['label'] == anchor_label]
+                positive = random.sample(pool, 1)[0]
+
             path = positive['video']
             target = positive['label']
             positive_id = positive['video_id']
             frame_indices = positive['frame_indices']
             positive['frame_indices'] = self.positive_temporal_transform(frame_indices)
-            positive = json.dumps(positive)
-            # print('positive_clip path:{}, target:{}, frame_indices:{}, positive_clip:{}'.format(path, target, positive['frame_indices'], positive_clip.size()))
+            # print('positive_clip path:{}, target:{}, frame_indices:{}'.format(path, target, positive['frame_indices']))
+
 
             #negative
             path = negative['video']
@@ -200,8 +194,11 @@ class TripletsData(data.Dataset):
             negative_id = negative['video_id']
             frame_indices = negative['frame_indices']
             negative['frame_indices'] = self.negative_temporal_transform(frame_indices)
-            negative = json.dumps(negative)
             # print('negative_clip path:{}, target:{}, frame_indices:{}, negative_clip:{}'.format(path, target, negative['frame_indices'], negative_clip.size()))
+
+            anchor = json.dumps(anchor)
+            positive = json.dumps(positive)
+            negative = json.dumps(negative)
 
             triplet_labels.append([anchor_id, positive_id, negative_id])
             triplets.append([anchor, positive, negative])
@@ -214,17 +211,3 @@ class TripletsData(data.Dataset):
         with open(self.triplet_file,  'w') as f:
             csv_writer = csv.writer(f, delimiter=',')
             csv_writer.writerows(triplets)
-
-
-
-
-
-#
-# if __name__ == '__main__':
-#     train_loader = get_train_data()
-#     print(train_loader)
-#     # train_loader.make_triplet_list(10)
-#     # for i, (inputs, targets) in enumerate(train_loader):
-#         # if i>3:
-#             # break
-#         # print(i, inputs.shape, targets)

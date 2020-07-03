@@ -28,7 +28,7 @@ annotation_path = '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
 dataset='ucf101'
 input_type = 'rgb'
 file_type = 'jpg'
-batch_size= 8
+batch_size= 16
 n_threads = 4
 
 no_mean_norm=False
@@ -194,16 +194,8 @@ if __name__ == '__main__':
     #         break
     #     print(i, inputs.shape, targets)
     train_data, train_loader = get_train_data()
-    val_data, val_loader = get_val_data()
-    a, b = val_data[0]
-    x, y, z= a
-    print(x.shape, y.shape, z.shape)
+    
     # for i, data in enumerate(train_loader):
     #     a, b = data
     #     x, y, z = a
     #     print(x.shape)
-    for i, (inputs, targets) in enumerate(val_loader):
-    #     if i>3:
-    #         break
-        a,b,c = inputs
-        print(i, a.shape)

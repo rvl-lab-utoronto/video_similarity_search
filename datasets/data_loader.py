@@ -1,3 +1,7 @@
+"""
+Created by Sherry Chen on Jul 3, 2020
+Load training and validation data and apply temporal/spatial transformation
+"""
 import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -194,7 +198,7 @@ if __name__ == '__main__':
     #         break
     #     print(i, inputs.shape, targets)
     train_data, train_loader = get_train_data()
-    
+
     # for i, data in enumerate(train_loader):
     #     a, b = data
     #     x, y, z = a

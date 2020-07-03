@@ -1,3 +1,6 @@
+"""
+Pulled from https://github.com/kenshohara/3D-ResNets-PyTorch
+"""
 from torchvision import get_image_backend
 
 import sys, os

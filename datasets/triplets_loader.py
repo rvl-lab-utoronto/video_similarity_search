@@ -1,3 +1,8 @@
+"""
+Created by Sherry Chen on Jul 3, 2020
+Sample triplet pair and apply temporal/spatial transformation
+"""
+
 import pprint
 import torch
 import torch.utils.data as data

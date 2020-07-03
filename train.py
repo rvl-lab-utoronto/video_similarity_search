@@ -1,6 +1,6 @@
 """
 Created by Sherry Chen on Jul 3, 2020
-Build and Train Triplet network. Supports saving and loading checkpoints, 
+Build and Train Triplet network. Supports saving and loading checkpoints,
 """
 import os
 import argparse
@@ -199,7 +199,7 @@ def accuracy(dista, distb):
 if __name__ == '__main__':
     pretrain_path = '/home/sherry/pretrained/r3d18_KM_200ep.pth'
     margin = 0.2
-    lr = 0.01
+    lr = 0.05
     momentum=0.5
     epochs=20
     best_acc = 0

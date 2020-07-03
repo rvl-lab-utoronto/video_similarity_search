@@ -1,5 +1,7 @@
+"""
+Modified from https://github.com/kenshohara/3D-ResNets-PyTorch
+"""
 import random
-
 from torchvision.transforms import transforms
 from torchvision.transforms import functional as F
 from PIL import Image

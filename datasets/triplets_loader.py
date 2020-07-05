@@ -16,7 +16,6 @@ from loader import VideoLoader
 from videodataset import get_database, get_class_labels
 
 
-
 class TripletsData(data.Dataset):
 
     def __init__(self,
@@ -119,6 +118,7 @@ class TripletsData(data.Dataset):
 
         return dataset, idx_to_class
 
+
     def __loading(self, path, frame_indices):
         clip = self.loader(path, frame_indices)
         if self.spatial_transform is not None:
@@ -136,7 +136,6 @@ class TripletsData(data.Dataset):
         self.triplets = lines
         
     def __getitem__(self, index):
-
         (anchor, positive, negative) = self.triplets[index]
 
         anchor = json.loads(anchor)
@@ -161,6 +160,7 @@ class TripletsData(data.Dataset):
 
     def __len__(self):
         return len(self.triplets)
+
 
     def make_triplet_list(self, ntriplets, same_instance=True):
         triplets = []

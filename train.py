@@ -16,6 +16,9 @@ import torch.backends.cudnn as cudnn
 
 from pytorch_memlab import MemReporter
 
+import slowfast.utils.parser as slowfast_parser
+from slowfast.models import build_model
+
 # cudnn.benchmark = True
 
 model_depth=18
@@ -45,6 +48,9 @@ device = torch.device('cuda:1')
 # print(device)
 # print(torch.cuda.device_count())
 
+arch_name = 'slowfast'
+#arch_name = '3dresnet'
+
 
 def get_parser():
     parser = argparse.ArgumentParser("Video Similarity Search Training Script")
@@ -67,6 +73,19 @@ def load_pretrained_model(model, pretrain_path):
     return model
 
 
+def slowfast_input(frames):
+    # assume batchsize already in tensor dimension
+    frame_idx = 2
+    SLOWFAST_ALPHA = 4
+
+    fast_pathway = frames
+    slow_pathway = torch.index_select(frames, frame_idx, torch.linspace(0,
+        frames.shape[frame_idx] - 1, frames.shape[frame_idx] // SLOWFAST_ALPHA).long(),)
+    frame_list = [slow_pathway, fast_pathway]
+
+    return frame_list
+
+
 def train(train_loader, tripletnet, criterion, optimizer, epoch):
     losses = AverageMeter()
     accs = AverageMeter()
@@ -78,8 +97,22 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch):
         anchor, positive, negative = inputs
         (anchor_target, positive_target, negative_target) = targets
 
-        if cuda:
-            anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
+        batch_size = anchor.size(0)
+
+        if arch_name == 'slowfast':
+            anchor = slowfast_input(anchor)
+            positive = slowfast_input(positive)
+            negative = slowfast_input(negative)
+            if cuda:
+                for i in range(len(anchor)):
+                    anchor[i], positive[i], negative[i] = anchor[i].to(device), positive[i].to(device), negative[i].to(device)
+        else:
+            if cuda:
+                anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
+
+        #for i in range(len(anchor)):
+        #    print('Anchor size:', anchor[i].size())
+
         dista, distb, embedded_x, embedded_y, embedded_z = tripletnet(anchor, positive, negative)
 
         #******
@@ -100,9 +133,9 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch):
 
         #measure accuracy and record loss
         acc = accuracy(dista.cpu(), distb.cpu())
-        losses.update(loss_triplet.cpu(), anchor.size(0))
-        accs.update(acc, anchor.size(0))
-        emb_norms.update(loss_embedd.cpu()/3, anchor.size(0))
+        losses.update(loss_triplet.cpu(), batch_size)
+        accs.update(acc, batch_size)
+        emb_norms.update(loss_embedd.cpu()/3, batch_size)
 
         # compute gradient and do optimizer step
         optimizer.zero_grad()
@@ -136,8 +169,20 @@ def validate(val_loader, tripletnet, criterion, epoch):
         for batch_idx, (inputs, targets) in enumerate(val_loader):
             (anchor, positive, negative) = inputs
             (anchor_target, positive_target, negative_target) = targets
-            if cuda:
-                anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
+
+            batch_size = anchor.size(0)
+
+            if arch_name == 'slowfast':
+                anchor = slowfast_input(anchor)
+                positive = slowfast_input(positive)
+                negative = slowfast_input(negative)
+                if cuda:
+                    for i in range(len(anchor)):
+                        anchor[i], positive[i], negative[i] = anchor[i].to(device), positive[i].to(device), negative[i].to(device)
+            else:
+                if cuda:
+                    anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
+
             dista, distb, _, _, _ = tripletnet(anchor, positive, negative)
             target = torch.FloatTensor(dista.size()).fill_(-1)
             if cuda:
@@ -147,8 +192,8 @@ def validate(val_loader, tripletnet, criterion, epoch):
 
             # measure accuracy and record loss
             acc = accuracy(dista, distb)
-            accs.update(acc.cpu(), anchor.size(0))
-            losses.update(test_loss.cpu(), anchor.size(0))
+            accs.update(acc.cpu(), batch_size)
+            losses.update(test_loss.cpu(), batch_size)
 
             torch.cuda.empty_cache()
 
@@ -197,10 +242,31 @@ def accuracy(dista, distb):
     return (pred > 0).sum()*1.0/dista.size()[0]
 
 
-if __name__ == '__main__':
-    args = get_parser().parse_args()
+def model_selector(arch_name, args=None):
+    assert arch_name in ['3dresnet', 'slowfast']
 
-    pretrain_path = args.pretrain_path
+    if arch_name == '3dresnet':
+        model=generate_model(model_depth=model_depth, n_classes=n_classes,
+                        n_input_channels=n_input_channels, shortcut_type=resnet_shortcut,
+                        conv1_t_size=conv1_t_size,
+                        conv1_t_stride=conv1_t_stride,
+                        no_max_pool=no_max_pool,
+                        widen_factor=resnet_widen_factor)
+    elif arch_name == 'slowfast':
+        cfg = slowfast_parser.load_config(args)
+        model = build_model(cfg)
+    
+    return model
+
+
+if __name__ == '__main__':
+    pretrain_path = ''
+    if arch_name == 'slowfast':
+        args = slowfast_parser.parse_args()
+    else:
+        args = get_parser().parse_args()
+        pretrain_path = args.pretrain_path
+    
     margin = 0.2
     lr = 0.05
     momentum=0.5
@@ -212,13 +278,9 @@ if __name__ == '__main__':
 
     # torch.cuda.empty_cache()
 
-    model=generate_model(model_depth=model_depth, n_classes=n_classes,
-                        n_input_channels=n_input_channels, shortcut_type=resnet_shortcut,
-                        conv1_t_size=conv1_t_size,
-                        conv1_t_stride=conv1_t_stride,
-                        no_max_pool=no_max_pool,
-                        widen_factor=resnet_widen_factor)
+    model=model_selector(arch_name, args)
     print('=> finished generating model...')
+
     if pretrain:
         print('=> loading pretrained model')
         model = load_pretrained_model(model, pretrain_path)

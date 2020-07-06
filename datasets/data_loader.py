@@ -20,10 +20,12 @@ from temporal_transforms import Compose as TemporalCompose
 from data_utils import Logger, worker_init_fn, get_lr
 from dataset import get_data
 
-sample_size = 112
+#sample_size = 112
+sample_size = 224
 train_crop_min_scale = 0.25
 train_crop_min_ratio = 0.75
-sample_duration = 16
+#sample_duration = 32
+sample_duration = 8
 n_val_samples = 3 # number of validation samples for each activity
 
 video_path = '/media/diskstation/datasets/UCF101/jpg'

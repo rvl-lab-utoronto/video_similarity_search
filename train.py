@@ -18,12 +18,6 @@ from pytorch_memlab import MemReporter
 
 # cudnn.benchmark = True
 
-def get_args():
-    parser.argparse.ArgumentParser("3D ResNet TripletNet")
-    # TODO: move all global variable to args
-    pass
-
-
 model_depth=18
 n_classes=1039
 n_input_channels=3
@@ -33,9 +27,10 @@ conv1_t_stride = 1 #stride in t dim of conv1
 no_max_pool = True #max pooling after conv1 is removed
 resnet_widen_factor = 1 #number of feature maps of resnet is multiplied by this value
 log_interval = 5 #log interval for batch number
-root_dir = '/home/sherry/tnet_checkpoints/diff_instance'
+root_dir = '.'
 
-# resume='/home/sherry/tnet_checkpoints/r3d18/model_best.pth.tar'
+resume='/home/sherry/tnet_checkpoints/r3d18/model_best.pth.tar'
+
 # pretrain = False
 resume = None
 pretrain = None
@@ -50,6 +45,15 @@ device = torch.device('cuda:1')
 # print(device)
 # print(torch.cuda.device_count())
 
+
+def get_parser():
+    parser = argparse.ArgumentParser("Video Similarity Search Training Script")
+    parser.add_argument(
+            '--pretrain_path',
+            default='/home/sherry/pretrained/r3d18_KM_200ep.pth',
+            type=str, action='store',
+            help='Path to pretrained encoder')
+    return parser
 
 
 def load_pretrained_model(model, pretrain_path):
@@ -184,6 +188,7 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
+
 def accuracy(dista, distb):
     margin = 0
     # pred = (dista - distb - margin).cpu().data
@@ -192,12 +197,10 @@ def accuracy(dista, distb):
     return (pred > 0).sum()*1.0/dista.size()[0]
 
 
-
-
-
-
 if __name__ == '__main__':
-    pretrain_path = '/home/sherry/pretrained/r3d18_KM_200ep.pth'
+    args = get_parser().parse_args()
+
+    pretrain_path = args.pretrain_path
     margin = 0.2
     lr = 0.05
     momentum=0.5
@@ -242,8 +245,8 @@ if __name__ == '__main__':
             # print('devices:{}'.format(tripletnet.device_ids))
         tripletnet.to(device)
 
-    train_data, train_loader = data_loader.get_train_data()
-    val_data, val_loader = data_loader.get_val_data()
+    train_loader = data_loader.build_data_loader('train')
+    val_loader = data_loader.build_data_loader('val')
 
     criterion = torch.nn.MarginRankingLoss(margin=margin).to(device)
     optimizer = optim.SGD(tripletnet.parameters(), lr=lr, momentum=momentum)

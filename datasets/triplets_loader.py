@@ -13,30 +13,28 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from pathlib import Path
 from loader import VideoLoader
-from videodataset import get_database, get_class_labels
 
 
 class TripletsData(data.Dataset):
 
     def __init__(self,
-                 root_path,
-                 annotation_path,
+                 data,
+                 class_names,
+                 output_path,
                  subset, #training, ...
                  spatial_transform=None,
                  temporal_transform=None,
                  target_transform=None,
                  video_loader=None,
-                 video_path_formatter=(lambda root_path, label, video_id:
-                                       root_path / label / video_id),
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
                  target_type='label',
                  ntriplets=None,
                  same_instance=False):
-        self.data, self.class_names = self.__make_dataset(
-            root_path, annotation_path, subset, video_path_formatter)
+
+        self.data = data
+        self.class_names = class_names
 
         self.spatial_transform = spatial_transform
-
         self.anchor_temporal_transform = temporal_transform['anchor']
         self.positive_temporal_transform = temporal_transform['positive']
         self.negative_temporal_transform = temporal_transform['negative']
@@ -51,12 +49,11 @@ class TripletsData(data.Dataset):
 
         self.target_type = target_type
 
-        self.output_dir = os.path.join(os.path.dirname(root_path), 'tmp')
+        self.output_dir = os.path.join(os.path.dirname(output_path), 'tmp_triplet_files')
         self.triplet_label_file = os.path.join(self.output_dir,
                 '{subset}_triplet_labels.csv'.format(subset=subset))
         self.triplet_file = os.path.join(self.output_dir,
                 '{subset}_triplets.csv'.format(subset=subset))
-
 
         if ntriplets:
             if same_instance:
@@ -67,56 +64,7 @@ class TripletsData(data.Dataset):
             print('making [{}] triplets...'.format(ntriplets))
             self.make_triplet_list(ntriplets, same_instance)
 
-
-            print('\ttriplet_label_file:{}'.format(self.triplet_label_file))
-            print('\ttriplet_file:{}'.format(self.triplet_file))
-
-        self._gettriplets()
-
-
-    def __make_dataset(self, root_path, annotation_path, subset, video_path_formatter):
-        with open(annotation_path, 'r') as f:
-            data = json.load(f)
-        video_ids, video_paths, annotations = get_database(
-            data, subset, root_path, video_path_formatter)
-        class_to_idx = get_class_labels(data)
-        idx_to_class = {}
-        for name, label in class_to_idx.items():
-            idx_to_class[label] = name
-
-        n_videos = len(video_ids)
-        dataset = []
-        for i in range(n_videos):
-            if i % (n_videos // 5) == 0:
-                print('dataset loading [{}/{}]'.format(i, len(video_ids)))
-
-            if 'label' in annotations[i]:
-                label = annotations[i]['label']
-                label_id = class_to_idx[label]
-            else:
-                label = 'test'
-                label_id = -1
-
-            video_path = video_paths[i]
-            if not os.path.exists(video_path):
-                print('not exists', video_path)
-                continue
-
-            segment = annotations[i]['segment']
-            if segment[1] == 1:
-                continue
-
-            frame_indices = list(range(segment[0], segment[1]))
-            sample = {
-                'video': video_path,
-                'segment': segment,
-                'frame_indices': frame_indices,
-                'video_id': video_ids[i],
-                'label': label_id
-            }
-            dataset.append(sample)
-
-        return dataset, idx_to_class
+        self.triplets = self._gettriplets()
 
 
     def __loading(self, path, frame_indices):
@@ -133,8 +81,9 @@ class TripletsData(data.Dataset):
         with open(self.triplet_file, 'r') as f:
             csv_reader = csv.reader(f, delimiter=',')
             lines = [line for line in csv_reader]
-        self.triplets = lines
+        return lines
         
+
     def __getitem__(self, index):
         (anchor, positive, negative) = self.triplets[index]
 
@@ -222,3 +171,6 @@ class TripletsData(data.Dataset):
         with open(self.triplet_file,  'w') as f:
             csv_writer = csv.writer(f, delimiter=',')
             csv_writer.writerows(triplets)
+        
+        print('\ttriplet_label_file:{}'.format(self.triplet_label_file))
+        print('\ttriplet_file:{}'.format(self.triplet_file))

@@ -6,15 +6,30 @@ from torchvision import get_image_backend
 import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from videodataset import VideoDataset
-from videodataset_multiclips import (VideoDatasetMultiClips,
-                                              collate_fn)
+from torch.utils.data.dataloader import default_collate
+
 from loader import VideoLoader, VideoLoaderHDF5, VideoLoaderFlowHDF5
 from triplets_loader import TripletsData
+from ucf101 import UCF101
 
 
 def image_name_formatter(x):
     return f'image_{x:05d}.jpg'
+
+
+def collate_fn(batch):
+    batch_clips, batch_targets = zip(*batch)
+
+    batch_clips = [clip for multi_clips in batch_clips for clip in multi_clips]
+    batch_targets = [
+        target for multi_targets in batch_targets for target in multi_targets
+    ]
+
+    target_element = batch_targets[0]
+    if isinstance(target_element, int) or isinstance(target_element, str):
+        return default_collate(batch_clips), default_collate(batch_targets)
+    else:
+        return default_collate(batch_clips), batch_targets
 
 
 def get_data(split, video_path, annotation_path, dataset_name, input_type,
@@ -22,6 +37,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
              temporal_transform=None, target_transform=None):
 
     assert split in ['train', 'val', 'test']
+    assert dataset_name in ['kinetics', 'ucf101']
 
     if file_type == 'jpg':
         assert input_type == 'rgb', 'flow input is supported only when input type is hdf5.'
@@ -42,14 +58,18 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
         elif split == 'val':
             subset = 'validation'
             ret_collate_fn = collate_fn
-        data = TripletsData(video_path,
-                            annotation_path,
-                            subset,
+
+        if dataset_name == 'ucf101':
+            Dataset = UCF101(video_path, annotation_path, subset, video_path_formatter)
+
+        data = TripletsData(data = Dataset.get_dataset(),
+                            class_names = Dataset.get_idx_to_class_map(),
+                            output_path='.',
+                            subset=subset,
                             spatial_transform=spatial_transform,
                             temporal_transform=temporal_transform,
                             target_transform=target_transform,
                             video_loader=loader,
-                            video_path_formatter=video_path_formatter,
                             ntriplets=ntriplets) 
         print('{}_data: {}'.format(split, len(data)))
 

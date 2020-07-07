@@ -1,12 +1,17 @@
 from slowfast.utils.parser import load_config, parse_args
 from slowfast.models import build_model
 
+from slowfast.config.defaults import get_cfg
+
 import torch
 
 
 def test():
-    args = parse_args()
-    cfg = load_config(args)
+    #args = parse_args()
+    #cfg = load_config(args)
+    cfg = get_cfg()
+    cfg.merge_from_file('configs/Kinetics/SLOWFAST_8x8_R50.yaml')
+    cfg.NUM_GPUS = 1
 
     model = build_model(cfg)
     cur_device = torch.cuda.current_device()

@@ -9,31 +9,20 @@ import tqdm
 import torch
 from torch import nn
 import torch.optim as optim
-from models.resnet import generate_model
 from models.triplet_net import Tripletnet
 from datasets import data_loader
 import torch.backends.cudnn as cudnn
 
 from pytorch_memlab import MemReporter
 
+import models.slowfast.slowfast.utils.parser as slowfast_parser
+from models.model_utils import model_selector, multipathway_input
+
+from config.parser import load_config, parse_args
+
 # cudnn.benchmark = True
 
-model_depth=18
-n_classes=1039
-n_input_channels=3
-resnet_shortcut = 'B'
-conv1_t_size = 7 #kernel size in t dim of conv1
-conv1_t_stride = 1 #stride in t dim of conv1
-no_max_pool = True #max pooling after conv1 is removed
-resnet_widen_factor = 1 #number of feature maps of resnet is multiplied by this value
 log_interval = 5 #log interval for batch number
-root_dir = '.'
-
-resume='/home/sherry/tnet_checkpoints/r3d18/model_best.pth.tar'
-
-# pretrain = False
-resume = None
-pretrain = None
 
 cuda = False
 if torch.cuda.is_available():
@@ -46,17 +35,9 @@ device = torch.device('cuda:1')
 # print(torch.cuda.device_count())
 
 
-def get_parser():
-    parser = argparse.ArgumentParser("Video Similarity Search Training Script")
-    parser.add_argument(
-            '--pretrain_path',
-            default='/home/sherry/pretrained/r3d18_KM_200ep.pth',
-            type=str, action='store',
-            help='Path to pretrained encoder')
-    return parser
-
-
 def load_pretrained_model(model, pretrain_path):
+    print('=> loading pretrained model')
+
     if pretrain_path:
         print('loading pretrained model {}'.format(pretrain_path))
         pretrain = torch.load(pretrain_path, map_location='cpu')
@@ -64,10 +45,11 @@ def load_pretrained_model(model, pretrain_path):
         model.load_state_dict(pretrain['state_dict'])
         tmp_model = model
 
+    print('=> pretrain model:{} is loaded'.format(pretrain_path))
     return model
 
 
-def train(train_loader, tripletnet, criterion, optimizer, epoch):
+def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
     losses = AverageMeter()
     accs = AverageMeter()
     emb_norms=AverageMeter()
@@ -78,8 +60,22 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch):
         anchor, positive, negative = inputs
         (anchor_target, positive_target, negative_target) = targets
 
-        if cuda:
-            anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
+        batch_size = anchor.size(0)
+
+        if cfg.MODEL.ARCH == 'slowfast':
+            anchor = multipathway_input(anchor)
+            positive = multipathway_input(positive)
+            negative = multipathway_input(negative)
+            if cuda:
+                for i in range(len(anchor)):
+                    anchor[i], positive[i], negative[i] = anchor[i].to(device), positive[i].to(device), negative[i].to(device)
+        else:
+            if cuda:
+                anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
+
+        #for i in range(len(anchor)):
+        #    print('Anchor size:', anchor[i].size())
+
         dista, distb, embedded_x, embedded_y, embedded_z = tripletnet(anchor, positive, negative)
 
         #******
@@ -100,9 +96,9 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch):
 
         #measure accuracy and record loss
         acc = accuracy(dista.cpu(), distb.cpu())
-        losses.update(loss_triplet.cpu(), anchor.size(0))
-        accs.update(acc, anchor.size(0))
-        emb_norms.update(loss_embedd.cpu()/3, anchor.size(0))
+        losses.update(loss_triplet.cpu(), batch_size)
+        accs.update(acc, batch_size)
+        emb_norms.update(loss_embedd.cpu()/3, batch_size)
 
         # compute gradient and do optimizer step
         optimizer.zero_grad()
@@ -124,9 +120,12 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch):
                 epoch, batch_idx * len(anchor), len(train_loader.dataset),
                 losses.val, losses.avg,
                 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
+    
+    with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as train_file:
+        train_file.write('{:.4f} {:.2f}\n'.format(losses.avg, 100. * accs.avg))
 
 
-def validate(val_loader, tripletnet, criterion, epoch):
+def validate(val_loader, tripletnet, criterion, epoch, cfg):
     losses = AverageMeter()
     accs = AverageMeter()
 
@@ -136,8 +135,20 @@ def validate(val_loader, tripletnet, criterion, epoch):
         for batch_idx, (inputs, targets) in enumerate(val_loader):
             (anchor, positive, negative) = inputs
             (anchor_target, positive_target, negative_target) = targets
-            if cuda:
-                anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
+
+            batch_size = anchor.size(0)
+
+            if cfg.MODEL.ARCH == 'slowfast':
+                anchor = multipathway_input(anchor)
+                positive = multipathway_input(positive)
+                negative = multipathway_input(negative)
+                if cuda:
+                    for i in range(len(anchor)):
+                        anchor[i], positive[i], negative[i] = anchor[i].to(device), positive[i].to(device), negative[i].to(device)
+            else:
+                if cuda:
+                    anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
+
             dista, distb, _, _, _ = tripletnet(anchor, positive, negative)
             target = torch.FloatTensor(dista.size()).fill_(-1)
             if cuda:
@@ -147,20 +158,24 @@ def validate(val_loader, tripletnet, criterion, epoch):
 
             # measure accuracy and record loss
             acc = accuracy(dista, distb)
-            accs.update(acc.cpu(), anchor.size(0))
-            losses.update(test_loss.cpu(), anchor.size(0))
+            accs.update(acc.cpu(), batch_size)
+            losses.update(test_loss.cpu(), batch_size)
 
             torch.cuda.empty_cache()
 
     print('\nTest set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
         losses.avg, 100. * accs.avg))
+
+    with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
+        val_file.write('{:.4f} {:.2f}\n'.format(losses.avg, 100. * accs.avg))
+
     return accs.avg
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+def save_checkpoint(state, is_best, model_name, output_path, filename='checkpoint.pth.tar'):
     """Saves checkpoint to disk"""
     directory = "tnet_checkpoints/%s/"%(model_name)
-    directory = os.path.join(root_dir, directory)
+    directory = os.path.join(output_path, directory)
     if not os.path.exists(directory):
         os.makedirs(directory)
     filename = directory + filename
@@ -197,46 +212,42 @@ def accuracy(dista, distb):
     return (pred > 0).sum()*1.0/dista.size()[0]
 
 
-if __name__ == '__main__':
-    args = get_parser().parse_args()
+def load_checkpoint(model, checkpoint_path):
+    if os.path.isfile(checkpoint_path):
+        print("=> loading checkpoint '{}'".format(checkpoint_path))
+        checkpoint = torch.load(checkpoint_path)
+        #start_epoch = checkpoint['epoch']
+        #best_prec1 = checkpoint['best_prec1']
+        model.load_state_dict(checkpoint['state_dict'])
+        print("=> loaded checkpoint '{}' (epoch {})"
+                .format(checkpoint_path, checkpoint['epoch']))
+    else:
+        print("=> no checkpoint found at '{}'".format(checkpoint_path))
 
-    pretrain_path = args.pretrain_path
-    margin = 0.2
-    lr = 0.05
-    momentum=0.5
-    epochs=20
+if __name__ == '__main__':
+    args = parse_args()
+    cfg = load_config(args)
+
     best_acc = 0
     start_epoch = 0
-    model_name = os.path.basename(pretrain_path).split('_')[0]
     cudnn.benchmark = True
 
     # torch.cuda.empty_cache()
 
-    model=generate_model(model_depth=model_depth, n_classes=n_classes,
-                        n_input_channels=n_input_channels, shortcut_type=resnet_shortcut,
-                        conv1_t_size=conv1_t_size,
-                        conv1_t_stride=conv1_t_stride,
-                        no_max_pool=no_max_pool,
-                        widen_factor=resnet_widen_factor)
-    print('=> finished generating model...')
-    if pretrain:
-        print('=> loading pretrained model')
+    # ======================== Similarity Network Setup ========================
+
+    model=model_selector(cfg)
+    print('=> finished generating {} backbone model...'.format(cfg.MODEL.ARCH))
+
+    # Load pretrained backbone if path exists
+    if args.pretrain_path is not None:
         model = load_pretrained_model(model, pretrain_path)
-        print('=> pretrain model:{} is loaded'.format(pretrain_path))
 
     tripletnet = Tripletnet(model)
 
-    if resume:
-        if os.path.isfile(resume):
-            print("=> loading checkpoint '{}'".format(resume))
-            checkpoint = torch.load(resume)
-            start_epoch = checkpoint['epoch']
-            best_prec1 = checkpoint['best_prec1']
-            tripletnet.load_state_dict(checkpoint['state_dict'])
-            print("=> loaded checkpoint '{}' (epoch {})"
-                    .format(resume, checkpoint['epoch']))
-        else:
-            print("=> no checkpoint found at '{}'".format(resume))
+    # Load similarity network checkpoint if path exists
+    if args.checkpoint_path is not None:
+        load_checkpoint(tripletnet, args.checkpoint_path)
 
     if cuda:
         # if torch.cuda.device_count() > 1:
@@ -245,19 +256,26 @@ if __name__ == '__main__':
             # print('devices:{}'.format(tripletnet.device_ids))
         tripletnet.to(device)
 
-    train_loader = data_loader.build_data_loader('train')
-    val_loader = data_loader.build_data_loader('val')
+    print('=> finished generating similarity network...')
 
-    criterion = torch.nn.MarginRankingLoss(margin=margin).to(device)
-    optimizer = optim.SGD(tripletnet.parameters(), lr=lr, momentum=momentum)
+    # ============================== Data Loaders ==============================
+
+    train_loader = data_loader.build_data_loader('train', cfg)
+    val_loader = data_loader.build_data_loader('val', cfg)
+
+    # ======================== Loss and Optimizer Setup ========================
+
+    criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
+    optimizer = optim.SGD(tripletnet.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
 
     n_parameters = sum([p.data.nelement() for p in tripletnet.parameters()])
     print(' + Number of params: {}'.format(n_parameters))
 
+    # ============================= Training loop ==============================
 
-    for epoch in range(start_epoch, epochs+1):
-        train(train_loader, tripletnet, criterion, optimizer, epoch)
-        acc = validate(val_loader, tripletnet, criterion, epoch)
+    for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
+        train(train_loader, tripletnet, criterion, optimizer, epoch, cfg)
+        acc = validate(val_loader, tripletnet, criterion, epoch, cfg)
         print('epoch:{}, acc:{}'.format(epoch, acc))
         is_best = acc > best_acc
 
@@ -266,4 +284,4 @@ if __name__ == '__main__':
             'epoch': epoch+1,
             'state_dict':tripletnet.state_dict(),
             'best_prec1': best_acc,
-        }, is_best)
+        }, is_best, cfg.MODEL.ARCH)

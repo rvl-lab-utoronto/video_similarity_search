@@ -26,8 +26,8 @@ _C.TEST = CfgNode()
 # Model options
 # -----------------------------------------------------------------------------
 _C.MODEL = CfgNode()
-#_C.MODEL.ARCH = "slowfast"
-_C.MODEL.ARCH = "3dresnet"
+_C.MODEL.ARCH = "slowfast"
+#_C.MODEL.ARCH = "3dresnet"
 
 
 # -----------------------------------------------------------------------------
@@ -35,7 +35,7 @@ _C.MODEL.ARCH = "3dresnet"
 # -----------------------------------------------------------------------------
 _C.SLOWFAST = CfgNode()
 _C.SLOWFAST.CFG_PATH = 'models/slowfast/configs/Kinetics/SLOWFAST_8x8_R50.yaml'
-
+_C.SLOWFAST.ALPHA = 4
 
 # -----------------------------------------------------------------------------
 # Data options

@@ -9,33 +9,25 @@ import tqdm
 import torch
 from torch import nn
 import torch.optim as optim
-from models.resnet import generate_model
 from models.triplet_net import Tripletnet
 from datasets import data_loader
 import torch.backends.cudnn as cudnn
 
 from pytorch_memlab import MemReporter
 
-import slowfast.utils.parser as slowfast_parser
-from slowfast.models import build_model
+import models.slowfast.slowfast.utils.parser as slowfast_parser
+from models.model_utils import model_selector, multipathway_input
 
 # cudnn.benchmark = True
 
-model_depth=18
-n_classes=1039
-n_input_channels=3
-resnet_shortcut = 'B'
-conv1_t_size = 7 #kernel size in t dim of conv1
-conv1_t_stride = 1 #stride in t dim of conv1
-no_max_pool = True #max pooling after conv1 is removed
-resnet_widen_factor = 1 #number of feature maps of resnet is multiplied by this value
 log_interval = 5 #log interval for batch number
 root_dir = '.'
 
-resume='/home/sherry/tnet_checkpoints/r3d18/model_best.pth.tar'
+#resume='/home/sherry/tnet_checkpoints/r3d18/model_best.pth.tar'
+resume = None
+resume = './tnet_checkpoints/checkpoint_epoch20_slowfast_8_224.pth.tar'
 
 # pretrain = False
-resume = None
 pretrain = None
 
 cuda = False
@@ -73,19 +65,6 @@ def load_pretrained_model(model, pretrain_path):
     return model
 
 
-def slowfast_input(frames):
-    # assume batchsize already in tensor dimension
-    frame_idx = 2
-    SLOWFAST_ALPHA = 4
-
-    fast_pathway = frames
-    slow_pathway = torch.index_select(frames, frame_idx, torch.linspace(0,
-        frames.shape[frame_idx] - 1, frames.shape[frame_idx] // SLOWFAST_ALPHA).long(),)
-    frame_list = [slow_pathway, fast_pathway]
-
-    return frame_list
-
-
 def train(train_loader, tripletnet, criterion, optimizer, epoch):
     losses = AverageMeter()
     accs = AverageMeter()
@@ -100,9 +79,9 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch):
         batch_size = anchor.size(0)
 
         if arch_name == 'slowfast':
-            anchor = slowfast_input(anchor)
-            positive = slowfast_input(positive)
-            negative = slowfast_input(negative)
+            anchor = multipathway_input(anchor)
+            positive = multipathway_input(positive)
+            negative = multipathway_input(negative)
             if cuda:
                 for i in range(len(anchor)):
                     anchor[i], positive[i], negative[i] = anchor[i].to(device), positive[i].to(device), negative[i].to(device)
@@ -157,6 +136,9 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch):
                 epoch, batch_idx * len(anchor), len(train_loader.dataset),
                 losses.val, losses.avg,
                 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
+    
+    with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(root_dir), "a") as train_file:
+        train_file.write('{:.4f} {:.2f}\n'.format(losses.avg, 100. * accs.avg))
 
 
 def validate(val_loader, tripletnet, criterion, epoch):
@@ -173,9 +155,9 @@ def validate(val_loader, tripletnet, criterion, epoch):
             batch_size = anchor.size(0)
 
             if arch_name == 'slowfast':
-                anchor = slowfast_input(anchor)
-                positive = slowfast_input(positive)
-                negative = slowfast_input(negative)
+                anchor = multipathway_input(anchor)
+                positive = multipathway_input(positive)
+                negative = multipathway_input(negative)
                 if cuda:
                     for i in range(len(anchor)):
                         anchor[i], positive[i], negative[i] = anchor[i].to(device), positive[i].to(device), negative[i].to(device)
@@ -199,6 +181,10 @@ def validate(val_loader, tripletnet, criterion, epoch):
 
     print('\nTest set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
         losses.avg, 100. * accs.avg))
+
+    with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(root_dir), "a") as val_file:
+        val_file.write('{:.4f} {:.2f}\n'.format(losses.avg, 100. * accs.avg))
+
     return accs.avg
 
 
@@ -242,23 +228,6 @@ def accuracy(dista, distb):
     return (pred > 0).sum()*1.0/dista.size()[0]
 
 
-def model_selector(arch_name, args=None):
-    assert arch_name in ['3dresnet', 'slowfast']
-
-    if arch_name == '3dresnet':
-        model=generate_model(model_depth=model_depth, n_classes=n_classes,
-                        n_input_channels=n_input_channels, shortcut_type=resnet_shortcut,
-                        conv1_t_size=conv1_t_size,
-                        conv1_t_stride=conv1_t_stride,
-                        no_max_pool=no_max_pool,
-                        widen_factor=resnet_widen_factor)
-    elif arch_name == 'slowfast':
-        cfg = slowfast_parser.load_config(args)
-        model = build_model(cfg)
-    
-    return model
-
-
 if __name__ == '__main__':
     pretrain_path = ''
     if arch_name == 'slowfast':
@@ -270,7 +239,7 @@ if __name__ == '__main__':
     margin = 0.2
     lr = 0.05
     momentum=0.5
-    epochs=20
+    epochs=100
     best_acc = 0
     start_epoch = 0
     model_name = os.path.basename(pretrain_path).split('_')[0]

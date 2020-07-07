@@ -285,4 +285,4 @@ if __name__ == '__main__':
             'epoch': epoch+1,
             'state_dict':tripletnet.state_dict(),
             'best_prec1': best_acc,
-        }, is_best, cfg.MODEL.ARCH)
+        }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH)

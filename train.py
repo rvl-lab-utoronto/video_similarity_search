@@ -41,12 +41,39 @@ def load_pretrained_model(model, pretrain_path):
     if pretrain_path:
         print('loading pretrained model {}'.format(pretrain_path))
         pretrain = torch.load(pretrain_path, map_location='cpu')
-
         model.load_state_dict(pretrain['state_dict'])
-        tmp_model = model
 
     print('=> pretrain model:{} is loaded'.format(pretrain_path))
     return model
+
+
+def save_checkpoint(state, is_best, model_name, output_path, filename='checkpoint.pth.tar'):
+    """Saves checkpoint to disk"""
+    directory = "tnet_checkpoints/%s/"%(model_name)
+    directory = os.path.join(output_path, directory)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    filename = directory + filename
+    torch.save(state, filename)
+    print('=> checkpoint:{} saved...'.format(filename))
+    if is_best:
+        shutil.copyfile(filename,  os.path.join(directory, 'model_best.pth.tar'))
+        print('=> best_model saved as:{}'.format(os.path.join(directory, 'model_best.pth.tar')))
+
+
+def load_checkpoint(model, checkpoint_path):
+    if os.path.isfile(checkpoint_path):
+        print("=> loading checkpoint '{}'".format(checkpoint_path))
+        checkpoint = torch.load(checkpoint_path)
+        start_epoch = checkpoint['epoch']
+        best_prec1 = checkpoint['best_prec1']
+        model.load_state_dict(checkpoint['state_dict'])
+        print("=> loaded checkpoint '{}' (epoch {})"
+                .format(checkpoint_path, checkpoint['epoch']))
+    else:
+        print("=> no checkpoint found at '{}'".format(checkpoint_path))
+
+    return start_epoch, best_prec1
 
 
 def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
@@ -63,9 +90,9 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
         batch_size = anchor.size(0)
 
         if cfg.MODEL.ARCH == 'slowfast':
-            anchor = multipathway_input(anchor)
-            positive = multipathway_input(positive)
-            negative = multipathway_input(negative)
+            anchor = multipathway_input(anchor, cfg)
+            positive = multipathway_input(positive, cfg)
+            negative = multipathway_input(negative, cfg)
             if cuda:
                 for i in range(len(anchor)):
                     anchor[i], positive[i], negative[i] = anchor[i].to(device), positive[i].to(device), negative[i].to(device)
@@ -117,7 +144,7 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
                   'Loss: {:.4f} ({:.4f}) \t'
                   'Acc: {:.2f}% ({:.2f}%) \t'
                   'Emb_Norm: {:.2f} ({:.2f})'.format(
-                epoch, batch_idx * len(anchor), len(train_loader.dataset),
+                epoch, batch_idx * batch_size, len(train_loader.dataset),
                 losses.val, losses.avg,
                 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
     
@@ -139,9 +166,9 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
             batch_size = anchor.size(0)
 
             if cfg.MODEL.ARCH == 'slowfast':
-                anchor = multipathway_input(anchor)
-                positive = multipathway_input(positive)
-                negative = multipathway_input(negative)
+                anchor = multipathway_input(anchor, cfg)
+                positive = multipathway_input(positive, cfg)
+                negative = multipathway_input(negative, cfg)
                 if cuda:
                     for i in range(len(anchor)):
                         anchor[i], positive[i], negative[i] = anchor[i].to(device), positive[i].to(device), negative[i].to(device)
@@ -172,20 +199,6 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
     return accs.avg
 
 
-def save_checkpoint(state, is_best, model_name, output_path, filename='checkpoint.pth.tar'):
-    """Saves checkpoint to disk"""
-    directory = "tnet_checkpoints/%s/"%(model_name)
-    directory = os.path.join(output_path, directory)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    filename = directory + filename
-    torch.save(state, filename)
-    print('=> checkpoint:{} saved...'.format(filename))
-    if is_best:
-        shutil.copyfile(filename,  os.path.join(directory, 'model_best.pth.tar'))
-        print('=> best_model saved as:{}'.format(os.path.join(directory, 'model_best.pth.tar')))
-
-
 class AverageMeter(object):
     """Computes and stores the average and current value"""
     def __init__(self):
@@ -212,18 +225,6 @@ def accuracy(dista, distb):
     return (pred > 0).sum()*1.0/dista.size()[0]
 
 
-def load_checkpoint(model, checkpoint_path):
-    if os.path.isfile(checkpoint_path):
-        print("=> loading checkpoint '{}'".format(checkpoint_path))
-        checkpoint = torch.load(checkpoint_path)
-        #start_epoch = checkpoint['epoch']
-        #best_prec1 = checkpoint['best_prec1']
-        model.load_state_dict(checkpoint['state_dict'])
-        print("=> loaded checkpoint '{}' (epoch {})"
-                .format(checkpoint_path, checkpoint['epoch']))
-    else:
-        print("=> no checkpoint found at '{}'".format(checkpoint_path))
-
 if __name__ == '__main__':
     args = parse_args()
     cfg = load_config(args)
@@ -247,7 +248,7 @@ if __name__ == '__main__':
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
-        load_checkpoint(tripletnet, args.checkpoint_path)
+        start_epoch, best_acc = load_checkpoint(tripletnet, args.checkpoint_path)
 
     if cuda:
         # if torch.cuda.device_count() > 1:
@@ -284,4 +285,4 @@ if __name__ == '__main__':
             'epoch': epoch+1,
             'state_dict':tripletnet.state_dict(),
             'best_prec1': best_acc,
-        }, is_best, cfg.MODEL.ARCH)
+        }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH)

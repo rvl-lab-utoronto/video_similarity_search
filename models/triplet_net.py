@@ -6,8 +6,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch.nn.modules.utils import _triple
-
 
 class Tripletnet(nn.Module):
     def __init__(self, embeddingnet):

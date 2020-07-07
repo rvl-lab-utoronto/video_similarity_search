@@ -41,14 +41,13 @@ def model_selector(cfg):
     return model
 
 
-def multipathway_input(frames):
+def multipathway_input(frames, cfg):
     # assume batchsize already in tensor dimension
     frame_idx = 2
-    SLOWFAST_ALPHA = 4
 
     fast_pathway = frames
     slow_pathway = torch.index_select(frames, frame_idx, torch.linspace(0,
-        frames.shape[frame_idx] - 1, frames.shape[frame_idx] // SLOWFAST_ALPHA).long(),)
+        frames.shape[frame_idx] - 1, frames.shape[frame_idx] // cfg.SLOWFAST.ALPHA).long(),)
     frame_list = [slow_pathway, fast_pathway]
 
     return frame_list

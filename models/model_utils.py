@@ -1,8 +1,8 @@
 import torch
 
 from models.resnet import generate_model
-from slowfast.utils.parser import load_config
 from slowfast.models.build import build_model
+from slowfast.config.defaults import get_cfg
 
 
 # Resnet params
@@ -16,19 +16,27 @@ no_max_pool = True #max pooling after conv1 is removed
 resnet_widen_factor = 1 #number of feature maps of resnet is multiplied by this value
 
 
-def model_selector(arch_name, args=None):
-    assert arch_name in ['3dresnet', 'slowfast']
+def model_selector(cfg):
+    assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast']
 
-    if arch_name == '3dresnet':
+    if cfg.MODEL.ARCH == '3dresnet':
         model=generate_model(model_depth=model_depth, n_classes=n_classes,
                         n_input_channels=n_input_channels, shortcut_type=resnet_shortcut,
                         conv1_t_size=conv1_t_size,
                         conv1_t_stride=conv1_t_stride,
                         no_max_pool=no_max_pool,
                         widen_factor=resnet_widen_factor)
-    elif arch_name == 'slowfast':
-        cfg = load_config(args)
-        model = build_model(cfg)
+
+    elif cfg.MODEL.ARCH == 'slowfast':
+        slowfast_cfg = get_cfg()
+        slowfast_cfg.merge_from_file(cfg.SLOWFAST.CFG_PATH)
+
+        slowfast_cfg.NUM_GPUS = cfg.NUM_GPUS
+        slowfast_cfg.DATA.NUM_FRAMES = cfg.DATA.SAMPLE_DURATION
+        slowfast_cfg.DATA.CROP_SIZE = cfg.DATA.SAMPLE_SIZE
+        slowfast_cfg.DATA.INPUT_CHANNEL_NUM = [cfg.DATA.INPUT_CHANNEL_NUM, cfg.DATA.INPUT_CHANNEL_NUM]
+
+        model = build_model(slowfast_cfg)
     
     return model
 

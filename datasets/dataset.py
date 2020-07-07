@@ -32,7 +32,7 @@ def collate_fn(batch):
         return default_collate(batch_clips), batch_targets
 
 
-def get_data(split, video_path, annotation_path, dataset_name, input_type,
+def get_data(split, output_path, video_path, annotation_path, dataset_name, input_type,
              file_type, ntriplets=None, triplets = True, spatial_transform=None,
              temporal_transform=None, target_transform=None):
 
@@ -64,7 +64,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
 
         data = TripletsData(data = Dataset.get_dataset(),
                             class_names = Dataset.get_idx_to_class_map(),
-                            output_path='.',
+                            output_path=output_path,
                             subset=subset,
                             spatial_transform=spatial_transform,
                             temporal_transform=temporal_transform,

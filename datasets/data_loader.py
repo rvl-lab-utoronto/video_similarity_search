@@ -20,20 +20,15 @@ from temporal_transforms import Compose as TemporalCompose
 from data_utils import Logger, worker_init_fn, get_lr
 from dataset import get_data
 
-#sample_size = 112
-sample_size = 224
+
 train_crop_min_scale = 0.25
 train_crop_min_ratio = 0.75
-#sample_duration = 32
-sample_duration = 8
 n_val_samples = 3 # number of validation samples for each activity
 
 video_path = '/media/diskstation/datasets/UCF101/jpg'
 annotation_path = '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
-dataset='ucf101'
 input_type = 'rgb'
 file_type = 'jpg'
-batch_size= 16
 n_threads = 4
 
 no_mean_norm=False
@@ -78,7 +73,7 @@ def get_normalize_method(mean, std, no_mean_norm, no_std_norm):
             return Normalize(mean, std)
 
 
-def build_data_loader(split):
+def build_data_loader(split, cfg):
     mean, std = get_mean_std(value_scale, dataset=mean_dataset)
     
     normalize = get_normalize_method(mean, std, no_mean_norm,
@@ -90,7 +85,7 @@ def build_data_loader(split):
 
         spatial_transform = []
         spatial_transform.append(
-            RandomResizedCrop(sample_size, (train_crop_min_scale, 1.0),
+            RandomResizedCrop(cfg.DATA.SAMPLE_SIZE, (train_crop_min_scale, 1.0),
                             (train_crop_min_ratio, 1.0/train_crop_min_ratio))
             )
         spatial_transform.append(RandomHorizontalFlip())
@@ -101,8 +96,8 @@ def build_data_loader(split):
         n_triplets = ntriplets_val
 
         spatial_transform = [
-            Resize(sample_size),
-            CenterCrop(sample_size),
+            Resize(cfg.DATA.SAMPLE_SIZE),
+            CenterCrop(cfg.DATA.SAMPLE_SIZE),
             ToTensor()
         ]
         spatial_transform.extend([ScaleValue(value_scale), normalize])
@@ -110,7 +105,7 @@ def build_data_loader(split):
         # temporal_transform = []
         # # if sample_t_stride > 1:
         # #     temporal_transform.append(TemporalSubsampling(sample_t_stride))
-        # temporal_transform.append(TemporalEvenCrop(sample_duration, n_val_samples))
+        # temporal_transform.append(TemporalEvenCrop(cfg.DATA.SAMPLE_DURATION, n_val_samples))
         # temporal_transform = TemporalCompose(temporal_transform)
 
     spatial_transform = Compose(spatial_transform)
@@ -118,30 +113,30 @@ def build_data_loader(split):
     TempTransform = {}
     #anchor
     begin_temporal_transform = []
-    begin_temporal_transform.append(TemporalBeginCrop(sample_duration))
+    begin_temporal_transform.append(TemporalBeginCrop(cfg.DATA.SAMPLE_DURATION))
     begin_temporal_transform = TemporalCompose(begin_temporal_transform)
     TempTransform['anchor'] = begin_temporal_transform
 
     #positive
     end_temporal_transform = []
-    end_temporal_transform.append(TemporalEndCrop(sample_duration))
+    end_temporal_transform.append(TemporalEndCrop(cfg.DATA.SAMPLE_DURATION))
     end_temporal_transform = TemporalCompose(end_temporal_transform)
     TempTransform['positive'] = end_temporal_transform
 
     #negative
     temporal_transform = []
-    temporal_transform.append(TemporalRandomCrop(sample_duration))
+    temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
     temporal_transform = TemporalCompose(temporal_transform)
     TempTransform['negative'] = temporal_transform
 
-    data, collate_fn = get_data(split, video_path, annotation_path,
-                dataset, input_type, file_type, n_triplets, True,
+    data, collate_fn = get_data(split, cfg.OUTPUT_PATH, video_path, annotation_path,
+                cfg.TRAIN.DATASET, input_type, file_type, n_triplets, True,
                 spatial_transform, TempTransform)
 
     if split == 'train':
         sampler = None
         data_loader = torch.utils.data.DataLoader(data,
-                                                  batch_size=batch_size,
+                                                  batch_size=cfg.TRAIN.BATCH_SIZE,
                                                   shuffle=(sampler is None),
                                                   num_workers=n_threads,
                                                   pin_memory=True,
@@ -151,8 +146,8 @@ def build_data_loader(split):
         #TODO: investigate torch.utils.data.distributed.DistributedSampler()
         sampler = None
         data_loader = torch.utils.data.DataLoader(data,
-                                                  batch_size = (batch_size // n_val_samples),
-                                                  # batch_size = batch_size,
+                                                  batch_size = (cfg.TRAIN.BATCH_SIZE // n_val_samples),
+                                                  # batch_size = cfg.TRAIN.BATCH_SIZE,
                                                   shuffle=False,
                                                   num_workers=n_threads,
                                                   pin_memory=True,

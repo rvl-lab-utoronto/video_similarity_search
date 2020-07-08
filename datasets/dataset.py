@@ -13,10 +13,6 @@ from triplets_loader import TripletsData
 from ucf101 import UCF101
 
 
-def image_name_formatter(x):
-    return f'image_{x:05d}.jpg'
-
-
 def collate_fn(batch):
     batch_clips, batch_targets = zip(*batch)
 
@@ -42,15 +38,6 @@ def get_data(split, output_path, video_path, annotation_path, dataset_name, inpu
     if file_type == 'jpg':
         assert input_type == 'rgb', 'flow input is supported only when input type is hdf5.'
 
-        if get_image_backend() == 'accimage':
-            from datasets.loader import ImageLoaderAccImage
-            loader = VideoLoader(image_name_formatter, ImageLoaderAccImage())
-        else:
-            loader = VideoLoader(image_name_formatter)
-
-        video_path_formatter = (lambda root_path, label, video_id: root_path + '/' +
-                            label + '/' + video_id)
-
     if triplets:
         if split == 'train':
             subset = 'training'
@@ -59,8 +46,17 @@ def get_data(split, output_path, video_path, annotation_path, dataset_name, inpu
             subset = 'validation'
             ret_collate_fn = collate_fn
 
+        video_path_formatter = (lambda root_path, label, video_id: root_path + '/' +
+                            label + '/' + video_id)
+
         if dataset_name == 'ucf101':
             Dataset = UCF101(video_path, annotation_path, subset, video_path_formatter)
+
+        if get_image_backend() == 'accimage':
+            from datasets.loader import ImageLoaderAccImage
+            loader = VideoLoader(Dataset.image_name_formatter, ImageLoaderAccImage())
+        else:
+            loader = VideoLoader(Dataset.image_name_formatter)
 
         data = TripletsData(data = Dataset.get_dataset(),
                             class_names = Dataset.get_idx_to_class_map(),

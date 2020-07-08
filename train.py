@@ -15,10 +15,9 @@ import torch.backends.cudnn as cudnn
 
 from pytorch_memlab import MemReporter
 
-import models.slowfast.slowfast.utils.parser as slowfast_parser
 from models.model_utils import model_selector, multipathway_input
 
-from config.parser import load_config, parse_args
+from config.m_parser import load_config, parse_args
 
 # cudnn.benchmark = True
 
@@ -279,7 +278,6 @@ if __name__ == '__main__':
         acc = validate(val_loader, tripletnet, criterion, epoch, cfg)
         print('epoch:{}, acc:{}'.format(epoch, acc))
         is_best = acc > best_acc
-
         best_acc = max(acc, best_acc)
         save_checkpoint({
             'epoch': epoch+1,

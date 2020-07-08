@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from config.default_params import get_cfg
+from default_params import get_cfg
 
 
 # Argument parser

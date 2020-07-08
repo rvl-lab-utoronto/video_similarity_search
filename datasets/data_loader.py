@@ -4,6 +4,7 @@ Load training and validation data and apply temporal/spatial transformation
 """
 import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config'))
 
 import torch
 from torch import nn
@@ -19,6 +20,8 @@ from temporal_transforms import (LoopPadding, TemporalRandomCrop,
 from temporal_transforms import Compose as TemporalCompose
 from data_utils import Logger, worker_init_fn, get_lr
 from dataset import get_data
+
+from m_parser import load_config, parse_args  # from ../config/m_parser
 
 
 train_crop_min_scale = 0.25
@@ -160,8 +163,11 @@ def build_data_loader(split, cfg):
 
 
 if __name__ == '__main__':
-    train_loader = build_data_loader('train')
-    val_loader = build_data_loader('val')
+    args = parse_args()
+    cfg = load_config(args)
+
+    train_loader = build_data_loader('train', cfg)
+    val_loader = build_data_loader('val', cfg)
 
     # print(train_loader)
     # for i, (inputs, targets) in enumerate(train_loader):

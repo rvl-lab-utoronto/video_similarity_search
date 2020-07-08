@@ -28,7 +28,6 @@ class TripletsData(data.Dataset):
                  video_loader=None,
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
                  target_type='label'):
-
         self.data = data
         self.class_names = class_names
 
@@ -100,3 +99,6 @@ class TripletsData(data.Dataset):
 
     def __len__(self):
         return len(self.data)
+
+
+   

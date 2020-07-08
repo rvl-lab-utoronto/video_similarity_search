@@ -33,7 +33,7 @@ def collate_fn(batch):
 
 
 def get_data(split, output_path, video_path, annotation_path, dataset_name, input_type,
-             file_type, ntriplets=None, triplets = True, spatial_transform=None,
+             file_type, spatial_transform=None,
              temporal_transform=None, target_transform=None):
 
     assert split in ['train', 'val', 'test']
@@ -51,29 +51,24 @@ def get_data(split, output_path, video_path, annotation_path, dataset_name, inpu
         video_path_formatter = (lambda root_path, label, video_id: root_path + '/' +
                             label + '/' + video_id)
 
-    if triplets:
-        if split == 'train':
-            subset = 'training'
-            ret_collate_fn = None
-        elif split == 'val':
-            subset = 'validation'
-            ret_collate_fn = collate_fn
+    if split == 'train':
+        subset = 'training'
+        ret_collate_fn = None
+    elif split == 'val':
+        subset = 'validation'
+        ret_collate_fn = collate_fn
 
-        if dataset_name == 'ucf101':
-            Dataset = UCF101(video_path, annotation_path, subset, video_path_formatter)
+    if dataset_name == 'ucf101':
+        Dataset = UCF101(video_path, annotation_path, subset, video_path_formatter)
 
-        data = TripletsData(data = Dataset.get_dataset(),
-                            class_names = Dataset.get_idx_to_class_map(),
-                            output_path=output_path,
-                            subset=subset,
-                            spatial_transform=spatial_transform,
-                            temporal_transform=temporal_transform,
-                            target_transform=target_transform,
-                            video_loader=loader,
-                            ntriplets=ntriplets) 
-        print('{}_data: {}'.format(split, len(data)))
+    data = TripletsData(data = Dataset.get_dataset(),
+                        class_names = Dataset.get_idx_to_class_map(),
+                        output_path=output_path,
+                        subset=subset,
+                        spatial_transform=spatial_transform,
+                        temporal_transform=temporal_transform,
+                        target_transform=target_transform,
+                        video_loader=loader)
+    print('{}_data: {}'.format(split, len(data)))
 
     return data, ret_collate_fn
-
-
-

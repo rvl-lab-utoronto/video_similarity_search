@@ -29,7 +29,7 @@ class TripletsData(data.Dataset):
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
                  target_type='label',
                  ntriplets=None,
-                 same_instance=False):
+                 same_instance=True):
 
         self.data = data
         self.class_names = class_names
@@ -82,7 +82,7 @@ class TripletsData(data.Dataset):
             csv_reader = csv.reader(f, delimiter=',')
             lines = [line for line in csv_reader]
         return lines
-        
+
 
     def __getitem__(self, index):
         (anchor, positive, negative) = self.triplets[index]
@@ -171,6 +171,6 @@ class TripletsData(data.Dataset):
         with open(self.triplet_file,  'w') as f:
             csv_writer = csv.writer(f, delimiter=',')
             csv_writer.writerows(triplets)
-        
+
         print('\ttriplet_label_file:{}'.format(self.triplet_label_file))
         print('\ttriplet_file:{}'.format(self.triplet_file))

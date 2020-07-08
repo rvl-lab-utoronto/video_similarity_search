@@ -29,6 +29,15 @@ _C.MODEL = CfgNode()
 _C.MODEL.ARCH = "slowfast"
 #_C.MODEL.ARCH = "3dresnet"
 
+# -----------------------------------------------------------------------------
+# Dataset options
+# -----------------------------------------------------------------------------
+
+_C.DATASET = CfgNode()
+_C.DATASET.VID_PATH = '/media/diskstation/datasets/UCF101/jpg'
+#annotation path
+_C.DATASET.ANNO_PATH = '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
+
 
 # -----------------------------------------------------------------------------
 # Slowfast options
@@ -36,6 +45,20 @@ _C.MODEL.ARCH = "slowfast"
 _C.SLOWFAST = CfgNode()
 _C.SLOWFAST.CFG_PATH = 'models/slowfast/configs/Kinetics/SLOWFAST_8x8_R50.yaml'
 _C.SLOWFAST.ALPHA = 4
+
+
+# -----------------------------------------------------------------------------
+# 3dResNet options
+# -----------------------------------------------------------------------------
+_C.RESNET=CfgNode()
+_C.RESNET.MODEL_DEPTH = 18
+_C.RESNET.N_CLASSES=1039
+_C.RESNET.N_INPUT_CHANNELS = 3
+_C.RESNET.SHORTCUT = 'B'
+_C.RESNET.CONV1_T_SIZE = 7
+_C.RESNET.CONV1_T_STRIDE = 1
+_C.RESNET.NO_MAX_POOl = True
+_C.RESNET.WIDEN_FACTOR = 1
 
 # -----------------------------------------------------------------------------
 # Data options
@@ -67,7 +90,7 @@ _C.OPTIM.LR = 0.05
 _C.OPTIM.MOMENTUM = 0.5
 
 
-# ----------------------------------------------------------------------------- 
+# -----------------------------------------------------------------------------
 # Misc options
 # -----------------------------------------------------------------------------
 _C.NUM_GPUS = 1

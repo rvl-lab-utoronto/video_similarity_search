@@ -2,6 +2,7 @@
 Created by Sherry Chen on Jul 3, 2020
 Load training and validation data and apply temporal/spatial transformation
 """
+
 import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -72,17 +73,12 @@ def get_normalize_method(mean, std, no_mean_norm, no_std_norm):
         else:
             return Normalize(mean, std)
 
-
-def build_data_loader(split, cfg):
+def build_spatial_transformation(cfg, split):
     mean, std = get_mean_std(value_scale, dataset=mean_dataset)
-    
     normalize = get_normalize_method(mean, std, no_mean_norm,
-                                     no_std_norm)
-
-    assert split in ['train', 'val', 'test']
+                                         no_std_norm)
     if split == 'train':
-        n_triplets = ntriplets_train
-
+        # n_triplets = ntriplets_train
         spatial_transform = []
         spatial_transform.append(
             RandomResizedCrop(cfg.DATA.SAMPLE_SIZE, (train_crop_min_scale, 1.0),
@@ -93,8 +89,7 @@ def build_data_loader(split, cfg):
         spatial_transform.append(normalize)
 
     elif split == 'val':
-        n_triplets = ntriplets_val
-
+        # n_triplets = ntriplets_val
         spatial_transform = [
             Resize(cfg.DATA.SAMPLE_SIZE),
             CenterCrop(cfg.DATA.SAMPLE_SIZE),
@@ -109,7 +104,10 @@ def build_data_loader(split, cfg):
         # temporal_transform = TemporalCompose(temporal_transform)
 
     spatial_transform = Compose(spatial_transform)
+    return spatial_transform
 
+
+def build_temporal_transformation(cfg):
     TempTransform = {}
     #anchor
     begin_temporal_transform = []
@@ -128,9 +126,18 @@ def build_data_loader(split, cfg):
     temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
     temporal_transform = TemporalCompose(temporal_transform)
     TempTransform['negative'] = temporal_transform
+    return  TempTransform
 
-    data, collate_fn = get_data(split, cfg.OUTPUT_PATH, video_path, annotation_path,
-                cfg.TRAIN.DATASET, input_type, file_type, n_triplets, True,
+
+def build_data_loader(split, cfg):
+    assert split in ['train', 'val', 'test']
+
+    spatial_transform = build_spatial_transformation(cfg, split)
+    TempTransform = build_temporal_transformation(cfg)
+
+
+    data, collate_fn = get_data(split, cfg.OUTPUT_PATH, cfg.DATASET.VID_PATH, cfg.DATASET.ANNO_PATH,
+                cfg.TRAIN.DATASET, input_type, file_type,
                 spatial_transform, TempTransform)
 
     if split == 'train':
@@ -143,7 +150,6 @@ def build_data_loader(split, cfg):
                                                   sampler=sampler,
                                                   worker_init_fn=worker_init_fn)
     elif split == 'val':
-        #TODO: investigate torch.utils.data.distributed.DistributedSampler()
         sampler = None
         data_loader = torch.utils.data.DataLoader(data,
                                                   batch_size = (cfg.TRAIN.BATCH_SIZE // n_val_samples),
@@ -160,16 +166,22 @@ def build_data_loader(split, cfg):
 
 
 if __name__ == '__main__':
-    train_loader = build_data_loader('train')
-    val_loader = build_data_loader('val')
 
-    # print(train_loader)
-    # for i, (inputs, targets) in enumerate(train_loader):
-    #     if i>3:
-    #         break
-    #     print(i, inputs.shape, targets)
+    # val_loader = build_data_loader('val')
+    #
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    # for i, data in enumerate(train_loader):
-    #     a, b = data
-    #     x, y, z = a
-    #     print(x.shape)
+    from config.parser import load_config, parse_args
+
+    args = parse_args()
+    cfg = load_config(args)
+
+    spatial_transform = build_spatial_transformation('train')
+    TempTransform = build_temporal_transformation()
+
+    # train_loader = build_data_loader('train', cfg)
+    data, _ = get_data('train', cfg.OUTPUT_PATH, cfg.DATASET.VID_PATH, cfg.DATASET.ANNO_PATH,
+                cfg.TRAIN.DATASET, input_type, file_type,
+                spatial_transform, TempTransform)
+    a = data[1]
+    print(a[0][0].size())

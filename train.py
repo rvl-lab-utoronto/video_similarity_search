@@ -146,7 +146,7 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
                 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
 
 
-    with open(os.path.join(cfg.OUTPUT_PATH, 'triplets_{}.txt'.format(epoch)), 'w') as f:
+    with open('{}/tmp_triplets/triplets_{}.txt'.format(cfg.OUTPUT_PATH, epoch), 'w') as f:
         csv_writer = csv.writer(f, delimiter=',')
         csv_writer.writerows(triplets)
 
@@ -231,6 +231,9 @@ if __name__ == '__main__':
 
     if not os.path.exists(cfg.OUTPUT_PATH):
         os.makedirs(cfg.OUTPUT_PATH)
+
+    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets')):
+        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets'))
 
     best_acc = 0
     start_epoch = 0

@@ -40,18 +40,16 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
         assert input_type == 'rgb', 'flow input is supported only when input type is hdf5.'
 
     if split == 'train':
-        subset = 'training'
         ret_collate_fn = None
     elif split == 'val':
-        subset = 'validation'
         ret_collate_fn = collate_fn
 
     video_path_formatter = (lambda root_path, label, video_id: root_path + '/' +
                         label + '/' + video_id)
 
-    print ('Loading', dataset_name)
+    print ('Loading', dataset_name, split, 'split')
     if dataset_name == 'ucf101':
-        Dataset = UCF101(video_path, annotation_path, subset, video_path_formatter)
+        Dataset = UCF101(video_path, annotation_path, split, video_path_formatter)
     elif dataset_name == 'kinetics':
         Dataset = Kinetics(video_path, annotation_path, split, video_path_formatter)
 
@@ -63,7 +61,6 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
 
     data = TripletsData(data = Dataset.get_dataset(),
                         class_names = Dataset.get_idx_to_class_map(),
-                        subset=subset,
                         spatial_transform=spatial_transform,
                         temporal_transform=temporal_transform,
                         target_transform=target_transform,

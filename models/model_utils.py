@@ -1,8 +1,8 @@
 import torch
 
 from models.resnet import generate_model
-from slowfast.models.build import build_model
-from slowfast.config.defaults import get_cfg
+from models.slowfast.slowfast.models.build import build_model
+from models.slowfast.slowfast.config.defaults import get_cfg
 
 def model_selector(cfg):
     assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast']

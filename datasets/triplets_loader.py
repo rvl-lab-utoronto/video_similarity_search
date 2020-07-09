@@ -20,7 +20,6 @@ class TripletsData(data.Dataset):
     def __init__(self,
                  data,
                  class_names,
-                 subset, #training, ...
                  spatial_transform=None,
                  temporal_transform=None,
                  target_transform=None,

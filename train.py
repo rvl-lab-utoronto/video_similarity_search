@@ -23,7 +23,7 @@ from models.model_utils import model_selector, multipathway_input
 from config.m_parser import load_config, parse_args
 
 
-log_interval = 5 #log interval for batch number
+log_interval = 50 #log interval for batch number
 
 cuda = False
 if torch.cuda.is_available():
@@ -156,6 +156,7 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
 
 def validate(val_loader, tripletnet, criterion, epoch, cfg):
     losses = AverageMeter()
+    losses_r = AverageMeter()
     accs = AverageMeter()
 
     tripletnet.eval()
@@ -178,25 +179,29 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
                 if cuda:
                     anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
 
-            dista, distb, _, _, _ = tripletnet(anchor, positive, negative)
+            dista, distb, embedded_x, embedded_y, embedded_z = tripletnet(anchor, positive, negative)
             target = torch.FloatTensor(dista.size()).fill_(-1)
             if cuda:
                 target = target.to(device)
 
             test_loss = criterion(dista, distb, target)
+            #add regularization term
+            loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
+            loss_r = test_loss + 0.001 *loss_embedd
 
             # measure accuracy and record loss
             acc = accuracy(dista, distb)
             accs.update(acc.cpu(), batch_size)
             losses.update(test_loss.cpu(), batch_size)
+            losses_r.update(loss_r.cpu(), batch_size)
 
             torch.cuda.empty_cache()
 
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
-        losses.avg, 100. * accs.avg))
+    print('\nTest set: Average loss: {:.4f}({:.4f}), Accuracy: {:.2f}%\n'.format(
+        losses.avg, losses_r.avg, 100. * accs.avg))
 
     with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
-        val_file.write('{:.4f} {:.2f}\n'.format(losses.avg, 100. * accs.avg))
+        val_file.write('{:.4f} {:.4f} {:.2f}\n'.format(losses.avg,losses_r.avg, 100. * accs.avg))
 
     return accs.avg
 
@@ -274,7 +279,7 @@ if __name__ == '__main__':
     # ============================= Training loop ==============================
 
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
-        train(train_loader, tripletnet, criterion, optimizer, epoch, cfg)
+        # train(train_loader, tripletnet, criterion, optimizer, epoch, cfg)
         acc = validate(val_loader, tripletnet, criterion, epoch, cfg)
         print('epoch:{}, acc:{}'.format(epoch, acc))
         is_best = acc > best_acc

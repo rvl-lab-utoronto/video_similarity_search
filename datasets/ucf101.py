@@ -50,7 +50,7 @@ class UCF101():
     def get_idx_to_class_map(self):
         return self.idx_to_class_map
 
-    def image_name_formatter(x):
+    def image_name_formatter(self, x):
         return f'image_{x:05d}.jpg'
 
     def __make_dataset(self, root_path, annotation_path, subset, video_path_formatter):

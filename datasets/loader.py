@@ -38,6 +38,8 @@ class VideoLoader(object):
             image_path = video_path + '/' + self.image_name_formatter(i)
             if os.path.exists(image_path):
                 video.append(self.image_loader(image_path))
+            else:
+                print('Image DNE:', image_path)
 
         return video
 

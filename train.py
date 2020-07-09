@@ -135,11 +135,11 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
         torch.cuda.empty_cache()
 
         if batch_idx % log_interval == 0:
-            print('Train Epoch: {} [{}/{}]\t'
+            print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                   'Loss: {:.4f} ({:.4f}) \t'
                   'Acc: {:.2f}% ({:.2f}%) \t'
                   'Emb_Norm: {:.2f} ({:.2f})'.format(
-                epoch, batch_idx * batch_size, len(train_loader.dataset),
+                epoch, batch_idx * batch_size, len(train_loader.dataset), 100. * (batch_idx * batch_size / len(train_loader.dataset)),
                 losses.val, losses.avg,
                 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
 

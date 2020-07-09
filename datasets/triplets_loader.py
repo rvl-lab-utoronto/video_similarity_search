@@ -20,7 +20,6 @@ class TripletsData(data.Dataset):
     def __init__(self,
                  data,
                  class_names,
-                 output_path,
                  subset, #training, ...
                  spatial_transform=None,
                  temporal_transform=None,
@@ -50,8 +49,6 @@ class TripletsData(data.Dataset):
             self.loader = video_loader
 
         self.target_type = target_type
-
-        self.output_dir = os.path.join(os.path.dirname(output_path), 'tmp_triplet_files')
 
 
     def __loading(self, path, frame_indices):

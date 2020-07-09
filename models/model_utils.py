@@ -4,28 +4,18 @@ from models.resnet import generate_model
 from slowfast.models.build import build_model
 from slowfast.config.defaults import get_cfg
 
-
-# Resnet params
-model_depth=18
-n_classes=1039
-n_input_channels=3
-resnet_shortcut = 'B'
-conv1_t_size = 7 #kernel size in t dim of conv1
-conv1_t_stride = 1 #stride in t dim of conv1
-no_max_pool = True #max pooling after conv1 is removed
-resnet_widen_factor = 1 #number of feature maps of resnet is multiplied by this value
-
-
 def model_selector(cfg):
     assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast']
 
     if cfg.MODEL.ARCH == '3dresnet':
-        model=generate_model(model_depth=model_depth, n_classes=n_classes,
-                        n_input_channels=n_input_channels, shortcut_type=resnet_shortcut,
-                        conv1_t_size=conv1_t_size,
-                        conv1_t_stride=conv1_t_stride,
-                        no_max_pool=no_max_pool,
-                        widen_factor=resnet_widen_factor)
+        model=generate_model(model_depth=cfg.RESNET.MODEL_DEPTH,
+                        n_classes=cfg.RESNET.N_CLASSES,
+                        n_input_channels=cfg.RESNET.N_INPUT_CHANNELS,
+                        shortcut_type=cfg.RESNET.SHORTCUT,
+                        conv1_t_size=cfg.RESNET.CONV1_T_SIZE,
+                        conv1_t_stride=cfg.RESNET.CONV1_T_STRIDE,
+                        no_max_pool=cfg.RESNET.NO_MAX_POOl,
+                        widen_factor=cfg.RESNET.WIDEN_FACTOR)
 
     elif cfg.MODEL.ARCH == 'slowfast':
         slowfast_cfg = get_cfg()
@@ -37,7 +27,7 @@ def model_selector(cfg):
         slowfast_cfg.DATA.INPUT_CHANNEL_NUM = [cfg.DATA.INPUT_CHANNEL_NUM, cfg.DATA.INPUT_CHANNEL_NUM]
 
         model = build_model(slowfast_cfg)
-    
+
     return model
 
 
@@ -51,4 +41,3 @@ def multipathway_input(frames, cfg):
     frame_list = [slow_pathway, fast_pathway]
 
     return frame_list
-

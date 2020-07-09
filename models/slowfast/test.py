@@ -1,5 +1,5 @@
 from slowfast.utils.parser import load_config, parse_args
-from slowfast.models import build_model
+from slowfast.models.build import build_model
 
 from slowfast.config.defaults import get_cfg
 

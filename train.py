@@ -3,6 +3,7 @@ Created by Sherry Chen on Jul 3, 2020
 Build and Train Triplet network. Supports saving and loading checkpoints,
 """
 import os
+import csv
 import argparse
 import shutil
 import tqdm
@@ -19,7 +20,6 @@ from models.model_utils import model_selector, multipathway_input
 
 from config.m_parser import load_config, parse_args
 
-# cudnn.benchmark = True
 
 log_interval = 5 #log interval for batch number
 
@@ -30,18 +30,14 @@ if torch.cuda.is_available():
 os.environ["CUDA_VISIBLE_DEVICES"]=str('0,1')
 # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 device = torch.device('cuda:1')
-# print(device)
-# print(torch.cuda.device_count())
 
 
 def load_pretrained_model(model, pretrain_path):
     print('=> loading pretrained model')
-
     if pretrain_path:
         print('loading pretrained model {}'.format(pretrain_path))
         pretrain = torch.load(pretrain_path, map_location='cpu')
         model.load_state_dict(pretrain['state_dict'])
-
     print('=> pretrain model:{} is loaded'.format(pretrain_path))
     return model
 
@@ -80,11 +76,14 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
     accs = AverageMeter()
     emb_norms=AverageMeter()
 
+    triplets = []
     #switching to training mode
     tripletnet.train()
     for batch_idx, (inputs, targets) in enumerate(train_loader):
         anchor, positive, negative = inputs
+
         (anchor_target, positive_target, negative_target) = targets
+        triplets.append([anchor_target, positive_target, negative_target])
 
         batch_size = anchor.size(0)
 
@@ -98,9 +97,6 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
         else:
             if cuda:
                 anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
-
-        #for i in range(len(anchor)):
-        #    print('Anchor size:', anchor[i].size())
 
         dista, distb, embedded_x, embedded_y, embedded_z = tripletnet(anchor, positive, negative)
 
@@ -146,9 +142,14 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
                 epoch, batch_idx * batch_size, len(train_loader.dataset),
                 losses.val, losses.avg,
                 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
-    
-    with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as train_file:
-        train_file.write('{:.4f} {:.2f}\n'.format(losses.avg, 100. * accs.avg))
+
+
+    with open(os.path.join(cfg.OUTPUT_PATH, 'triplets_{}.txt'.format(epoch)), 'w') as f:
+        csv_writer = csv.writer(f, delimiter=',')
+        csv_writer.writerows(triplets)
+
+    with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
+        f.write('{:.4f} {:.2f}\n'.format(losses.avg, 100. * accs.avg))
 
 
 def validate(val_loader, tripletnet, criterion, epoch, cfg):
@@ -218,9 +219,7 @@ class AverageMeter(object):
 
 def accuracy(dista, distb):
     margin = 0
-    # pred = (dista - distb - margin).cpu().data
     pred = (distb - dista - margin).cpu().data
-    # print('pred', pred)
     return (pred > 0).sum()*1.0/dista.size()[0]
 
 
@@ -228,14 +227,13 @@ if __name__ == '__main__':
     args = parse_args()
     cfg = load_config(args)
 
+    if not os.path.exists(cfg.OUTPUT_PATH):
+        os.makedirs(cfg.OUTPUT_PATH)
+
     best_acc = 0
     start_epoch = 0
     cudnn.benchmark = True
-
-    # torch.cuda.empty_cache()
-
     # ======================== Similarity Network Setup ========================
-
     model=model_selector(cfg)
     print('=> finished generating {} backbone model...'.format(cfg.MODEL.ARCH))
 

@@ -37,8 +37,6 @@ no_std_norm=False
 mean_dataset = 'kinetics'
 value_scale = 1
 
-ntriplets_train = 9000
-ntriplets_val = 1000
 distributed=False
 
 
@@ -78,7 +76,6 @@ def build_spatial_transformation(cfg, split):
     normalize = get_normalize_method(mean, std, no_mean_norm,
                                          no_std_norm)
     if split == 'train':
-        # n_triplets = ntriplets_train
         spatial_transform = []
         spatial_transform.append(
             RandomResizedCrop(cfg.DATA.SAMPLE_SIZE, (train_crop_min_scale, 1.0),
@@ -89,7 +86,6 @@ def build_spatial_transformation(cfg, split):
         spatial_transform.append(normalize)
 
     elif split == 'val':
-        # n_triplets = ntriplets_val
         spatial_transform = [
             Resize(cfg.DATA.SAMPLE_SIZE),
             CenterCrop(cfg.DATA.SAMPLE_SIZE),

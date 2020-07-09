@@ -5,7 +5,7 @@
 
 import torch.nn as nn
 
-from slowfast.models.nonlocal_helper import Nonlocal
+from .nonlocal_helper import Nonlocal
 
 
 def get_trans_func(name):

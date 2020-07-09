@@ -1,7 +1,9 @@
 import argparse
-import sys
+import sys, os
 
-from config.default_params import get_cfg
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from default_params import get_cfg
 
 
 # Argument parser

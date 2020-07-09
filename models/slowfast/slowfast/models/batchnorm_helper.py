@@ -3,13 +3,17 @@
 
 """BatchNorm (BN) utility functions and custom batch-size BN implementations"""
 
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'utils'))
+
 from functools import partial
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 from torch.autograd.function import Function
 
-import slowfast.utils.distributed as du
+import distributed as du
 
 
 def get_norm(cfg):

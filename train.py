@@ -2,7 +2,9 @@
 Created by Sherry Chen on Jul 3, 2020
 Build and Train Triplet network. Supports saving and loading checkpoints,
 """
-import os
+
+import sys, os
+
 import csv
 import argparse
 import shutil
@@ -17,7 +19,9 @@ import torch.backends.cudnn as cudnn
 from pytorch_memlab import MemReporter
 
 from models.model_utils import model_selector, multipathway_input
-from config.parser import load_config, parse_args
+
+from config.m_parser import load_config, parse_args
+
 
 log_interval = 5 #log interval for batch number
 
@@ -133,11 +137,11 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
         torch.cuda.empty_cache()
 
         if batch_idx % log_interval == 0:
-            print('Train Epoch: {} [{}/{}]\t'
+            print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                   'Loss: {:.4f} ({:.4f}) \t'
                   'Acc: {:.2f}% ({:.2f}%) \t'
                   'Emb_Norm: {:.2f} ({:.2f})'.format(
-                epoch, batch_idx * batch_size, len(train_loader.dataset),
+                epoch, batch_idx * batch_size, len(train_loader.dataset), 100. * (batch_idx * batch_size / len(train_loader.dataset)),
                 losses.val, losses.avg,
                 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
 
@@ -274,7 +278,6 @@ if __name__ == '__main__':
         acc = validate(val_loader, tripletnet, criterion, epoch, cfg)
         print('epoch:{}, acc:{}'.format(epoch, acc))
         is_best = acc > best_acc
-
         best_acc = max(acc, best_acc)
         save_checkpoint({
             'epoch': epoch+1,

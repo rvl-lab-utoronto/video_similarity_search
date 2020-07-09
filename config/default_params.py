@@ -11,7 +11,8 @@ _C = CfgNode()
 _C.TRAIN = CfgNode()
 _C.TRAIN.EPOCHS = 100
 _C.TRAIN.BATCH_SIZE = 16
-_C.TRAIN.DATASET = "ucf101"
+#_C.TRAIN.DATASET = "ucf101"
+_C.TRAIN.DATASET = "kinetics"
 
 
 # -----------------------------------------------------------------------------
@@ -32,11 +33,11 @@ _C.MODEL.ARCH = "slowfast"
 # -----------------------------------------------------------------------------
 # Dataset options
 # -----------------------------------------------------------------------------
-
 _C.DATASET = CfgNode()
-_C.DATASET.VID_PATH = '/media/diskstation/datasets/UCF101/jpg'
-#annotation path
-_C.DATASET.ANNO_PATH = '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
+#_C.DATASET.VID_PATH = '/media/diskstation/datasets/UCF101/jpg'
+#_C.DATASET.ANNOTATION_PATH = '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
+_C.DATASET.VID_PATH = '/media/diskstation/datasets/kinetics400/frames_shortedge320px_25fps'
+_C.DATASET.ANNOTATION_PATH = '/media/diskstation/datasets/kinetics400/vid_paths_and_labels/frame_paths'
 
 
 # -----------------------------------------------------------------------------

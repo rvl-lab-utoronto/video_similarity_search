@@ -12,3 +12,4 @@ tqdm
 ipdb
 h5py
 pytorch_memlab
+simplejson

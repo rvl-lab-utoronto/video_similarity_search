@@ -24,10 +24,7 @@ from dataset import get_data
 
 train_crop_min_scale = 0.25
 train_crop_min_ratio = 0.75
-n_val_samples = 3 # number of validation samples for each activity
 
-video_path = '/media/diskstation/datasets/UCF101/jpg'
-annotation_path = '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
 input_type = 'rgb'
 file_type = 'jpg'
 n_threads = 4
@@ -93,12 +90,6 @@ def build_spatial_transformation(cfg, split):
         ]
         spatial_transform.extend([ScaleValue(value_scale), normalize])
 
-        # temporal_transform = []
-        # # if sample_t_stride > 1:
-        # #     temporal_transform.append(TemporalSubsampling(sample_t_stride))
-        # temporal_transform.append(TemporalEvenCrop(cfg.DATA.SAMPLE_DURATION, n_val_samples))
-        # temporal_transform = TemporalCompose(temporal_transform)
-
     spatial_transform = Compose(spatial_transform)
     return spatial_transform
 
@@ -131,8 +122,7 @@ def build_data_loader(split, cfg):
     spatial_transform = build_spatial_transformation(cfg, split)
     TempTransform = build_temporal_transformation(cfg)
 
-
-    data, collate_fn = get_data(split, cfg.OUTPUT_PATH, cfg.DATASET.VID_PATH, cfg.DATASET.ANNO_PATH,
+    data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type,
                 spatial_transform, TempTransform)
 
@@ -148,7 +138,7 @@ def build_data_loader(split, cfg):
     elif split == 'val':
         sampler = None
         data_loader = torch.utils.data.DataLoader(data,
-                                                  batch_size = (cfg.TRAIN.BATCH_SIZE // n_val_samples),
+                                                  batch_size = (cfg.TRAIN.BATCH_SIZE),
                                                   # batch_size = cfg.TRAIN.BATCH_SIZE,
                                                   shuffle=False,
                                                   num_workers=n_threads,
@@ -162,22 +152,20 @@ def build_data_loader(split, cfg):
 
 
 if __name__ == '__main__':
-
-    # val_loader = build_data_loader('val')
-    #
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-    from config.parser import load_config, parse_args
+    sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config'))
+    from m_parser import load_config, parse_args
 
     args = parse_args()
     cfg = load_config(args)
 
-    spatial_transform = build_spatial_transformation('train')
-    TempTransform = build_temporal_transformation()
+    #train_loader = build_data_loader('train', cfg)
+    #val_loader = build_data_loader('val', cfg)
 
-    # train_loader = build_data_loader('train', cfg)
-    data, _ = get_data('train', cfg.OUTPUT_PATH, cfg.DATASET.VID_PATH, cfg.DATASET.ANNO_PATH,
-                cfg.TRAIN.DATASET, input_type, file_type,
-                spatial_transform, TempTransform)
+    spatial_transform = build_spatial_transformation(cfg, 'train')
+    TempTransform = build_temporal_transformation(cfg)
+    
+    data, _ = get_data('train', cfg.DATASET.VID_PATH, 
+                cfg.DATASET.ANNOTATION_PATH, cfg.TRAIN.DATASET, input_type, 
+                file_type, spatial_transform, TempTransform)
     a = data[1]
     print(a[0][0].size())

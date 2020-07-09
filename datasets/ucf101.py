@@ -36,19 +36,27 @@ class UCF101():
     def __init__(self,
                  root_path,
                  annotation_path,
-                 subset, #training, ...
+                 split, #training, ...
                  video_path_formatter=(lambda root_path, label, video_id:
                                        root_path / label / video_id)
                  ):
 
+        if split == 'train':
+            subset = 'training'
+        elif split == 'val':
+            subset = 'validation'
+
         self.dataset, self.idx_to_class_map = self.__make_dataset(
-            root_path, annotation_path, subset, video_path_formatter)
+                root_path, annotation_path, subset, video_path_formatter)
 
     def get_dataset(self):
         return self.dataset
 
     def get_idx_to_class_map(self):
         return self.idx_to_class_map
+
+    def image_name_formatter(self, x):
+        return f'image_{x:05d}.jpg'
 
     def __make_dataset(self, root_path, annotation_path, subset, video_path_formatter):
         with open(annotation_path, 'r') as f:

@@ -3,11 +3,15 @@
 
 """Video models."""
 
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'utils'))
+
 import torch
 import torch.nn as nn
 
-import slowfast.utils.weight_init_helper as init_helper
-from slowfast.models.batchnorm_helper import get_norm
+import weight_init_helper as init_helper
+from .batchnorm_helper import get_norm
 
 from . import head_helper, resnet_helper, stem_helper
 from .build import MODEL_REGISTRY

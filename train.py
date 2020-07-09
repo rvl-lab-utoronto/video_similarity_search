@@ -282,7 +282,7 @@ if __name__ == '__main__':
     # ============================= Training loop ==============================
 
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
-        # train(train_loader, tripletnet, criterion, optimizer, epoch, cfg)
+        train(train_loader, tripletnet, criterion, optimizer, epoch, cfg)
         acc = validate(val_loader, tripletnet, criterion, epoch, cfg)
         print('epoch:{}, acc:{}'.format(epoch, acc))
         is_best = acc > best_acc

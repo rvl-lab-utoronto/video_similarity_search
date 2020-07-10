@@ -126,6 +126,8 @@ def build_data_loader(split, cfg):
                 cfg.TRAIN.DATASET, input_type, file_type,
                 spatial_transform, TempTransform)
 
+    print ('Single video input size:', data[1][0][0].size())
+
     if split == 'train':
         sampler = None
         data_loader = torch.utils.data.DataLoader(data,

@@ -23,7 +23,7 @@ from models.model_utils import model_selector, multipathway_input
 from config.m_parser import load_config, parse_args
 
 
-log_interval = 50 #log interval for batch number
+log_interval = 10 #log interval for batch number
 
 cuda = False
 if torch.cuda.is_available():
@@ -75,6 +75,7 @@ def load_checkpoint(model, checkpoint_path):
 
 def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
     losses = AverageMeter()
+    losses_r = AverageMeter()
     accs = AverageMeter()
     emb_norms=AverageMeter()
 
@@ -121,6 +122,7 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
         #measure accuracy and record loss
         acc = accuracy(dista.cpu(), distb.cpu())
         losses.update(loss_triplet.cpu(), batch_size)
+        losses_r.update(loss.cpu(), batch_size)
         accs.update(acc, batch_size)
         emb_norms.update(loss_embedd.cpu()/3, batch_size)
 
@@ -151,7 +153,7 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
         csv_writer.writerows(triplets)
 
     with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
-        f.write('{:.4f} {:.2f}\n'.format(losses.avg, 100. * accs.avg))
+        f.write('{:.4f} {:.4f} {:.2f}\n'.format(losses.avg, losses_r.avg, 100. * accs.avg))
 
 
 def validate(val_loader, tripletnet, criterion, epoch, cfg):
@@ -201,7 +203,7 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
         losses.avg, losses_r.avg, 100. * accs.avg))
 
     with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
-        val_file.write('{:.4f} {:.4f} {:.2f}\n'.format(losses.avg,losses_r.avg, 100. * accs.avg))
+        val_file.write('{:.4f} {:.4f} {:.2f}\n'.format(losses.avg, losses_r.avg, 100. * accs.avg))
 
     return accs.avg
 
@@ -249,7 +251,7 @@ if __name__ == '__main__':
 
     # Load pretrained backbone if path exists
     if args.pretrain_path is not None:
-        model = load_pretrained_model(model, pretrain_path)
+        model = load_pretrained_model(model, args.pretrain_path)
 
     tripletnet = Tripletnet(model)
 
@@ -282,9 +284,9 @@ if __name__ == '__main__':
     # ============================= Training loop ==============================
 
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
+        print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
         train(train_loader, tripletnet, criterion, optimizer, epoch, cfg)
         acc = validate(val_loader, tripletnet, criterion, epoch, cfg)
-        print('epoch:{}, acc:{}'.format(epoch, acc))
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)
         save_checkpoint({

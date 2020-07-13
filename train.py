@@ -23,7 +23,7 @@ from models.model_utils import model_selector, multipathway_input
 from config.m_parser import load_config, parse_args
 
 
-log_interval = 10 #log interval for batch number
+log_interval = 5 #log interval for batch number
 
 cuda = False
 if torch.cuda.is_available():

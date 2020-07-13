@@ -1,6 +1,6 @@
 TRAIN:
     DATASET: ucf101
-    BATCH_SIZE: 16
+    BATCH_SIZE: 8
 
 DATASET:
     VID_PATH: /media/diskstation/datasets/UCF101/jpg

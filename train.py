@@ -23,7 +23,7 @@ from models.model_utils import model_selector, multipathway_input
 from config.m_parser import load_config, parse_args
 
 
-log_interval = 50 #log interval for batch number
+log_interval = 5 #log interval for batch number
 
 cuda = False
 if torch.cuda.is_available():
@@ -31,7 +31,7 @@ if torch.cuda.is_available():
     cuda = True
 os.environ["CUDA_VISIBLE_DEVICES"]=str('0,1')
 # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device = torch.device('cuda:1')
+device = torch.device('cuda:0')
 
 
 def load_pretrained_model(model, pretrain_path):

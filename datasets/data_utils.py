@@ -7,7 +7,7 @@ from functools import partialmethod
 
 import torch
 import numpy as np
-from sklearn.metrics import precision_recall_fscore_support
+# from sklearn.metrics import precision_recall_fscore_support
 
 
 class AverageMeter(object):
@@ -62,15 +62,15 @@ def calculate_accuracy(outputs, targets):
 
         return n_correct_elems / batch_size
 
-
-def calculate_precision_and_recall(outputs, targets, pos_label=1):
-    with torch.no_grad():
-        _, pred = outputs.topk(1, 1, largest=True, sorted=True)
-        precision, recall, _, _ = precision_recall_fscore_support(
-            targets.view(-1, 1).cpu().numpy(),
-            pred.cpu().numpy())
-
-        return precision[pos_label], recall[pos_label]
+#
+# def calculate_precision_and_recall(outputs, targets, pos_label=1):
+#     with torch.no_grad():
+#         _, pred = outputs.topk(1, 1, largest=True, sorted=True)
+#         precision, recall, _, _ = precision_recall_fscore_support(
+#             targets.view(-1, 1).cpu().numpy(),
+#             pred.cpu().numpy())
+#
+#         return precision[pos_label], recall[pos_label]
 
 
 def worker_init_fn(worker_id):

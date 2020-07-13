@@ -82,9 +82,9 @@ class UCF101():
                 label_id = -1
 
             video_path = video_paths[i]
-            if not os.path.exists(video_path):
-                print('not exists', video_path)
-                continue
+            #if not os.path.exists(video_path):
+            #    print('not exists', video_path)
+            #    continue
 
             segment = annotations[i]['segment']
             if segment[1] == 1:

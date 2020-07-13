@@ -16,7 +16,7 @@ from models.triplet_net import Tripletnet
 from datasets import data_loader
 import torch.backends.cudnn as cudnn
 
-from pytorch_memlab import MemReporter
+#from pytorch_memlab import MemReporter
 
 from models.model_utils import model_selector, multipathway_input
 
@@ -31,7 +31,7 @@ if torch.cuda.is_available():
     cuda = True
 os.environ["CUDA_VISIBLE_DEVICES"]=str('0,1')
 # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device = torch.device('cuda:1')
+device = torch.device('cuda:0')
 
 
 def load_pretrained_model(model, pretrain_path):

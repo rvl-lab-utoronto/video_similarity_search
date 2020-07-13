@@ -7,7 +7,7 @@ from functools import partialmethod
 
 import torch
 import numpy as np
-from sklearn.metrics import precision_recall_fscore_support
+#from sklearn.metrics import precision_recall_fscore_support
 
 
 class AverageMeter(object):

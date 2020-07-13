@@ -1,0 +1,30 @@
+#compute canada 3D resnet + kinetics config
+
+DATASET:
+    VID_PATH: '.'
+    ANNOTATION_PATH: '/home/cheny257/projects/def-florian7/datasets/kinetics400/vid_paths_and_labels/frame_paths'
+
+MODEL:
+    ARCH: '3dresnet'
+
+RESNET:
+    MODEL_DEPTH: 18
+    N_CLASSES: 1039
+    N_INPUT_CHANNELS: 3
+    SHORTCUT: 'B'
+    CONV1_T_SIZE: 7
+    CONV1_T_STRIDE: 1
+    NO_MAX_POOl: true
+    WIDEN_FACTOR: 1
+
+DATA:
+    SAMPLE_SIZE: 112
+    SAMPLE_DURATION: 16
+    INPUT_CHANNEL_NUM: 3
+
+LOSS:
+    MARGIN: 0.1
+
+OPTIM:
+    LR: 0.01
+    MOMENTUM: 0.5

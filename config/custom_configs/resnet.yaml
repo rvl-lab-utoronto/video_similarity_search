@@ -1,11 +1,10 @@
-OUTPUT_PATH: '/home/sherry/output'
-
-TRAIN:
-    DATASET: "ucf101"
-
-DATASET:
-    VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
-    ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
+# OUTPUT_PATH: '/home/sherry/output'
+# TRAIN:
+#     DATASET: "ucf101"
+#
+# DATASET:
+#     VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
+#     ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
 
 MODEL:
     ARCH: '3dresnet'
@@ -21,12 +20,12 @@ RESNET:
     WIDEN_FACTOR: 1
 
 DATA:
-    SAMPLE_SIZE: 112
+    SAMPLE_SIZE: 128
     SAMPLE_DURATION: 16
     INPUT_CHANNEL_NUM: 3
 
 LOSS:
-    MARGIN: 0.1
+    MARGIN: 0.5
 
 OPTIM:
     LR: 0.01

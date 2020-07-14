@@ -37,9 +37,9 @@ class UCF101():
                  root_path,
                  annotation_path,
                  split, #training, ...
+                 sample_duration,
                  video_path_formatter=(lambda root_path, label, video_id:
-                                       root_path / label / video_id),
-                 sample_duration
+                                       root_path / label / video_id)
                  ):
 
         if split == 'train':
@@ -94,9 +94,7 @@ class UCF101():
                 continue
 
             if segment[1] - 1 < sample_duration:
-                print ('disregarding video with num frames = {} < sample
-                duration = {} : {}'.format(segment[1] - 1, sample_duration,
-                    video_paths[i]))
+                print ('disregarding video with num frames = {} < sample duration = {} : {}'.format(segment[1] - 1, sample_duration, video_paths[i]))
                 continue
 
             frame_indices = list(range(segment[0], segment[1]))

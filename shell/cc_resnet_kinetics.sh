@@ -15,6 +15,4 @@ tar -xzf /home/cheny257/projects/def-florian7/datasets/kinetics400/frames_shorte
 echo 'Extracted val zip'
 tar -xzf /home/cheny257/projects/def-florian7/datasets/kinetics400/frames_shortedge320px_25fps/train_split.tar.gz
 echo 'Extracted train zip'
-
-OUTPUT_PATH = '/home/cheny257/projects/def-florian7/cheny257/output'
-python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/train.py --cfg /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/cc_resnet_kinetics.yaml --output $OUTPUT_PATH
+python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/train.py --cfg /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/cc_resnet_kinetics.yaml --output '/home/cheny257/projects/def-florian7/cheny257/output/kinetics'

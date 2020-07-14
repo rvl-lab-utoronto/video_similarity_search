@@ -240,6 +240,9 @@ if __name__ == '__main__':
     if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets')):
         os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets'))
 
+    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
+        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
+
     best_acc = 0
     start_epoch = 0
     cudnn.benchmark = True

@@ -1,0 +1,17 @@
+TRAIN:
+    DATASET: ucf101
+    BATCH_SIZE: 8
+
+DATASET:
+    VID_PATH: /media/diskstation/datasets/UCF101/jpg
+    ANNOTATION_PATH: /media/diskstation/datasets/UCF101/json/ucf101_01.json
+
+MODEL:
+    ARCH: slowfast
+
+DATA:
+    SAMPLE_DURATION: 32
+    SAMPLE_SIZE: 128
+    
+
+

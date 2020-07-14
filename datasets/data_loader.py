@@ -124,7 +124,7 @@ def build_data_loader(split, cfg):
 
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type,
-                spatial_transform, TempTransform)
+                spatial_transform, TempTransform, cfg.DATA.SAMPLE_DURATION)
 
     print ('Single video input size:', data[1][0][0].size())
 

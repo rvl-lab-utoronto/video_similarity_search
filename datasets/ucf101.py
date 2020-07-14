@@ -38,7 +38,8 @@ class UCF101():
                  annotation_path,
                  split, #training, ...
                  video_path_formatter=(lambda root_path, label, video_id:
-                                       root_path / label / video_id)
+                                       root_path / label / video_id),
+                 sample_duration
                  ):
 
         if split == 'train':
@@ -47,7 +48,8 @@ class UCF101():
             subset = 'validation'
 
         self.dataset, self.idx_to_class_map = self.__make_dataset(
-                root_path, annotation_path, subset, video_path_formatter)
+                root_path, annotation_path, subset, video_path_formatter,
+                sample_duration)
 
     def get_dataset(self):
         return self.dataset
@@ -58,7 +60,8 @@ class UCF101():
     def image_name_formatter(self, x):
         return f'image_{x:05d}.jpg'
 
-    def __make_dataset(self, root_path, annotation_path, subset, video_path_formatter):
+    def __make_dataset(self, root_path, annotation_path, subset,
+            video_path_formatter, sample_duration):
         with open(annotation_path, 'r') as f:
             data = json.load(f)
         video_ids, video_paths, annotations = get_database(
@@ -88,6 +91,12 @@ class UCF101():
 
             segment = annotations[i]['segment']
             if segment[1] == 1:
+                continue
+
+            if segment[1] - 1 < sample_duration:
+                print ('disregarding video with num frames = {} < sample
+                duration = {} : {}'.format(segment[1] - 1, sample_duration,
+                    video_paths[i]))
                 continue
 
             frame_indices = list(range(segment[0], segment[1]))

@@ -29,6 +29,12 @@ def parse_args():
         help="Path to the config file",
     )
     parser.add_argument(
+        "--output",
+        default=None,
+        type=str,
+    help='output path, overwrite OUTPUT_PATH in default_params.py if specified'
+    )
+    parser.add_argument(
         "opts",
         default=None,
         nargs=argparse.REMAINDER,
@@ -43,6 +49,10 @@ def load_config(args):
 
     if args.cfg_file is not None:
         cfg.merge_from_file(args.cfg_file)
+
+    if args.output:
+        cfg.OUTPUT_PATH = args.output
+    print('OUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
 
     if args.opts is not None:
         cfg.merge_from_list(args.opts)

@@ -17,20 +17,21 @@ from datasets import data_loader
 import torch.backends.cudnn as cudnn
 
 #from pytorch_memlab import MemReporter
-
 from models.model_utils import model_selector, multipathway_input
 
 from config.m_parser import load_config, parse_args
 
-
 log_interval = 5 #log interval for batch number
+
+
+
+
 
 cuda = False
 if torch.cuda.is_available():
     print('cuda is ready')
     cuda = True
 os.environ["CUDA_VISIBLE_DEVICES"]=str('0,1')
-# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 device = torch.device('cuda:0')
 
 

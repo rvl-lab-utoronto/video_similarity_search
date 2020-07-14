@@ -1,11 +1,8 @@
-OUTPUT_PATH: '/home/sherry/output'
-
-TRAIN:
-    DATASET: "ucf101"
+#compute canada 3D resnet + kinetics config
 
 DATASET:
-    VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
-    ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
+    VID_PATH: '.'
+    ANNOTATION_PATH: '/home/cheny257/projects/def-florian7/datasets/kinetics400/vid_paths_and_labels/frame_paths'
 
 MODEL:
     ARCH: '3dresnet'

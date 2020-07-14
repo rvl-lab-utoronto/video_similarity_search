@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=4
 #SBATCH --gres=gpu:t4:1
-#SBATCH --mem=32G
+#SBATCH --mem=64G
 #SBATCH --job-name=slowfast_kinetics
 #SBATCH --output=%x-%j.out
 

@@ -30,7 +30,7 @@ def collate_fn(batch):
 
 
 def get_data(split, video_path, annotation_path, dataset_name, input_type,
-             file_type, spatial_transform=None,
+             file_type, sample_duration, spatial_transform=None,
              temporal_transform=None, target_transform=None):
 
     assert split in ['train', 'val', 'test']
@@ -49,9 +49,11 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
 
     print ('Loading', dataset_name, split, 'split')
     if dataset_name == 'ucf101':
-        Dataset = UCF101(video_path, annotation_path, split, video_path_formatter)
+        Dataset = UCF101(video_path, annotation_path, split,
+                sample_duration, video_path_formatter)
     elif dataset_name == 'kinetics':
-        Dataset = Kinetics(video_path, annotation_path, split, video_path_formatter)
+        Dataset = Kinetics(video_path, annotation_path, split,
+                sample_duration, video_path_formatter)
 
     if get_image_backend() == 'accimage':
         from datasets.loader import ImageLoaderAccImage

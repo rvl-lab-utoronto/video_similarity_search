@@ -102,5 +102,5 @@ class UCF101():
                 'label': label_id
             }
             dataset.append(sample)
-        dataset = np.array(dataset)
+        dataset = np.array(dqataset)
         return dataset, idx_to_class

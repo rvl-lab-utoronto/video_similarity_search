@@ -18,22 +18,10 @@ import torch.backends.cudnn as cudnn
 
 #from pytorch_memlab import MemReporter
 from models.model_utils import model_selector, multipathway_input
-
 from config.m_parser import load_config, parse_args
 
 log_interval = 5 #log interval for batch number
-
-
-
-
-
-cuda = False
-if torch.cuda.is_available():
-    print('cuda is ready')
-    cuda = True
-os.environ["CUDA_VISIBLE_DEVICES"]=str('0,1')
-device = torch.device('cuda:0')
-
+offset = 0.00001
 
 def load_pretrained_model(model, pretrain_path):
     print('=> loading pretrained model')
@@ -104,12 +92,6 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
 
         dista, distb, embedded_x, embedded_y, embedded_z = tripletnet(anchor, positive, negative)
 
-        #******
-        # reporter = MemReporter(tripletnet)
-        # print('========== before backward ========')
-        # reporter.report()
-        #******
-
         #1 means, dista should be larger than distb
         target = torch.FloatTensor(dista.size()).fill_(-1)
         if cuda:
@@ -117,8 +99,14 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
 
         loss_triplet = criterion(dista, distb, target)
         loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
-        loss = loss_triplet + 0.001 *loss_embedd
+        # print(loss_embedd)
+        # print(loss_triplet)
+        loss = loss_triplet + 0.001 * loss_embedd + offset #adding a small term for numerical stability
 
+        # compute gradient and do optimizer step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
         #measure accuracy and record loss
         acc = accuracy(dista.cpu(), distb.cpu())
@@ -126,18 +114,6 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
         losses_r.update(loss.cpu(), batch_size)
         accs.update(acc, batch_size)
         emb_norms.update(loss_embedd.cpu()/3, batch_size)
-
-        # compute gradient and do optimizer step
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        # #******
-        # print('========== after backward ========')
-        # reporter.report()
-        # #******
-
-        torch.cuda.empty_cache()
 
         if batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
@@ -190,7 +166,7 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
             test_loss = criterion(dista, distb, target)
             #add regularization term
             loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
-            loss_r = test_loss + 0.001 *loss_embedd
+            loss_r = test_loss + 0.001 *loss_embedd + offset
 
             # measure accuracy and record loss
             acc = accuracy(dista, distb)
@@ -233,6 +209,7 @@ def accuracy(dista, distb):
     return (pred > 0).sum()*1.0/dista.size()[0]
 
 
+
 if __name__ == '__main__':
     args = parse_args()
     cfg = load_config(args)
@@ -249,6 +226,11 @@ if __name__ == '__main__':
     best_acc = 0
     start_epoch = 0
     cudnn.benchmark = True
+
+    os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
+    global cuda; cuda = torch.cuda.is_available()
+    global device; device = torch.device("cuda" if cuda else "cpu")
+
     # ======================== Similarity Network Setup ========================
     model=model_selector(cfg)
     print('=> finished generating {} backbone model...'.format(cfg.MODEL.ARCH))
@@ -264,10 +246,9 @@ if __name__ == '__main__':
         start_epoch, best_acc = load_checkpoint(tripletnet, args.checkpoint_path)
 
     if cuda:
-        # if torch.cuda.device_count() > 1:
-            # print("Let's use {} GPUs".format(torch.cuda.device_count()))
-            # tripletnet = nn.DataParallel(tripletnet, device_ids=[0, 1])
-            # print('devices:{}'.format(tripletnet.device_ids))
+        if torch.cuda.device_count() > 1:
+            print("Let's use {} GPUs".format(torch.cuda.device_count()))
+            tripletnet = nn.DataParallel(tripletnet)
         tripletnet.to(device)
 
     print('=> finished generating similarity network...')

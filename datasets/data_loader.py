@@ -74,6 +74,7 @@ def build_spatial_transformation(cfg, split):
                                          no_std_norm)
     if split == 'train':
         spatial_transform = []
+        print('sample size', cfg.DATA.SAMPLE_SIZE)
         spatial_transform.append(
             RandomResizedCrop(cfg.DATA.SAMPLE_SIZE, (train_crop_min_scale, 1.0),
                             (train_crop_min_ratio, 1.0/train_crop_min_ratio))

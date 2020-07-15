@@ -69,7 +69,7 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
     emb_norms=AverageMeter()
 
     triplets = []
-    #switching to training mode
+    # switching to training mode
     tripletnet.train()
     for batch_idx, (inputs, targets) in enumerate(train_loader):
         anchor, positive, negative = inputs
@@ -131,6 +131,7 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
 
     with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
         f.write('{:.4f} {:.4f} {:.2f}\n'.format(losses.avg, losses_r.avg, 100. * accs.avg))
+        print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
 def validate(val_loader, tripletnet, criterion, epoch, cfg):

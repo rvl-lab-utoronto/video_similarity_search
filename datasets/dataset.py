@@ -10,6 +10,7 @@ from torch.utils.data.dataloader import default_collate
 
 from loader import VideoLoader, VideoLoaderHDF5, VideoLoaderFlowHDF5
 from triplets_loader import TripletsData
+from videodataset import VideoDataset
 from ucf101 import UCF101
 from kinetics import Kinetics
 
@@ -30,7 +31,7 @@ def collate_fn(batch):
 
 
 def get_data(split, video_path, annotation_path, dataset_name, input_type,
-             file_type, sample_duration, spatial_transform=None,
+             file_type, triplets=True, spatial_transform=None,
              temporal_transform=None, target_transform=None):
 
     assert split in ['train', 'val', 'test']
@@ -41,7 +42,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
 
     if split == 'train':
         ret_collate_fn = None
-    elif split == 'val':
+    else: #val, test
         ret_collate_fn = collate_fn
 
     video_path_formatter = (lambda root_path, label, video_id: root_path + '/' +
@@ -49,11 +50,9 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
 
     print ('Loading', dataset_name, split, 'split')
     if dataset_name == 'ucf101':
-        Dataset = UCF101(video_path, annotation_path, split,
-                sample_duration, video_path_formatter)
+        Dataset = UCF101(video_path, annotation_path, split, video_path_formatter)
     elif dataset_name == 'kinetics':
-        Dataset = Kinetics(video_path, annotation_path, split,
-                sample_duration, video_path_formatter)
+        Dataset = Kinetics(video_path, annotation_path, split, video_path_formatter)
 
     if get_image_backend() == 'accimage':
         from datasets.loader import ImageLoaderAccImage
@@ -61,12 +60,23 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
     else:
         loader = VideoLoader(Dataset.image_name_formatter)
 
-    data = TripletsData(data = Dataset.get_dataset(),
-                        class_names = Dataset.get_idx_to_class_map(),
-                        spatial_transform=spatial_transform,
-                        temporal_transform=temporal_transform,
-                        target_transform=target_transform,
-                        video_loader=loader) 
+    if triplets:
+        print('loading triplets...')
+        data = TripletsData(data = Dataset.get_dataset(),
+                            class_names = Dataset.get_idx_to_class_map(),
+                            spatial_transform=spatial_transform,
+                            temporal_transform=temporal_transform,
+                            target_transform=target_transform,
+                            video_loader=loader)
+    else:
+        print('loading single data')
+        data = VideoDataset(data = Dataset.get_dataset(),
+                            class_names = Dataset.get_idx_to_class_map(),
+                            spatial_transform=spatial_transform,
+                            temporal_transform=temporal_transform,
+                            target_transform=target_transform,
+                            video_loader=loader)
+
     print('{}_data: {}'.format(split, len(data)))
 
     return data, ret_collate_fn

@@ -83,9 +83,13 @@ class TripletsData(data.Dataset):
         p_target = positive[self.target_type]
         n_target = negative[self.target_type]
 
-        a_frame_id = self.anchor_temporal_transform(anchor['frame_indices'])
-        p_frame_id = self.positive_temporal_transform(positive['frame_indices'])
-        n_frame_id = self.negative_temporal_transform(negative['frame_indices'])
+        a_frame_indices = list(range(anchor['segment'][0], anchor['segment'][1] + 1))
+        p_frame_indices = a_frame_indices
+        n_frame_indices = list(range(negative['segment'][0], negative['segment'][1] + 1))
+
+        a_frame_id = self.anchor_temporal_transform(a_frame_indices)
+        p_frame_id = self.positive_temporal_transform(p_frame_indices)
+        n_frame_id = self.negative_temporal_transform(n_frame_indices)
 
         a_clip = self.__loading(a_path, a_frame_id)
         p_clip = self.__loading(p_path, p_frame_id)
@@ -95,6 +99,3 @@ class TripletsData(data.Dataset):
 
     def __len__(self):
         return len(self.data)
-
-
-   

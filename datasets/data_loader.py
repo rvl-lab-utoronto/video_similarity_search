@@ -83,7 +83,7 @@ def build_spatial_transformation(cfg, split):
         spatial_transform.append(ToTensor())
         spatial_transform.append(normalize)
 
-    elif split == 'val':
+    else: #val/ test
         spatial_transform = [
             Resize(cfg.DATA.SAMPLE_SIZE),
             CenterCrop(cfg.DATA.SAMPLE_SIZE),
@@ -95,37 +95,45 @@ def build_spatial_transformation(cfg, split):
     return spatial_transform
 
 
-def build_temporal_transformation(cfg):
-    TempTransform = {}
-    #anchor
-    begin_temporal_transform = []
-    begin_temporal_transform.append(TemporalBeginCrop(cfg.DATA.SAMPLE_DURATION))
-    begin_temporal_transform = TemporalCompose(begin_temporal_transform)
-    TempTransform['anchor'] = begin_temporal_transform
+def build_temporal_transformation(cfg, triplets=True):
+    if triplets:
+        TempTransform = {}
+        #anchor
+        begin_temporal_transform = []
+        begin_temporal_transform.append(TemporalBeginCrop(cfg.DATA.SAMPLE_DURATION))
+        begin_temporal_transform = TemporalCompose(begin_temporal_transform)
+        TempTransform['anchor'] = begin_temporal_transform
 
-    #positive
-    end_temporal_transform = []
-    end_temporal_transform.append(TemporalEndCrop(cfg.DATA.SAMPLE_DURATION))
-    end_temporal_transform = TemporalCompose(end_temporal_transform)
-    TempTransform['positive'] = end_temporal_transform
+        #positive
+        end_temporal_transform = []
+        end_temporal_transform.append(TemporalEndCrop(cfg.DATA.SAMPLE_DURATION))
+        end_temporal_transform = TemporalCompose(end_temporal_transform)
+        TempTransform['positive'] = end_temporal_transform
 
-    #negative
-    temporal_transform = []
-    temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
-    temporal_transform = TemporalCompose(temporal_transform)
-    TempTransform['negative'] = temporal_transform
+        #negative
+        temporal_transform = []
+        temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
+        temporal_transform = TemporalCompose(temporal_transform)
+        TempTransform['negative'] = temporal_transform
+
+    else:
+        temporal_transform = []
+        temporal_transform.append(TemporalCenterCrop(cfg.DATA.SAMPLE_DURATION)) #opt.n_val_samples))
+        temporal_transform = TemporalCompose(temporal_transform)
+        TempTransform = temporal_transform
+
     return  TempTransform
 
 
-def build_data_loader(split, cfg):
+def build_data_loader(split, cfg, triplets=True):
     assert split in ['train', 'val', 'test']
 
     spatial_transform = build_spatial_transformation(cfg, split)
-    TempTransform = build_temporal_transformation(cfg)
+    TempTransform = build_temporal_transformation(cfg, triplets)
 
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
-                cfg.TRAIN.DATASET, input_type, file_type,
-                cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform)
+                cfg.TRAIN.DATASET, input_type, file_type, triplets,
+                spatial_transform, TempTransform)
 
     print ('Single video input size:', data[1][0][0].size())
 
@@ -151,7 +159,20 @@ def build_data_loader(split, cfg):
                                                   # collate_fn=collate_fn)
                                                   )
 
+    else: #test split
+        sampler=None
+        data_loader = torch.utils.data.DataLoader(data,
+                                                batch_size = (cfg.TRAIN.BATCH_SIZE),
+                                                shuffle=False,
+                                                num_workers=n_threads,
+                                                pin_memory=True,
+                                                sampler=sampler,
+                                                worker_init_fn=worker_init_fn
+                                                # collate_fn=collate_fn)
+                                                )
+
     return data_loader
+
 
 
 if __name__ == '__main__':
@@ -161,14 +182,14 @@ if __name__ == '__main__':
     args = parse_args()
     cfg = load_config(args)
 
-    train_loader = build_data_loader('train', cfg)
-    val_loader = build_data_loader('val', cfg)
+    # train_loader = build_data_loader('train', cfg)
+    #val_loader = build_data_loader('val', cfg)
 
-    #spatial_transform = build_spatial_transformation(cfg, 'train')
-    #TempTransform = build_temporal_transformation(cfg)
-    
-    #data, _ = get_data('train', cfg.DATASET.VID_PATH, 
-    #            cfg.DATASET.ANNOTATION_PATH, cfg.TRAIN.DATASET, input_type, 
-    #            file_type, spatial_transform, TempTransform)
-    #a = data[1]
-    #print(a[0][0].size())
+    spatial_transform = build_spatial_transformation(cfg, 'train')
+    TempTransform = build_temporal_transformation(cfg)
+
+    data, _ = get_data('train', cfg.DATASET.VID_PATH,
+                cfg.DATASET.ANNOTATION_PATH, cfg.TRAIN.DATASET, input_type, False,
+                file_type, spatial_transform, TempTransform)
+    a = data[1]
+    print(a[0][0].size())

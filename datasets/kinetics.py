@@ -1,4 +1,5 @@
 import json
+import numpy as np
 import os
 from pathlib import Path
 import csv
@@ -84,10 +85,10 @@ class Kinetics():
             sample = {
                 'video': video_paths[i],
                 'segment': segment,
-                'frame_indices': frame_indices,
+                # 'frame_indices': frame_indices,
                 'video_id': video_ids[i],
                 'label': labels[i]
             }
             dataset.append(sample)
-
+        dataset = np.array(dataset)
         return dataset, idx_to_class

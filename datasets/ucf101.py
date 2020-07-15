@@ -1,5 +1,6 @@
 import json
 import os
+import numpy as np
 from pathlib import Path
 
 
@@ -64,8 +65,7 @@ class UCF101():
             video_path_formatter, sample_duration):
         with open(annotation_path, 'r') as f:
             data = json.load(f)
-        video_ids, video_paths, annotations = get_database(
-            data, subset, root_path, video_path_formatter)
+        video_ids, video_paths, annotations = get_database(data, subset, root_path, video_path_formatter)
         class_to_idx = get_class_labels(data)
         idx_to_class = {}
         for name, label in class_to_idx.items():
@@ -85,10 +85,6 @@ class UCF101():
                 label_id = -1
 
             video_path = video_paths[i]
-            #if not os.path.exists(video_path):
-            #    print('not exists', video_path)
-            #    continue
-
             segment = annotations[i]['segment']
             if segment[1] == 1:
                 continue
@@ -101,17 +97,10 @@ class UCF101():
             sample = {
                 'video': video_path,
                 'segment': segment,
-                'frame_indices': frame_indices,
+                # 'frame_indices': frame_indices,
                 'video_id': video_ids[i],
                 'label': label_id
             }
             dataset.append(sample)
-
+        dataset = np.array(dataset)
         return dataset, idx_to_class
-
-
-
-
-
-
-    

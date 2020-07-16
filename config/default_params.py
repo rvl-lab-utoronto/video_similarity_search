@@ -13,6 +13,7 @@ _C.TRAIN.EPOCHS = 100
 _C.TRAIN.BATCH_SIZE = 16
 #_C.TRAIN.DATASET = "ucf101"
 _C.TRAIN.DATASET = "kinetics"
+_C.TRAIN.NUM_DATA_WORKERS = 4
 
 
 # -----------------------------------------------------------------------------

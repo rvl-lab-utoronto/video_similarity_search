@@ -80,7 +80,8 @@ def load_config(args):
 
     overwrite_default_configs(cfg, args)
 
-    print('OUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
+    print('\nOUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
     print('BATCH_SIZE is set to: {}'.format(cfg.TRAIN.BATCH_SIZE))
+    print('NUM_WORKERS is set to: {}'.format(cfg.TRAIN.NUM_DATA_WORKERS))
 
     return cfg

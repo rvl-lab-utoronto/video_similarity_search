@@ -1,6 +1,7 @@
 TRAIN:
     DATASET: kinetics
     BATCH_SIZE: 8
+    NUM_DATA_WORKERS: 4
 
 DATASET:
     VID_PATH: .

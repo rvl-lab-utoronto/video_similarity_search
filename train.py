@@ -101,15 +101,15 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
 
         # compute gradient and do optimizer step
         optimizer.zero_grad()
-        loss.backward()
+        loss.backward()#create_graph=True)
         optimizer.step()
 
         #measure accuracy and record loss
-        acc = accuracy(dista.cpu(), distb.cpu())
-        losses.update(loss_triplet.cpu(), batch_size)
-        losses_r.update(loss.cpu(), batch_size)
+        acc = accuracy(dista.detach(), distb.detach())
+        losses.update(loss_triplet.item(), batch_size)
+        losses_r.update(loss.item(), batch_size)
         accs.update(acc, batch_size)
-        emb_norms.update(loss_embedd.cpu()/3, batch_size)
+        emb_norms.update(loss_embedd.item()/3, batch_size)
 
         if batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
@@ -164,9 +164,9 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
 
             # measure accuracy and record loss
             acc = accuracy(dista, distb)
-            accs.update(acc.cpu(), batch_size)
-            losses.update(test_loss.cpu(), batch_size)
-            losses_r.update(loss_r.cpu(), batch_size)
+            accs.update(acc.item(), batch_size)
+            losses.update(test_loss.item(), batch_size)
+            losses_r.update(loss_r.item(), batch_size)
 
             # torch.cuda.empty_cache()
 

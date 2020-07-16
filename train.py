@@ -4,7 +4,7 @@ Build and Train Triplet network. Supports saving and loading checkpoints,
 """
 
 import sys, os
-import gc
+#import gc
 import time
 import csv
 import argparse
@@ -74,7 +74,7 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
     tripletnet.train()
     start = time.time()
     for batch_idx, (inputs, targets) in enumerate(train_loader):
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
         anchor, positive, negative = inputs
         # (anchor_target, positive_target, negative_target) = targets
         # triplets.append([anchor_target, positive_target, negative_target])
@@ -122,7 +122,9 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
                 epoch, batch_idx * batch_size, len(train_loader.dataset), 100. * (batch_idx * batch_size / len(train_loader.dataset)),
                 triplet_losses.val, triplet_losses.avg,
                 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
-        gc.collect()
+        
+        #gc.collect()
+     
     print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
 
     # with open('{}/tmp_triplets/triplets_{}.txt'.format(cfg.OUTPUT_PATH, epoch), 'w') as f:
@@ -265,7 +267,7 @@ if __name__ == '__main__':
     optimizer = optim.SGD(tripletnet.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
 
     n_parameters = sum([p.data.nelement() for p in tripletnet.parameters()])
-    print(' + Number of params: {}'.format(n_parameters))
+    print('\n + Number of params: {}'.format(n_parameters))
 
     # ============================= Training loop ==============================
 

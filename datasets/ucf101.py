@@ -92,7 +92,7 @@ class UCF101():
                 print ('empty folder', video_paths[i])
                 continue
             elif num_frames < sample_duration:
-                print ('disregarding video with num frames = {} < sample duration = {} : {}'.format(num_frames, sample_duration, video_paths[i]))
+                #print ('disregarding video with num frames = {} < sample duration = {} : {}'.format(num_frames, sample_duration, video_paths[i]))
                 continue
 
             sample = {

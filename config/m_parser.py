@@ -69,7 +69,6 @@ def overwrite_default_configs(cfg, args):
 
     if args.output:
         cfg.OUTPUT_PATH = args.output
-    print('OUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
 
 def load_config(args):
     cfg = get_cfg()
@@ -80,5 +79,8 @@ def load_config(args):
         cfg.merge_from_list(args.opts)
 
     overwrite_default_configs(cfg, args)
+
+    print('OUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
+    print('BATCH_SIZE is set to: {}'.format(cfg.TRAIN.BATCH_SIZE))
 
     return cfg

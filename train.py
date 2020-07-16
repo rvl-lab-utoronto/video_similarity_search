@@ -4,7 +4,8 @@ Build and Train Triplet network. Supports saving and loading checkpoints,
 """
 
 import sys, os
-
+import gc
+import time
 import csv
 import argparse
 import shutil
@@ -68,15 +69,15 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
     accs = AverageMeter()
     emb_norms=AverageMeter()
 
-    triplets = []
+    # triplets = []
     # switching to training mode
     tripletnet.train()
+    start = time.time()
     for batch_idx, (inputs, targets) in enumerate(train_loader):
+        torch.cuda.empty_cache()
         anchor, positive, negative = inputs
-
-        (anchor_target, positive_target, negative_target) = targets
-        triplets.append([anchor_target, positive_target, negative_target])
-
+        # (anchor_target, positive_target, negative_target) = targets
+        # triplets.append([anchor_target, positive_target, negative_target])
         batch_size = anchor.size(0)
 
         if cfg.MODEL.ARCH == 'slowfast':
@@ -99,8 +100,6 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
 
         loss_triplet = criterion(dista, distb, target)
         loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
-        # print(loss_embedd)
-        # print(loss_triplet)
         loss = loss_triplet + 0.001 * loss_embedd + offset #adding a small term for numerical stability
 
         # compute gradient and do optimizer step
@@ -123,11 +122,12 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
                 epoch, batch_idx * batch_size, len(train_loader.dataset), 100. * (batch_idx * batch_size / len(train_loader.dataset)),
                 triplet_losses.val, triplet_losses.avg,
                 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
+        gc.collect()
+    print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
 
-
-    with open('{}/tmp_triplets/triplets_{}.txt'.format(cfg.OUTPUT_PATH, epoch), 'w') as f:
-        csv_writer = csv.writer(f, delimiter=',')
-        csv_writer.writerows(triplets)
+    # with open('{}/tmp_triplets/triplets_{}.txt'.format(cfg.OUTPUT_PATH, epoch), 'w') as f:
+    #     csv_writer = csv.writer(f, delimiter=',')
+    #     csv_writer.writerows(triplets)
 
     with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
         f.write('{:.4f} {:.4f} {:.2f}\n'.format(triplet_losses.avg, losses_r.avg, 100. * accs.avg))

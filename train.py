@@ -69,15 +69,12 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
     accs = AverageMeter()
     emb_norms=AverageMeter()
 
-    # triplets = []
     # switching to training mode
     tripletnet.train()
     start = time.time()
     for batch_idx, (inputs, targets) in enumerate(train_loader):
-        #torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
         anchor, positive, negative = inputs
-        # (anchor_target, positive_target, negative_target) = targets
-        # triplets.append([anchor_target, positive_target, negative_target])
         batch_size = anchor.size(0)
 
         if cfg.MODEL.ARCH == 'slowfast':
@@ -122,14 +119,8 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
                 epoch, batch_idx * batch_size, len(train_loader.dataset), 100. * (batch_idx * batch_size / len(train_loader.dataset)),
                 triplet_losses.val, triplet_losses.avg,
                 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
-        
-        #gc.collect()
-     
+        # gc.collect()
     print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
-
-    # with open('{}/tmp_triplets/triplets_{}.txt'.format(cfg.OUTPUT_PATH, epoch), 'w') as f:
-    #     csv_writer = csv.writer(f, delimiter=',')
-    #     csv_writer.writerows(triplets)
 
     with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
         f.write('{:.4f} {:.4f} {:.2f}\n'.format(triplet_losses.avg, losses_r.avg, 100. * accs.avg))
@@ -142,7 +133,7 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
     accs = AverageMeter()
 
     tripletnet.eval()
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(val_loader):
             (anchor, positive, negative) = inputs
@@ -177,7 +168,7 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
             triplet_losses.update(triplet_loss.item(), batch_size)
             losses_r.update(loss_r.item(), batch_size)
 
-            torch.cuda.empty_cache()
+            # torch.cuda.empty_cache()
 
     print('\nTest set: Average loss: {:.4f}({:.4f}), Accuracy: {:.2f}%\n'.format(
         triplet_losses.avg, losses_r.avg, 100. * accs.avg))

@@ -48,7 +48,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
     video_path_formatter = (lambda root_path, label, video_id: root_path + '/' +
                         label + '/' + video_id)
 
-    print ('Loading', dataset_name, split, 'split')
+    print ('\nLoading', dataset_name, split, 'split')
     if dataset_name == 'ucf101':
         Dataset = UCF101(video_path, annotation_path, split, sample_duration, video_path_formatter)
     elif dataset_name == 'kinetics':

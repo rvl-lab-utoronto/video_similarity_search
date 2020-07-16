@@ -50,6 +50,12 @@ def parse_args():
         help='define number of epoch'
     )
     parser.add_argument(
+        "--num_data_workers",
+        default=None,
+        type=int,
+        help='define num_workers for dataloader'
+    )
+    parser.add_argument(
         "opts",
         default=None,
         nargs=argparse.REMAINDER,
@@ -69,7 +75,9 @@ def overwrite_default_configs(cfg, args):
 
     if args.output:
         cfg.OUTPUT_PATH = args.output
-    print('OUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
+
+    if args.num_data_workers:
+        cfg.TRAIN.NUM_DATA_WORKERS = args.num_data_workers
 
 def load_config(args):
     cfg = get_cfg()
@@ -80,5 +88,9 @@ def load_config(args):
         cfg.merge_from_list(args.opts)
 
     overwrite_default_configs(cfg, args)
+
+    print('\nOUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
+    print('BATCH_SIZE is set to: {}'.format(cfg.TRAIN.BATCH_SIZE))
+    print('NUM_WORKERS is set to: {}'.format(cfg.TRAIN.NUM_DATA_WORKERS))
 
     return cfg

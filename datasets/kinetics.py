@@ -79,14 +79,9 @@ class Kinetics():
                 print ('disregarding video with num frames = {} < sample duration = {} : {}'.format(frame_counts[i], sample_duration, video_paths[i]))
                 continue
 
-            segment = [1, frame_counts[i]]
-            frame_indices = list(range(segment[0], segment[1] + 1))
-
             sample = {
                 'video': video_paths[i],
-                'segment': segment,
-                # 'frame_indices': frame_indices,
-                'video_id': video_ids[i],
+                'num_frames': frame_counts[i],
                 'label': labels[i]
             }
             dataset.append(sample)

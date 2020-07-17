@@ -20,23 +20,13 @@ from datasets.data_loader import build_spatial_transformation
 from datasets.temporal_transforms import TemporalCenterFrame
 from datasets.temporal_transforms import Compose as TemporalCompose
 from config.m_parser import load_config, parse_args
+from train import load_checkpoint
 
 num_exempler = 10
 log_interval = 5
 top_k = 5
 split = 'val'
-save_dir = '/home/sherry/output/evaluate'
-#
-# def eval_parse_args():
-#     parser = argparse.ArgumentParser(description='...')
-#     parser.add_argument('--exempler', type=int, default=5)
-#     parser.add_argument('--log_interval', type=int, default=5)
-#     parser.add_argument('--top_k', type=int, default=5)
-#     parser.add_argument('--split', type=str, default='val')
-#     parser.add_argument('--output', type=str, default='/home/sherry/output/evaluate')
-#
-#     eargs = parser.parse_args()
-#     return eargs
+
 
 def evaluate(model, test_loader, log_interval=5):
     model.eval()
@@ -44,8 +34,8 @@ def evaluate(model, test_loader, log_interval=5):
     vid_info = []
     with torch.no_grad():
         for batch_idx, (input, targets, info) in enumerate(test_loader):
-            if batch_idx > 1:
-                break
+            # if batch_idx > 1:
+            #     break
             batch_size = input.size(0)
 
             if cfg.MODEL.ARCH == 'slowfast':
@@ -113,18 +103,23 @@ if __name__ == '__main__':
     model=model_selector(cfg)
     print('=> finished generating {} backbone model...'.format(cfg.MODEL.ARCH))
 
-    # Load pretrained backbone if path exists
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    if not os.path.exists(args.output):
+        os.makedirs(args.output)
 
-    if args.pretrain_path is not None:
-        model = load_pretrained_model(model, args.pretrain_path)
-
+    tripletnet = Tripletnet(model)
     if cuda:
         if torch.cuda.device_count() > 1:
             print("Let's use {} GPUs".format(torch.cuda.device_count()))
-            model = nn.DataParallel(model)
+            tripletnet = nn.DataParallel(tripletnet)
+
+    if args.checkpoint_path is not None:
+        start_epoch, best_acc = load_checkpoint(tripletnet, args.checkpoint_path)
+
+    model = tripletnet.module.embeddingnet
+
+    if cuda:
         model.to(device)
+
     print('=> finished generating similarity network...')
 
     test_loader, data = data_loader.build_data_loader(split, cfg, triplets=False)
@@ -144,6 +139,6 @@ if __name__ == '__main__':
         plot_img(cfg, data, num_exempler, i, exempler_idx, k_idx, spatial_transform, temporal_transform)
     # plt.show()
     now = datetime.now()
-    png_file = os.path.join(save_dir, 'evaluate_{}.png'.format(now.strftime("%d_%m_%Y_%H_%M_%S")))
+    png_file = os.path.join(args.output, 'evaluate_{}.png'.format(now.strftime("%d_%m_%Y_%H_%M_%S")))
     plt.savefig(png_file)
     print('figure saved to: {}'.format(png_file))

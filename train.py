@@ -232,17 +232,18 @@ if __name__ == '__main__':
     # Load pretrained backbone if path exists
     if args.pretrain_path is not None:
         model = load_pretrained_model(model, args.pretrain_path)
-
     tripletnet = Tripletnet(model)
+
+    if cuda:
+        if torch.cuda.device_count() > 1:
+            print("Let's use {} GPUs".format(torch.cuda.device_count()))
+            tripletnet = nn.DataParallel(tripletnet)
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
         start_epoch, best_acc = load_checkpoint(tripletnet, args.checkpoint_path)
 
     if cuda:
-        if torch.cuda.device_count() > 1:
-            print("Let's use {} GPUs".format(torch.cuda.device_count()))
-            tripletnet = nn.DataParallel(tripletnet)
         tripletnet.to(device)
 
     print('=> finished generating similarity network...')

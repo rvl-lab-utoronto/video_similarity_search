@@ -134,9 +134,7 @@ def build_data_loader(split, cfg, triplets=True):
                 cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform)
 
     print ('Single video input size:', data[1][0][0].size())
-
-    n_threads = 4*torch.cuda.device_count()
-    print('using {} threads to load data'.format(n_threads))
+    print('using {} threads to load data'.format(cfg.TRAIN.NUM_DATA_WORKERS))
 
     if split == 'train':
         sampler = None

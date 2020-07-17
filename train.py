@@ -4,7 +4,7 @@ Build and Train Triplet network. Supports saving and loading checkpoints,
 """
 
 import sys, os
-import gc
+#import gc
 import time
 import csv
 import argparse
@@ -64,7 +64,7 @@ def load_checkpoint(model, checkpoint_path):
 
 
 def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
-    losses = AverageMeter()
+    triplet_losses = AverageMeter()
     losses_r = AverageMeter()
     accs = AverageMeter()
     emb_norms=AverageMeter()
@@ -108,7 +108,8 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
         acc = accuracy(dista.detach(), distb.detach())
         losses.update(loss_triplet.item(), batch_size)
         losses_r.update(loss.item(), batch_size)
-        accs.update(acc, batch_size)
+        accs.update(acc.item(), batch_size)
+
         emb_norms.update(loss_embedd.item()/3, batch_size)
 
         if batch_idx % log_interval == 0:
@@ -117,18 +118,18 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
                   'Acc: {:.2f}% ({:.2f}%) \t'
                   'Emb_Norm: {:.2f} ({:.2f})'.format(
                 epoch, batch_idx * batch_size, len(train_loader.dataset), 100. * (batch_idx * batch_size / len(train_loader.dataset)),
-                losses.val, losses.avg,
+                triplet_losses.val, triplet_losses.avg,
                 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
         # gc.collect()
     print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
 
     with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
-        f.write('{:.4f} {:.4f} {:.2f}\n'.format(losses.avg, losses_r.avg, 100. * accs.avg))
+        f.write('{:.4f} {:.4f} {:.2f}\n'.format(triplet_losses.avg, losses_r.avg, 100. * accs.avg))
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
 def validate(val_loader, tripletnet, criterion, epoch, cfg):
-    losses = AverageMeter()
+    triplet_losses = AverageMeter()
     losses_r = AverageMeter()
     accs = AverageMeter()
 
@@ -157,24 +158,25 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
             if cuda:
                 target = target.to(device)
 
-            test_loss = criterion(dista, distb, target)
+            triplet_loss = criterion(dista, distb, target)
             #add regularization term
             loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
-            loss_r = test_loss + 0.001 *loss_embedd + offset
+            loss_r = triplet_loss + 0.001 *loss_embedd + offset
 
             # measure accuracy and record loss
             acc = accuracy(dista, distb)
             accs.update(acc.item(), batch_size)
-            losses.update(test_loss.item(), batch_size)
+
+            triplet_losses.update(triplet_loss.item(), batch_size)
             losses_r.update(loss_r.item(), batch_size)
 
             # torch.cuda.empty_cache()
 
     print('\nTest set: Average loss: {:.4f}({:.4f}), Accuracy: {:.2f}%\n'.format(
-        losses.avg, losses_r.avg, 100. * accs.avg))
+        triplet_losses.avg, losses_r.avg, 100. * accs.avg))
 
     with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
-        val_file.write('{:.4f} {:.4f} {:.2f}\n'.format(losses.avg, losses_r.avg, 100. * accs.avg))
+        val_file.write('{:.4f} {:.4f} {:.2f}\n'.format(triplet_losses.avg, losses_r.avg, 100. * accs.avg))
 
     return accs.avg
 
@@ -259,7 +261,7 @@ if __name__ == '__main__':
     optimizer = optim.SGD(tripletnet.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
 
     n_parameters = sum([p.data.nelement() for p in tripletnet.parameters()])
-    print(' + Number of params: {}'.format(n_parameters))
+    print('\n + Number of params: {}'.format(n_parameters))
 
     # ============================= Training loop ==============================
 

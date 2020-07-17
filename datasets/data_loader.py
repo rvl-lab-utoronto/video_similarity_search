@@ -73,7 +73,6 @@ def build_spatial_transformation(cfg, split):
                                          no_std_norm)
     if split == 'train':
         spatial_transform = []
-        print('sample size', cfg.DATA.SAMPLE_SIZE)
         spatial_transform.append(
             RandomResizedCrop(cfg.DATA.SAMPLE_SIZE, (train_crop_min_scale, 1.0),
                             (train_crop_min_ratio, 1.0/train_crop_min_ratio))
@@ -144,7 +143,7 @@ def build_data_loader(split, cfg, triplets=True):
         data_loader = torch.utils.data.DataLoader(data,
                                                   batch_size=cfg.TRAIN.BATCH_SIZE,
                                                   shuffle=(sampler is None),
-                                                  num_workers=n_threads,
+                                                  num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
                                                   pin_memory=True,
                                                   sampler=sampler,
                                                   worker_init_fn=worker_init_fn)
@@ -154,7 +153,7 @@ def build_data_loader(split, cfg, triplets=True):
                                                   batch_size = (cfg.TRAIN.BATCH_SIZE),
                                                   # batch_size = cfg.TRAIN.BATCH_SIZE,
                                                   shuffle=False,
-                                                  num_workers=n_threads,
+                                                  num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
                                                   pin_memory=True,
                                                   sampler=sampler,
                                                   worker_init_fn=worker_init_fn
@@ -166,7 +165,7 @@ def build_data_loader(split, cfg, triplets=True):
         data_loader = torch.utils.data.DataLoader(data,
                                                 batch_size = (cfg.TRAIN.BATCH_SIZE),
                                                 shuffle=False,
-                                                num_workers=n_threads,
+                                                num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
                                                 pin_memory=True,
                                                 sampler=sampler,
                                                 worker_init_fn=worker_init_fn
@@ -184,14 +183,14 @@ if __name__ == '__main__':
     args = parse_args()
     cfg = load_config(args)
 
-    # train_loader = build_data_loader('train', cfg)
-    #val_loader = build_data_loader('val', cfg)
+    train_loader = build_data_loader('train', cfg)
+    val_loader = build_data_loader('val', cfg)
 
-    spatial_transform = build_spatial_transformation(cfg, 'train')
-    TempTransform = build_temporal_transformation(cfg)
+    # spatial_transform = build_spatial_transformation(cfg, 'train')
+    # TempTransform = build_temporal_transformation(cfg)
 
-    data, _ = get_data('train', cfg.DATASET.VID_PATH,
-                cfg.DATASET.ANNOTATION_PATH, cfg.TRAIN.DATASET, input_type, False,
-                file_type, spatial_transform, TempTransform)
-    a = data[1]
-    print(a[0][0].size())
+    # data, _ = get_data('train', cfg.DATASET.VID_PATH,
+    #             cfg.DATASET.ANNOTATION_PATH, cfg.TRAIN.DATASET, input_type, False,
+    #             file_type, spatial_transform, TempTransform)
+    # a = data[1]
+    # print(a[0][0].size())

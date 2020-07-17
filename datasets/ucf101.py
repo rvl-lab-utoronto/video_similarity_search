@@ -86,21 +86,20 @@ class UCF101():
 
             video_path = video_paths[i]
             segment = annotations[i]['segment']
-            if segment[1] == 1:
+
+            num_frames = segment[1] - 1
+            if num_frames == 0:
+                print ('empty folder', video_paths[i])
+                continue
+            elif num_frames < sample_duration:
+                #print ('disregarding video with num frames = {} < sample duration = {} : {}'.format(num_frames, sample_duration, video_paths[i]))
                 continue
 
-            if segment[1] - 1 < sample_duration:
-                print ('disregarding video with num frames = {} < sample duration = {} : {}'.format(segment[1] - 1, sample_duration, video_paths[i]))
-                continue
-
-            frame_indices = list(range(segment[0], segment[1]))
             sample = {
                 'video': video_path,
-                'segment': segment,
-                # 'frame_indices': frame_indices,
-                'video_id': video_ids[i],
+                'num_frames': num_frames,
                 'label': label_id
             }
             dataset.append(sample)
-        dataset = np.array(dqataset)
+        dataset = np.array(dataset)
         return dataset, idx_to_class

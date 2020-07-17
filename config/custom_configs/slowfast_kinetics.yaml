@@ -1,0 +1,18 @@
+TRAIN:
+    DATASET: kinetics
+    BATCH_SIZE: 8
+    NUM_DATA_WORKERS: 4
+
+DATASET:
+    VID_PATH: /media/diskstation/datasets/kinetics400/frames_shortedge320px_25fps
+    ANNOTATION_PATH: /media/diskstation/datasets/kinetics400/vid_paths_and_labels/frame_paths
+
+MODEL:
+    ARCH: slowfast
+
+DATA:
+    SAMPLE_DURATION: 32
+    SAMPLE_SIZE: 128
+    
+
+

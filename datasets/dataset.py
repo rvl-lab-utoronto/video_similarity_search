@@ -75,7 +75,8 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                             spatial_transform=spatial_transform,
                             temporal_transform=temporal_transform,
                             target_transform=target_transform,
-                            video_loader=loader)
+                            video_loader=loader,
+                            image_name_formatter=Dataset.image_name_formatter)
 
     print('{}_data: {}'.format(split, len(data)))
 

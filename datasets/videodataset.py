@@ -28,7 +28,7 @@ class VideoDataset(data.Dataset):
         self.spatial_transform = spatial_transform
         self.temporal_transform = temporal_transform
         self.target_transform = target_transform
-
+        self.image_name_formatter = image_name_formatter
         if video_loader is None:
             self.loader = VideoLoader(image_name_formatter)
         else:
@@ -43,22 +43,21 @@ class VideoDataset(data.Dataset):
             self.spatial_transform.randomize_parameters()
             clip = [self.spatial_transform(img) for img in clip]
         clip = torch.stack(clip, 0).permute(1, 0, 2, 3)
-
         return clip
 
     def __getitem__(self, index):
-        path = self.data[index]['video']
+        cur = self.data[index]
+        path = cur['video']
         if isinstance(self.target_type, list):
-            target = [self.data[index][t] for t in self.target_type]
+            target = [cur[t] for t in self.target_type]
         else:
-            target = self.data[index][self.target_type]
+            target = cur[self.target_type]
 
-        frame_indices = self.data[index]['frame_indices']
+        frame_indices = list(range(cur['segment'][0], cur['segment'][1] + 1))
         if self.temporal_transform is not None:
             frame_indices = self.temporal_transform(frame_indices)
 
         clip = self.__loading(path, frame_indices)
-
         if self.target_transform is not None:
             target = self.target_transform(target)
 
@@ -66,3 +65,13 @@ class VideoDataset(data.Dataset):
 
     def __len__(self):
         return len(self.data)
+
+    def _loading_img_path(self, index, temporal_transform=None):
+        cur = self.data[index]
+        path = cur['video']
+
+        frame_indices = list(range(cur['segment'][0], cur['segment'][1] + 1))
+        if temporal_transform is not None:
+            frame_indices = temporal_transform(frame_indices)
+        image_path = path + '/' + self.image_name_formatter(frame_indices[0])
+        return image_path

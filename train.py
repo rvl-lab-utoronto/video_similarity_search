@@ -249,8 +249,8 @@ if __name__ == '__main__':
 
     # ============================== Data Loaders ==============================
 
-    train_loader = data_loader.build_data_loader('train', cfg)
-    val_loader = data_loader.build_data_loader('val', cfg)
+    train_loader, _ = data_loader.build_data_loader('train', cfg)
+    val_loader, _ = data_loader.build_data_loader('val', cfg)
 
     # ======================== Loss and Optimizer Setup ========================
 

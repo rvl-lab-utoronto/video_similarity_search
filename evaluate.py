@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
+from datetime import datetime
 from sklearn.metrics.pairwise import euclidean_distances
 from datasets import data_loader
 from models.triplet_net import Tripletnet
@@ -141,4 +142,8 @@ if __name__ == '__main__':
         k_idx = get_closest_data(distance_matrix, exempler_idx, top_k)
         k_nearest_data = [data[i] for i in k_idx]
         plot_img(cfg, data, num_exempler, i, exempler_idx, k_idx, spatial_transform, temporal_transform)
-    plt.show()
+    # plt.show()
+    now = datetime.now()
+    png_file = os.path.join(save_dir, 'evaluate_{}.png'.format(now.strftime("%d_%m_%Y_%H_%M_%S")))
+    plt.savefig(png_file)
+    print('figure saved to: {}'.format(png_file))

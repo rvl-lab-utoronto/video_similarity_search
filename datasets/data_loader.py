@@ -135,6 +135,9 @@ def build_data_loader(split, cfg, triplets=True):
 
     print ('Single video input size:', data[1][0][0].size())
 
+    n_threads = 4*torch.cuda.device_count()
+    print('using {} threads to load data'.format(n_threads))
+
     if split == 'train':
         sampler = None
         data_loader = torch.utils.data.DataLoader(data,
@@ -169,7 +172,7 @@ def build_data_loader(split, cfg, triplets=True):
                                                 # collate_fn=collate_fn)
                                                 )
 
-    return data_loader
+    return data_loader, data
 
 
 

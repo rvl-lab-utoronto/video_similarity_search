@@ -101,14 +101,15 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
 
         # compute gradient and do optimizer step
         optimizer.zero_grad()
-        loss.backward()
+        loss.backward()#create_graph=True)
         optimizer.step()
 
         #measure accuracy and record loss
-        acc = accuracy(dista, distb)
-        triplet_losses.update(loss_triplet.item(), batch_size)
+        acc = accuracy(dista.detach(), distb.detach())
+        losses.update(loss_triplet.item(), batch_size)
         losses_r.update(loss.item(), batch_size)
         accs.update(acc.item(), batch_size)
+
         emb_norms.update(loss_embedd.item()/3, batch_size)
 
         if batch_idx % log_interval == 0:
@@ -165,6 +166,7 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
             # measure accuracy and record loss
             acc = accuracy(dista, distb)
             accs.update(acc.item(), batch_size)
+
             triplet_losses.update(triplet_loss.item(), batch_size)
             losses_r.update(loss_r.item(), batch_size)
 
@@ -232,25 +234,26 @@ if __name__ == '__main__':
     # Load pretrained backbone if path exists
     if args.pretrain_path is not None:
         model = load_pretrained_model(model, args.pretrain_path)
-
     tripletnet = Tripletnet(model)
+
+    if cuda:
+        if torch.cuda.device_count() > 1:
+            print("Let's use {} GPUs".format(torch.cuda.device_count()))
+            tripletnet = nn.DataParallel(tripletnet)
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
         start_epoch, best_acc = load_checkpoint(tripletnet, args.checkpoint_path)
 
     if cuda:
-        print("Using {} GPU(s)".format(torch.cuda.device_count()))
-        if torch.cuda.device_count() > 1:
-            tripletnet = nn.DataParallel(tripletnet)
         tripletnet.to(device)
 
     print('=> finished generating similarity network...')
 
     # ============================== Data Loaders ==============================
 
-    train_loader = data_loader.build_data_loader('train', cfg)
-    val_loader = data_loader.build_data_loader('val', cfg)
+    train_loader, _ = data_loader.build_data_loader('train', cfg)
+    val_loader, _ = data_loader.build_data_loader('val', cfg)
 
     # ======================== Loss and Optimizer Setup ========================
 

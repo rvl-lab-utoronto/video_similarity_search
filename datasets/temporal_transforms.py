@@ -139,6 +139,15 @@ class TemporalEvenCrop(object):
 
         return out
 
+class TemporalCenterFrame(object):
+
+    def __init__(self):
+        pass
+
+    def __call__(self, frame_indices):
+        center_index = len(frame_indices) // 2
+        return [center_index]
+
 
 class SlidingWindow(object):
 

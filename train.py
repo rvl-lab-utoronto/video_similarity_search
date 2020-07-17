@@ -106,7 +106,7 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
 
         #measure accuracy and record loss
         acc = accuracy(dista.detach(), distb.detach())
-        losses.update(loss_triplet.item(), batch_size)
+        triplet_losses.update(loss_triplet.item(), batch_size)
         losses_r.update(loss.item(), batch_size)
         accs.update(acc.item(), batch_size)
 

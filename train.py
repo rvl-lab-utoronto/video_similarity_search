@@ -101,7 +101,7 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
 
         # compute gradient and do optimizer step
         optimizer.zero_grad()
-        loss.backward()
+        loss.backward()#create_graph=True)
         optimizer.step()
 
         #measure accuracy and record loss
@@ -203,7 +203,6 @@ def accuracy(dista, distb):
     return (pred > 0).sum()*1.0/dista.size()[0]
 
 
-
 if __name__ == '__main__':
     args = parse_args()
     cfg = load_config(args)
@@ -232,7 +231,6 @@ if __name__ == '__main__':
     # Load pretrained backbone if path exists
     if args.pretrain_path is not None:
         model = load_pretrained_model(model, args.pretrain_path)
-
     tripletnet = Tripletnet(model)
 
     if cuda:
@@ -251,8 +249,8 @@ if __name__ == '__main__':
 
     # ============================== Data Loaders ==============================
 
-    train_loader = data_loader.build_data_loader('train', cfg)
-    val_loader = data_loader.build_data_loader('val', cfg)
+    train_loader, _ = data_loader.build_data_loader('train', cfg)
+    val_loader, _ = data_loader.build_data_loader('val', cfg)
 
     # ======================== Loss and Optimizer Setup ========================
 

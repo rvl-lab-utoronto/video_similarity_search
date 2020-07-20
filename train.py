@@ -105,11 +105,11 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
         optimizer.step()
 
         #measure accuracy and record loss
-        acc = accuracy(dista, distb)
-        triplet_losses.update(loss_triplet.item(), batch_size)
-        losses_r.update(loss.item(), batch_size)
-        accs.update(acc.item(), batch_size)
-        emb_norms.update(loss_embedd.item()/3, batch_size)
+        acc = accuracy(dista.detach(), distb.detach())
+        triplet_losses.update(loss_triplet.detach(), batch_size)
+        losses_r.update(loss.detach(), batch_size)
+        accs.update(acc, batch_size)
+        emb_norms.update(loss_embedd.detach()/3, batch_size)
 
         if batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
@@ -163,10 +163,10 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
             loss_r = triplet_loss + 0.001 *loss_embedd + offset
 
             # measure accuracy and record loss
-            acc = accuracy(dista, distb)
-            accs.update(acc.item(), batch_size)
-            triplet_losses.update(triplet_loss.item(), batch_size)
-            losses_r.update(loss_r.item(), batch_size)
+            acc = accuracy(dista.detach(), distb.detach())
+            accs.update(acc, batch_size)
+            triplet_losses.update(triplet_loss.detach(), batch_size)
+            losses_r.update(loss_r.detach(), batch_size)
 
             # torch.cuda.empty_cache()
 
@@ -199,7 +199,7 @@ class AverageMeter(object):
 
 def accuracy(dista, distb):
     margin = 0
-    pred = (distb - dista - margin).cpu().data
+    pred = (distb - dista - margin)
     return (pred > 0).sum()*1.0/dista.size()[0]
 
 
@@ -235,14 +235,16 @@ if __name__ == '__main__':
 
     tripletnet = Tripletnet(model)
 
+    if cuda:
+        print("Using {} GPU(s)".format(torch.cuda.device_count()))
+        if torch.cuda.device_count() > 1:
+            tripletnet = nn.DataParallel(tripletnet)
+
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
         start_epoch, best_acc = load_checkpoint(tripletnet, args.checkpoint_path)
 
     if cuda:
-        print("Using {} GPU(s)".format(torch.cuda.device_count()))
-        if torch.cuda.device_count() > 1:
-            tripletnet = nn.DataParallel(tripletnet)
         tripletnet.to(device)
 
     print('=> finished generating similarity network...')

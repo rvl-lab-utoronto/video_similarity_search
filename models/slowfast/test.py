@@ -1,5 +1,7 @@
 from slowfast.utils.parser import load_config, parse_args
-from slowfast.models.build import build_model
+#from slowfast.models.build import build_model
+from slowfast.models.video_model_builder import SlowFastRepresentation
+from slowfast.models.video_model_builder import SlowFast
 
 from slowfast.config.defaults import get_cfg
 
@@ -13,7 +15,9 @@ def test():
     cfg.merge_from_file('configs/Kinetics/SLOWFAST_8x8_R50.yaml')
     cfg.NUM_GPUS = 1
 
-    model = build_model(cfg)
+    #model = SlowFast(cfg)
+    model = SlowFastRepresentation(cfg)
+    #model = build_model(cfg)
     cur_device = torch.cuda.current_device()
     model = model.cuda(device=cur_device)
 

@@ -2,7 +2,8 @@ import torch
 
 from models.resnet import generate_model
 #from models.slowfast.slowfast.models.build import build_model
-from models.slowfast.slowfast.models.video_model_builder import SlowFast
+#from models.slowfast.slowfast.models.video_model_builder import SlowFast
+from models.slowfast.slowfast.models.video_model_builder import SlowFastRepresentation
 from models.slowfast.slowfast.config.defaults import get_cfg
 
 def model_selector(cfg):
@@ -28,7 +29,8 @@ def model_selector(cfg):
         slowfast_cfg.DATA.INPUT_CHANNEL_NUM = [cfg.DATA.INPUT_CHANNEL_NUM, cfg.DATA.INPUT_CHANNEL_NUM]
 
         #model = build_model(slowfast_cfg)
-        model = SlowFast(slowfast_cfg)
+        #model = SlowFast(slowfast_cfg)
+        model = SlowFastRepresentation(slowfast_cfg)
 
     return model
 

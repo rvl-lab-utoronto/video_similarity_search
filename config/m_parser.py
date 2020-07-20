@@ -56,6 +56,16 @@ def parse_args():
         help='define num_workers for dataloader'
     )
     parser.add_argument(
+        "--sample_size",
+        default=None,
+        type=int
+    )
+    parser.add_argument(
+        "--n_classes",
+        default=None,
+        type=int
+    )
+    parser.add_argument(
         "opts",
         default=None,
         nargs=argparse.REMAINDER,
@@ -79,6 +89,15 @@ def overwrite_default_configs(cfg, args):
     if args.num_data_workers:
         cfg.TRAIN.NUM_DATA_WORKERS = args.num_data_workers
 
+    if args.sample_size:
+        cfg.DATA.SAMPLE_SIZE = args.sample_size
+
+    if args.n_classes:
+        if cfg.MODEL.ARCH == '3dresnet':
+            cfg.RESNET.N_CLASSES = args.n_classes
+        else:
+            print('not implemented...')
+
 def load_config(args):
     cfg = get_cfg()
 
@@ -92,5 +111,6 @@ def load_config(args):
     print('\nOUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
     print('BATCH_SIZE is set to: {}'.format(cfg.TRAIN.BATCH_SIZE))
     print('NUM_WORKERS is set to: {}'.format(cfg.TRAIN.NUM_DATA_WORKERS))
-
+    print('SAMPLE SIZE is set to: {}'.format(cfg.DATA.SAMPLE_SIZE))
+    print('N_CLASSES is set to: {}'.format(cfg.RESNET.N_CLASSES))
     return cfg

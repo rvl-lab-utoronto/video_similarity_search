@@ -53,7 +53,7 @@ class VideoDataset(data.Dataset):
         else:
             target = cur[self.target_type]
 
-        frame_indices = list(range(cur['segment'][0], cur['segment'][1] + 1))
+        frame_indices = list(range(1, cur['num_frames'] + 1))
         if self.temporal_transform is not None:
             frame_indices = self.temporal_transform(frame_indices)
 
@@ -70,7 +70,7 @@ class VideoDataset(data.Dataset):
         cur = self.data[index]
         path = cur['video']
 
-        frame_indices = list(range(cur['segment'][0], cur['segment'][1] + 1))
+        frame_indices = list(range(1, cur['num_frames'] + 1))
         if temporal_transform is not None:
             frame_indices = temporal_transform(frame_indices)
         image_path = path + '/' + self.image_name_formatter(frame_indices[0])

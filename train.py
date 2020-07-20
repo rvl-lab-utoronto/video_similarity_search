@@ -73,7 +73,6 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
     tripletnet.train()
     start = time.time()
     for batch_idx, (inputs, targets) in enumerate(train_loader):
-        # torch.cuda.empty_cache()
         anchor, positive, negative = inputs
         batch_size = anchor.size(0)
 
@@ -120,11 +119,10 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
                 epoch, batch_idx * batch_size, len(train_loader.dataset), 100. * (batch_idx * batch_size / len(train_loader.dataset)),
                 triplet_losses.val, triplet_losses.avg,
                 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
-        # gc.collect()
     print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
 
     with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
-        f.write('{:.4f} {:.4f} {:.2f}\n'.format(triplet_losses.avg, losses_r.avg, 100. * accs.avg))
+        f.write('epoch:{} runtime:{} {:.4f} {:.4f} {:.2f}\n'.format(epoch, round((time.time()-start)/3600,2), triplet_losses.avg, losses_r.avg, 100. * accs.avg))
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
@@ -134,7 +132,6 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
     accs = AverageMeter()
 
     tripletnet.eval()
-    # torch.cuda.empty_cache()
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(val_loader):
             (anchor, positive, negative) = inputs
@@ -170,13 +167,12 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
             triplet_losses.update(triplet_loss.item(), batch_size)
             losses_r.update(loss_r.item(), batch_size)
 
-            # torch.cuda.empty_cache()
 
     print('\nTest set: Average loss: {:.4f}({:.4f}), Accuracy: {:.2f}%\n'.format(
         triplet_losses.avg, losses_r.avg, 100. * accs.avg))
 
     with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
-        val_file.write('{:.4f} {:.4f} {:.2f}\n'.format(triplet_losses.avg, losses_r.avg, 100. * accs.avg))
+        val_file.write('epoch:{} {:.4f} {:.4f} {:.2f}\n'.format(epoch, triplet_losses.avg, losses_r.avg, 100. * accs.avg))
 
     return accs.avg
 

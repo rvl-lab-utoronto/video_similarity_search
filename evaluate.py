@@ -5,6 +5,7 @@ retrieve the most similar clips
 import os
 import argparse
 import pprint
+import time
 import numpy as np
 import random
 import torch
@@ -116,7 +117,7 @@ if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
     global cuda; cuda = torch.cuda.is_available()
     global device; device = torch.device("cuda" if cuda else "cpu")
-
+    start = time.time()
     model=model_selector(cfg)
     print('=> finished generating {} backbone model...'.format(cfg.MODEL.ARCH))
 
@@ -162,3 +163,4 @@ if __name__ == '__main__':
     fig.tight_layout(pad=3.5)
     plt.savefig(png_file)
     print('figure saved to: {}'.format(png_file))
+    print('total runtime:{}'.format(time.time()-start))

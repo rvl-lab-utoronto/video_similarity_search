@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --account=def-florian7_gpu
-#SBATCH --time=1-17:00:00
+#SBATCH --time=0-20:00:00
 #SBATCH --nodes=1
-#SBATCH --ntasks=4
+#SBATCH --cpus-per-task=6
 #SBATCH --gres=gpu:t4:4
-#SBATCH --mem=32G
+#SBATCH --mem=48G
 #SBATCH --job-name=resnet_kinetics
 #SBATCH --output=%x-%j.out
 
@@ -20,4 +20,5 @@ python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_searc
 --output '/home/cheny257/projects/def-florian7/cheny257/output/kinetics_4' \
 --checkpoint_path '/home/cheny257/projects/def-florian7/cheny257/output/kinetics_4/tnet_checkpoints/3dresnet/checkpoint.pth.tar' \
 --gpu 0,1,2,3 \
---batch_size 32
+--batch_size 32 \
+--num_data_workers 4

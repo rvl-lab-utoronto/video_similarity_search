@@ -5,6 +5,7 @@ retrieve the most similar clips
 import os
 import argparse
 import pprint
+import time
 import numpy as np
 import random
 import torch
@@ -76,20 +77,37 @@ def get_closest_data(distance_matrix, exempler_idx, top_k):
 
 
 
-def plot_img(cfg, data, num_exempler, row, exempler_idx, k_idx, spatial_transform=None, temporal_transform=None):
+def plot_img(cfg, data, num_exempler, row, exempler_idx, k_idx, spatial_transform=None, temporal_transform=None, output=None):
     exempler_frame = data._loading_img_path(exempler_idx, temporal_transform)
     test_frame = [data._loading_img_path(i, temporal_transform) for i in k_idx]
+
+    exempler_title = '-'.join(exempler_frame.split('/')[-3:-2])
+
     print(exempler_frame)
     pprint.pprint(test_frame)
     ax = fig.add_subplot(num_exempler,len(test_frame)+1, row*(len(test_frame)+1)+1)
     image = plt.imread(exempler_frame)
     plt.imshow(image)
+    ax.set_title(exempler_title, fontsize=5, pad=0.3)
     plt.axis('off')
     for i in range(len(test_frame)):
+        test_title = '-'.join(test_frame[i].split('/')[-3:-2])
         ax = fig.add_subplot(num_exempler,len(test_frame)+1, row*(len(test_frame)+1)+i+2)
         image = plt.imread(test_frame[i])
         plt.imshow(image)
+        ax.set_title(test_title, fontsize=5, pad=0.3)
         plt.axis('off')
+
+    with open(os.path.join(output, 'results.txt'), 'a') as f:
+        f.write('exempler_frame:\n{}\n'.format(exempler_frame))
+        for frame in test_frame:
+            f.write(frame)
+            f.write('\n')
+        f.write('\n')
+
+    with open(os.path.join(output, 'exempler.txt'), 'a') as f:
+        f.write('{}, {}'.format(exempler_idx, exempler_frame))
+        f.write('\n')
 
 
 if __name__ == '__main__':
@@ -99,12 +117,15 @@ if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
     global cuda; cuda = torch.cuda.is_available()
     global device; device = torch.device("cuda" if cuda else "cpu")
-
+    start = time.time()
     model=model_selector(cfg)
     print('=> finished generating {} backbone model...'.format(cfg.MODEL.ARCH))
 
-    if not os.path.exists(args.output):
-        os.makedirs(args.output)
+    now = datetime.now()
+    evaluate_output = os.path.join(args.output, 'evaluate_{}'.format(now.strftime("%d_%m_%Y_%H_%M_%S")))
+    if not os.path.exists(evaluate_output):
+        os.makedirs(evaluate_output)
+        print('made output dir:{}'.format(evaluate_output))
 
     tripletnet = Tripletnet(model)
     if cuda:
@@ -136,9 +157,10 @@ if __name__ == '__main__':
         print('exempler video id:{}'.format(exempler_idx))
         k_idx = get_closest_data(distance_matrix, exempler_idx, top_k)
         k_nearest_data = [data[i] for i in k_idx]
-        plot_img(cfg, data, num_exempler, i, exempler_idx, k_idx, spatial_transform, temporal_transform)
+        plot_img(cfg, data, num_exempler, i, exempler_idx, k_idx, spatial_transform, temporal_transform, output=evaluate_output)
     # plt.show()
-    now = datetime.now()
-    png_file = os.path.join(args.output, 'evaluate_{}.png'.format(now.strftime("%d_%m_%Y_%H_%M_%S")))
+    png_file = os.path.join(evaluate_output, 'plot.png')
+    fig.tight_layout(pad=3.5)
     plt.savefig(png_file)
     print('figure saved to: {}'.format(png_file))
+    print('total runtime:{}'.format(time.time()-start))

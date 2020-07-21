@@ -105,11 +105,10 @@ def train(train_loader, tripletnet, criterion, optimizer, epoch, cfg):
 
         #measure accuracy and record loss
         acc = accuracy(dista.detach(), distb.detach())
-        triplet_losses.update(loss_triplet.item(), batch_size)
-        losses_r.update(loss.item(), batch_size)
-        accs.update(acc.item(), batch_size)
-
-        emb_norms.update(loss_embedd.item()/3, batch_size)
+        triplet_losses.update(loss_triplet.detach(), batch_size)
+        losses_r.update(loss.detach(), batch_size)
+        accs.update(acc, batch_size)
+        emb_norms.update(loss_embedd.detach()/3, batch_size)
 
         if batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
@@ -161,11 +160,10 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg):
             loss_r = triplet_loss + 0.001 *loss_embedd + offset
 
             # measure accuracy and record loss
-            acc = accuracy(dista, distb)
-            accs.update(acc.item(), batch_size)
-
-            triplet_losses.update(triplet_loss.item(), batch_size)
-            losses_r.update(loss_r.item(), batch_size)
+            acc = accuracy(dista.detach(), distb.detach())
+            accs.update(acc, batch_size)
+            triplet_losses.update(triplet_loss.detach(), batch_size)
+            losses_r.update(loss_r.detach(), batch_size)
 
 
     print('\nTest set: Average loss: {:.4f}({:.4f}), Accuracy: {:.2f}%\n'.format(
@@ -197,9 +195,8 @@ class AverageMeter(object):
 
 def accuracy(dista, distb):
     margin = 0
-    pred = (distb - dista - margin).cpu().data
+    pred = (distb - dista - margin)
     return (pred > 0).sum()*1.0/dista.size()[0]
-
 
 
 if __name__ == '__main__':
@@ -233,8 +230,8 @@ if __name__ == '__main__':
     tripletnet = Tripletnet(model)
 
     if cuda:
+        print("Using {} GPU(s)".format(torch.cuda.device_count()))
         if torch.cuda.device_count() > 1:
-            print("Let's use {} GPUs".format(torch.cuda.device_count()))
             tripletnet = nn.DataParallel(tripletnet)
 
     # Load similarity network checkpoint if path exists

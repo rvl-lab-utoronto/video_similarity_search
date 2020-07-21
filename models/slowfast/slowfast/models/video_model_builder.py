@@ -867,3 +867,20 @@ class SlowFastRepresentation(nn.Module):
         #else:
         x = self.head(x)
         return x
+
+    def forward_no_head(self, x, bboxes=None):
+        x = self.s1(x)
+        x = self.s1_fuse(x)
+        x = self.s2(x)
+        x = self.s2_fuse(x)
+        for pathway in range(self.num_pathways):
+            pool = getattr(self, "pathway{}_pool".format(pathway))
+            x[pathway] = pool(x[pathway])
+        x = self.s3(x)
+        x = self.s3_fuse(x)
+        x = self.s4(x)
+        x = self.s4_fuse(x)
+        x = self.s5(x)
+        x = self.s5_fuse(x)
+        x = x[0] #only take fast-fused slow path
+        return x

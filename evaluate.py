@@ -23,8 +23,8 @@ from datasets.temporal_transforms import Compose as TemporalCompose
 from config.m_parser import load_config, parse_args
 from train import load_checkpoint
 
-num_exempler = 10
-log_interval = 5
+num_exempler = 5
+log_interval = 10
 top_k = 5
 split = 'val'
 
@@ -43,7 +43,7 @@ def evaluate(model, test_loader, log_interval=5):
                 input = multipathway_input(input, cfg)
                 if cuda:
                     for i in range(len(input)):
-                        input= input[i].to(device)
+                        input[i] = input[i].to(device)
             else:
                 if cuda:
                     input= input.to(device)
@@ -59,15 +59,15 @@ def evaluate(model, test_loader, log_interval=5):
     return embeddings
 
 
-
 def get_distance_matrix(embeddings):
     print('embeddings size', embeddings.size())
     embeddings = embeddings
     distance_matrix = euclidean_distances(embeddings)
-    print(distance_matrix.shape)
+    print('distance matrix shape:', distance_matrix.shape)
 
     np.fill_diagonal(distance_matrix, float('inf'))
     return distance_matrix
+
 
 def get_closest_data(distance_matrix, exempler_idx, top_k):
     test_array = distance_matrix[exempler_idx]
@@ -76,15 +76,19 @@ def get_closest_data(distance_matrix, exempler_idx, top_k):
     return top_k
 
 
-
-def plot_img(cfg, data, num_exempler, row, exempler_idx, k_idx, spatial_transform=None, temporal_transform=None, output=None):
+def plot_img(cfg, fig, data, num_exempler, row, exempler_idx, k_idx, spatial_transform=None, temporal_transform=None, output=None):
     exempler_frame = data._loading_img_path(exempler_idx, temporal_transform)
     test_frame = [data._loading_img_path(i, temporal_transform) for i in k_idx]
 
     exempler_title = '-'.join(exempler_frame.split('/')[-3:-2])
 
     print(exempler_frame)
+    print('top k ids:', end=' ')
+    for i in k_idx:
+        print(i, end=' ')
+    print()
     pprint.pprint(test_frame)
+
     ax = fig.add_subplot(num_exempler,len(test_frame)+1, row*(len(test_frame)+1)+1)
     image = plt.imread(exempler_frame)
     plt.imshow(image)
@@ -110,40 +114,7 @@ def plot_img(cfg, data, num_exempler, row, exempler_idx, k_idx, spatial_transfor
         f.write('\n')
 
 
-if __name__ == '__main__':
-    args = parse_args()
-    cfg = load_config(args)
-
-    os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
-    global cuda; cuda = torch.cuda.is_available()
-    global device; device = torch.device("cuda" if cuda else "cpu")
-    start = time.time()
-    model=model_selector(cfg)
-    print('=> finished generating {} backbone model...'.format(cfg.MODEL.ARCH))
-
-    now = datetime.now()
-    evaluate_output = os.path.join(args.output, 'evaluate_{}'.format(now.strftime("%d_%m_%Y_%H_%M_%S")))
-    if not os.path.exists(evaluate_output):
-        os.makedirs(evaluate_output)
-        print('made output dir:{}'.format(evaluate_output))
-
-    tripletnet = Tripletnet(model)
-    if cuda:
-        if torch.cuda.device_count() > 1:
-            print("Let's use {} GPUs".format(torch.cuda.device_count()))
-            tripletnet = nn.DataParallel(tripletnet)
-
-    if args.checkpoint_path is not None:
-        start_epoch, best_acc = load_checkpoint(tripletnet, args.checkpoint_path)
-
-    model = tripletnet.module.embeddingnet
-
-    if cuda:
-        model.to(device)
-
-    print('=> finished generating similarity network...')
-
-    test_loader, data = data_loader.build_data_loader(split, cfg, triplets=False)
+def k_nearest_embeddings(model, test_loader, cfg, evaluate_output):
     embeddings = evaluate(model, test_loader, log_interval=log_interval)
 
     distance_matrix = get_distance_matrix(embeddings)
@@ -154,13 +125,62 @@ if __name__ == '__main__':
     fig = plt.figure()
     for i in range(num_exempler):
         exempler_idx = random.randint(0, distance_matrix.shape[0]-1)
-        print('exempler video id:{}'.format(exempler_idx))
+        print('exempler video id: {}'.format(exempler_idx))
         k_idx = get_closest_data(distance_matrix, exempler_idx, top_k)
         k_nearest_data = [data[i] for i in k_idx]
-        plot_img(cfg, data, num_exempler, i, exempler_idx, k_idx, spatial_transform, temporal_transform, output=evaluate_output)
+        plot_img(cfg, fig, data, num_exempler, i, exempler_idx, k_idx, spatial_transform, temporal_transform, output=evaluate_output)
     # plt.show()
     png_file = os.path.join(evaluate_output, 'plot.png')
     fig.tight_layout(pad=3.5)
     plt.savefig(png_file)
     print('figure saved to: {}'.format(png_file))
-    print('total runtime:{}'.format(time.time()-start))
+
+
+if __name__ == '__main__':
+    args = parse_args()
+    cfg = load_config(args)
+
+    force_data_parallel = True
+
+    os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
+    global cuda; cuda = torch.cuda.is_available()
+    global device; device = torch.device("cuda" if cuda else "cpu")
+
+    start = time.time()
+
+    now = datetime.now()
+    evaluate_output = os.path.join(args.output, 'evaluate_{}'.format(now.strftime("%d_%m_%Y_%H_%M_%S")))
+    if not os.path.exists(evaluate_output):
+        os.makedirs(evaluate_output)
+        print('made output dir:{}'.format(evaluate_output))
+
+    # ============================== Model Setup ===============================
+
+    model=model_selector(cfg)
+    print('=> finished generating {} backbone model...'.format(cfg.MODEL.ARCH))
+
+    tripletnet = Tripletnet(model)
+    if cuda:
+        if torch.cuda.device_count() > 1 or force_data_parallel:
+            print("Let's use {} GPUs".format(torch.cuda.device_count()))
+            tripletnet = nn.DataParallel(tripletnet)
+
+    if args.checkpoint_path is not None:
+        start_epoch, best_acc = load_checkpoint(tripletnet, args.checkpoint_path)
+
+    model = tripletnet.module.embeddingnet
+    if cuda:
+        model.to(device)
+
+    print('=> finished generating similarity network...')
+
+    # ============================== Data Loaders ==============================
+
+    test_loader, data = data_loader.build_data_loader(split, cfg, triplets=False)
+    print()
+
+    # ================================ Evaluate ================================
+
+    k_nearest_embeddings(model, test_loader, cfg, evaluate_output)
+    print('total runtime: {}s'.format(time.time()-start))
+    

@@ -27,7 +27,7 @@ num_exempler = 10
 log_interval = 5
 top_k = 5
 split = 'val'
-
+exempler_file = '/home/sherry/output/evaluate_exempler.txt'
 
 def evaluate(model, test_loader, log_interval=5):
     model.eval()
@@ -109,6 +109,13 @@ def plot_img(cfg, data, num_exempler, row, exempler_idx, k_idx, spatial_transfor
         f.write('{}, {}'.format(exempler_idx, exempler_frame))
         f.write('\n')
 
+def load_exempler(exempler_file):
+    with open(exempler_file, 'r') as f:
+        lines = f.readlines()
+    exempler_idx  = []
+    for line in lines:
+        exempler_idx.append(int(line.split(',')[0].strip()))
+    return exempler_idx
 
 if __name__ == '__main__':
     args = parse_args()
@@ -152,8 +159,18 @@ if __name__ == '__main__':
     temporal_transform = [TemporalCenterFrame()]
     temporal_transform = TemporalCompose(temporal_transform)
     fig = plt.figure()
+
+    if exempler_file:
+        exempler_indices = load_exempler(exempler_file)
+        num_exempler = len(exempler_indices)
+        print('exempler_idx retrieved: {}'.format(exempler_indices))
+        print('number of exemplers is: {}'.format(num_exempler))
+
     for i in range(num_exempler):
-        exempler_idx = random.randint(0, distance_matrix.shape[0]-1)
+        if not exempler_file:
+            exempler_idx = random.randint(0, distance_matrix.shape[0]-1)
+        else:
+            exempler_idx = exempler_indices[i]
         print('exempler video id:{}'.format(exempler_idx))
         k_idx = get_closest_data(distance_matrix, exempler_idx, top_k)
         k_nearest_data = [data[i] for i in k_idx]
@@ -161,6 +178,6 @@ if __name__ == '__main__':
     # plt.show()
     png_file = os.path.join(evaluate_output, 'plot.png')
     fig.tight_layout(pad=3.5)
-    plt.savefig(png_file)
+    plt.savefig(png_file, dpi=300)
     print('figure saved to: {}'.format(png_file))
     print('total runtime:{}'.format(time.time()-start))

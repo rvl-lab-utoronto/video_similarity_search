@@ -6,9 +6,11 @@ import os
 import argparse
 import pprint
 import time
+import math
 import numpy as np
 import random
 import torch
+import cv2
 import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
@@ -18,7 +20,7 @@ from datasets import data_loader
 from models.triplet_net import Tripletnet
 from models.model_utils import model_selector, multipathway_input
 from datasets.data_loader import build_spatial_transformation
-from datasets.temporal_transforms import TemporalCenterFrame
+from datasets.temporal_transforms import TemporalCenterFrame, TemporalCenterCrop, TemporalSpecificCrop
 from datasets.temporal_transforms import Compose as TemporalCompose
 from config.m_parser import load_config, parse_args
 from train import load_checkpoint
@@ -114,7 +116,7 @@ def plot_img(cfg, fig, data, num_exempler, row, exempler_idx, k_idx, spatial_tra
         f.write('\n')
 
 
-def k_nearest_embeddings(model, test_loader, cfg, evaluate_output):
+def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output):
     embeddings = evaluate(model, test_loader, log_interval=log_interval)
 
     distance_matrix = get_distance_matrix(embeddings)
@@ -135,6 +137,88 @@ def k_nearest_embeddings(model, test_loader, cfg, evaluate_output):
     plt.savefig(png_file)
     print('figure saved to: {}'.format(png_file))
 
+
+def temporal_heat_map(model, data, cfg, evaluate_output):
+    exemplar_idx = 455
+    test_idx = 456
+
+    num_frames_exemplar = data.data[exemplar_idx]['num_frames']
+
+    exemplar_video_full, _, _ = data._get_video_custom_temporal(exemplar_idx)  # full size
+    exemplar_video_full = exemplar_video_full.unsqueeze(0)
+
+    num_frames_crop = cfg.DATA.SAMPLE_DURATION
+    stride = num_frames_crop // 2
+    dists = []
+
+    model.eval()
+    with torch.no_grad():
+        test_video, _, _ = data.__getitem__(test_idx)  # cropped size
+        test_video = test_video.unsqueeze(0)
+        print('Test input size:', test_video.size(), '\n')
+        if (cfg.MODEL.ARCH == 'slowfast'):
+            test_video_in = multipathway_input(test_video, cfg)
+            if cuda:
+                for i in range(len(test_video_in)):
+                    test_video_in[i] = test_video_in[i].to(device)
+        else:
+            if cuda:
+                test_video_in = test_video_in.to(device)
+        test_embedding = model(test_video_in)
+        #print('Test embed size:', test_embedding.size())
+ 
+        # Loop across exemplar video, use [i-cfg.DATA.SAMPLE_SIZE,...,i] as the frames for the temporal crop
+        for i in range(num_frames_crop, num_frames_exemplar, stride):
+            temporal_transform_exemplar = TemporalSpecificCrop(begin_index=i-num_frames_crop, size=num_frames_crop)
+            exemplar_video, _, _ = data._get_video_custom_temporal(exemplar_idx, temporal_transform_exemplar)  # full siz
+            exemplar_video = exemplar_video.unsqueeze(0)
+            
+            if (cfg.MODEL.ARCH == 'slowfast'):
+                exemplar_video_in = multipathway_input(exemplar_video, cfg)
+                if cuda:
+                    for j in range(len(exemplar_video_in)):
+                        exemplar_video_in[j] = exemplar_video_in[j].to(device)                
+            else:
+                if cuda:
+                    exemplar_video_in = exemplar_video_in.to(device)
+
+            exemplar_embedding = model(exemplar_video_in)
+            #print('Exemplar input size:', exemplar_video.size())
+            #print('Exemplar embed size:', exemplar_embedding.size())
+            dist = F.pairwise_distance(exemplar_embedding, test_embedding, 2)
+            dists.append(dist.item())
+        
+    #print(dists)
+    x = []
+    y = []
+    plt.show()
+    axes = plt.gca()
+    axes.set_xlim(0, num_frames_exemplar)
+    axes.set_ylim(0, max(dists))
+    line, = axes.plot(x, y, 'b-')
+    dist_idx = 0
+
+    # channels x frames x width, height --> frames x width x height x channels
+    video_ex = exemplar_video_full[0].permute(1,2,3,0)
+    video_test = test_video[0].permute(1,2,3,0)
+    fps = 25.0
+    for i in range(len(video_ex)):
+        blank_divider = np.full((2,128,3), 256, dtype=int)
+        np_vertical_stack = np.vstack(( video_ex[i].numpy(), blank_divider, video_test[i % len(video_test)].numpy() ))
+        cv2.imshow('Videos', np_vertical_stack)
+
+        # show plot of embedding distance for past num_frames_crop frames of exemplar video
+        if i >= num_frames_crop and (i - num_frames_crop) % stride == 0:
+            x.append(i)
+            y.append(dists[dist_idx])
+            line.set_xdata(x)
+            line.set_ydata(y)
+            plt.draw()
+            plt.pause(1e-17)
+            dist_idx += 1
+
+        cv2.waitKey(int(1.0/fps*1000.0))
+        
 
 if __name__ == '__main__':
     args = parse_args()
@@ -181,6 +265,8 @@ if __name__ == '__main__':
 
     # ================================ Evaluate ================================
 
-    k_nearest_embeddings(model, test_loader, cfg, evaluate_output)
+    k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output)
     print('total runtime: {}s'.format(time.time()-start))
+
+    #temporal_heat_map(model, data, cfg, evaluate_output)
     

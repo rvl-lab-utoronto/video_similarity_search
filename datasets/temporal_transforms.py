@@ -91,6 +91,23 @@ class TemporalCenterCrop(object):
         return out
 
 
+class TemporalSpecificCrop(object):
+    
+    def __init__(self, begin_index, size):
+        self.begin_index = begin_index
+        self.size = size
+
+    def __call__(self, frame_indices):
+        out = frame_indices[self.begin_index : self.begin_index + self.size]
+
+        for index in out:
+            if len(out) >= self.size:
+                break
+            out.append(index)
+
+        return out
+
+
 class TemporalRandomCrop(object):
 
     def __init__(self, size):

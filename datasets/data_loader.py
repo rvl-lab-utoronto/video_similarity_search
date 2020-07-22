@@ -180,8 +180,8 @@ if __name__ == '__main__':
     args = parse_args()
     cfg = load_config(args)
 
-    train_loader, data = build_data_loader('train', cfg)
-    # val_loader, data = build_data_loader('val', cfg)
+    # train_loader, data = build_data_loader('train', cfg)
+    val_loader, data = build_data_loader('val', cfg)
     d = data[0]
     # spatial_transform = build_spatial_transformation(cfg, 'train')
     # TempTransform = build_temporal_transformation(cfg)

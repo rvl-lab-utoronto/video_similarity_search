@@ -2,7 +2,7 @@ import json
 import os
 import numpy as np
 from pathlib import Path
-
+import itertools
 
 def get_class_labels(data):
     class_labels_map = {}
@@ -13,22 +13,35 @@ def get_class_labels(data):
     return class_labels_map
 
 
-def get_database(data, subset, root_path, video_path_formatter):
-    video_ids = []
+def get_database(data, subset, root_path, video_path_formatter, split='train'):
+    video_groups = {}
     video_paths = []
     annotations = []
 
     for key, value in data['database'].items():
         this_subset = value['subset']
         if this_subset == subset:
-            video_ids.append(key)
-            annotations.append(value['annotations'])
-            if 'video_path' in value:
-                video_paths.append(Path(value['video_path']))
-            else:
-                label = value['annotations']['label']
-                video_paths.append(video_path_formatter(root_path, label, key))
+            group = '_'.join(key.split('_')[:-1])
+            if group not in video_groups.keys():
+                video_groups[group] = []
+            video_groups[group].append(key)
 
+
+    if split == 'train':
+        video_ids = list(itertools.chain(*video_groups.values()))
+    else:
+        video_ids = []
+        for name in video_groups:
+            video_ids.append(np.random.choice(video_groups[name]))
+
+    video_paths = []
+    for id in video_ids:
+        annotations.append(data['database'][id]['annotations'])
+        if 'video_path' in data['database'][id]:
+            video_paths.append(Path(data['database'][id]['video_path']))
+        else:
+            label = data['database'][id]['annotations']['label']
+            video_paths.append(video_path_formatter(root_path, label, id))
     return video_ids, video_paths, annotations
 
 
@@ -43,6 +56,7 @@ class UCF101():
                                        root_path / label / video_id)
                  ):
 
+        self.split=split
         if split == 'train':
             subset = 'training'
         elif split == 'val':
@@ -65,7 +79,7 @@ class UCF101():
             video_path_formatter, sample_duration):
         with open(annotation_path, 'r') as f:
             data = json.load(f)
-        video_ids, video_paths, annotations = get_database(data, subset, root_path, video_path_formatter)
+        video_ids, video_paths, annotations = get_database(data, subset, root_path, video_path_formatter, split=self.split)
         class_to_idx = get_class_labels(data)
         idx_to_class = {}
         for name, label in class_to_idx.items():

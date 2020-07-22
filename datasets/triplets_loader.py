@@ -50,9 +50,8 @@ class TripletsData(data.Dataset):
 
         self.target_type = target_type
 
-        self.test_labels = np.array([data[self.target_type] for data in self.data])
-        self.label_to_indices = {label: np.where(self.test_labels == label)[0] for label in self.class_names.keys()}
-        # print(self.label_to_indices)
+        self.data_labels = np.array([data[self.target_type] for data in self.data])
+        self.label_to_indices = {label: np.where(self.data_labels == label)[0] for label in self.class_names.keys()}
 
     def __loading(self, path, frame_indices):
         clip = self.loader(path, frame_indices)
@@ -93,7 +92,7 @@ class TripletsData(data.Dataset):
         n_target = negative[self.target_type]
 
         a_frame_indices = list(range(1, anchor['num_frames'] + 1))
-        p_frame_indices = a_frame_indices
+        p_frame_indices = list(range(1, positive['num_frames'] + 1))
         n_frame_indices = list(range(1, negative['num_frames'] + 1))
 
         a_frame_id = self.anchor_temporal_transform(a_frame_indices)

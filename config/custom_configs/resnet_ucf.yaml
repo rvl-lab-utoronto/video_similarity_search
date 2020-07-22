@@ -1,4 +1,4 @@
-OUTPUT_PATH: '/home/sherry/output'
+OUTPUT_PATH: '/home/sherry/output/ucf'
 
 TRAIN:
     DATASET: "ucf101"

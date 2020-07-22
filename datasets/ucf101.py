@@ -26,10 +26,9 @@ def get_database(data, subset, root_path, video_path_formatter, split='train'):
                 video_groups[group] = []
             video_groups[group].append(key)
 
-
     if split == 'train':
         video_ids = list(itertools.chain(*video_groups.values()))
-    else:
+    else: # if validation/test, only select videos from different groups.
         video_ids = []
         for name in video_groups:
             video_ids.append(np.random.choice(video_groups[name]))

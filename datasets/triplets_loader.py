@@ -20,6 +20,7 @@ class TripletsData(data.Dataset):
     def __init__(self,
                  data,
                  class_names,
+                 split='train',
                  spatial_transform=None,
                  temporal_transform=None,
                  target_transform=None,
@@ -28,7 +29,7 @@ class TripletsData(data.Dataset):
                  target_type='label'):
         self.data = data
         self.class_names = class_names
-
+        self.split=split
         self.spatial_transform = spatial_transform
 
         if temporal_transform is not None:
@@ -49,6 +50,8 @@ class TripletsData(data.Dataset):
 
         self.target_type = target_type
 
+        self.data_labels = np.array([data[self.target_type] for data in self.data])
+        self.label_to_indices = {label: np.where(self.data_labels == label)[0] for label in self.class_names.keys()}
 
     def __loading(self, path, frame_indices):
         clip = self.loader(path, frame_indices)
@@ -62,7 +65,13 @@ class TripletsData(data.Dataset):
 
     def __getitem__(self, index, negative_sampling='RandomNegativeMining'):
         anchor=self.data[index]
-        positive = anchor.copy()
+        a_target = anchor[self.target_type]
+
+        if self.split=='train':
+            positive = anchor.copy()
+        else:
+            p_idx = np.random.choice(self.label_to_indices[a_target])
+            positive = self.data[p_idx]
 
         if negative_sampling == 'RandomNegativeMining':
             while True:
@@ -79,12 +88,11 @@ class TripletsData(data.Dataset):
         p_path = positive['video']
         n_path = negative['video']
 
-        a_target = anchor[self.target_type]
         p_target = positive[self.target_type]
         n_target = negative[self.target_type]
 
         a_frame_indices = list(range(1, anchor['num_frames'] + 1))
-        p_frame_indices = a_frame_indices
+        p_frame_indices = list(range(1, positive['num_frames'] + 1))
         n_frame_indices = list(range(1, negative['num_frames'] + 1))
 
         a_frame_id = self.anchor_temporal_transform(a_frame_indices)
@@ -96,6 +104,10 @@ class TripletsData(data.Dataset):
         n_clip = self.__loading(n_path, n_frame_id)
 
         return (a_clip, p_clip, n_clip), (a_target, p_target, n_target)
+
+    # def _get_positive(self, index, target):
+
+
 
     def __len__(self):
         return len(self.data)

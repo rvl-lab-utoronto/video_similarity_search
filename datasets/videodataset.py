@@ -15,16 +15,17 @@ class VideoDataset(data.Dataset):
     def __init__(self,
                  data,
                  class_names,
+                 split='train',
                  spatial_transform=None,
                  temporal_transform=None,
                  target_transform=None,
                  video_loader=None,
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
                  target_type='label'):
-        # self.data, self.class_names = self.__make_dataset(
-        #     root_path, annotation_path, subset, video_path_formatter)
+
         self.data = data
         self.class_names = class_names
+        self.split=split
         self.spatial_transform = spatial_transform
         self.temporal_transform = temporal_transform
         self.target_transform = target_transform

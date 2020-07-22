@@ -46,7 +46,7 @@ class VideoDataset(data.Dataset):
         clip = torch.stack(clip, 0).permute(1, 0, 2, 3)
         return clip
 
-    def __getitem__(self, index):
+    def _get_video_custom_temporal(self, index, temporal_transform=None):
         cur = self.data[index]
         path = cur['video']
         if isinstance(self.target_type, list):
@@ -55,14 +55,17 @@ class VideoDataset(data.Dataset):
             target = cur[self.target_type]
 
         frame_indices = list(range(1, cur['num_frames'] + 1))
-        if self.temporal_transform is not None:
-            frame_indices = self.temporal_transform(frame_indices)
+        if temporal_transform is not None:
+            frame_indices = temporal_transform(frame_indices)
 
         clip = self.__loading(path, frame_indices)
         if self.target_transform is not None:
             target = self.target_transform(target)
 
         return clip, target, path
+
+    def __getitem__(self, index):
+        return self._get_video_custom_temporal(index, self.temporal_transform)
 
     def __len__(self):
         return len(self.data)

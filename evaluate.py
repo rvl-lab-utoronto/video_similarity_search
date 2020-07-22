@@ -6,7 +6,6 @@ import os
 import argparse
 import pprint
 import time
-import math
 import numpy as np
 import random
 import torch
@@ -20,7 +19,7 @@ from datasets import data_loader
 from models.triplet_net import Tripletnet
 from models.model_utils import model_selector, multipathway_input
 from datasets.data_loader import build_spatial_transformation
-from datasets.temporal_transforms import TemporalCenterFrame, TemporalCenterCrop, TemporalSpecificCrop
+from datasets.temporal_transforms import TemporalCenterFrame, TemporalSpecificCrop
 from datasets.temporal_transforms import Compose as TemporalCompose
 from config.m_parser import load_config, parse_args
 from train import load_checkpoint

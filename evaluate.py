@@ -27,7 +27,8 @@ num_exempler = 10
 log_interval = 5
 top_k = 5
 split = 'val'
-exempler_file = '/home/sherry/output/evaluate_exempler.txt'
+exempler_file = None 
+# exempler_file = '/home/sherry/output/evaluate_exempler.txt'
 
 def evaluate(model, test_loader, log_interval=5):
     model.eval()

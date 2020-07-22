@@ -39,6 +39,7 @@ class UCF101():
                  annotation_path,
                  split, #training, ...
                  sample_duration,
+                 is_master_proc=True,
                  video_path_formatter=(lambda root_path, label, video_id:
                                        root_path / label / video_id)
                  ):
@@ -50,7 +51,7 @@ class UCF101():
 
         self.dataset, self.idx_to_class_map = self.__make_dataset(
                 root_path, annotation_path, subset, video_path_formatter,
-                sample_duration)
+                sample_duration, is_master_proc)
 
     def get_dataset(self):
         return self.dataset
@@ -62,7 +63,7 @@ class UCF101():
         return f'image_{x:05d}.jpg'
 
     def __make_dataset(self, root_path, annotation_path, subset,
-            video_path_formatter, sample_duration):
+            video_path_formatter, sample_duration, is_master_proc):
         with open(annotation_path, 'r') as f:
             data = json.load(f)
         video_ids, video_paths, annotations = get_database(data, subset, root_path, video_path_formatter)
@@ -75,7 +76,8 @@ class UCF101():
         dataset = []
         for i in range(n_videos):
             if i % (n_videos // 5) == 0:
-                print('dataset loading [{}/{}]'.format(i, len(video_ids)))
+                if (is_master_proc):
+                    print('dataset loading [{}/{}]'.format(i, len(video_ids)))
 
             if 'label' in annotations[i]:
                 label = annotations[i]['label']
@@ -89,7 +91,8 @@ class UCF101():
 
             num_frames = segment[1] - 1
             if num_frames == 0:
-                print ('empty folder', video_paths[i])
+                if (is_master_proc):
+                    print ('empty folder', video_paths[i])
                 continue
             elif num_frames < sample_duration:
                 #print ('disregarding video with num frames = {} < sample duration = {} : {}'.format(num_frames, sample_duration, video_paths[i]))

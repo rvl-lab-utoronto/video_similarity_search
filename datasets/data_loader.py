@@ -8,6 +8,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import torch
 from torch import nn
+from torch.utils.data.distributed import DistributedSampler
 from spatial_transforms import (Compose, Normalize, Resize, CenterCrop,
                                 CornerCrop, MultiScaleCornerCrop,
                                 RandomResizedCrop, RandomHorizontalFlip,
@@ -123,7 +124,7 @@ def build_temporal_transformation(cfg, triplets=True):
     return  TempTransform
 
 
-def build_data_loader(split, cfg, triplets=True):
+def build_data_loader(split, cfg, is_master_proc=True, triplets=True):
     assert split in ['train', 'val', 'test']
 
     spatial_transform = build_spatial_transformation(cfg, split)
@@ -131,24 +132,28 @@ def build_data_loader(split, cfg, triplets=True):
 
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
-                cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform)
+                cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, is_master_proc=is_master_proc)
 
-    print ('Single video input size:', data[1][0][0].size())
+    if (is_master_proc):
+        print ('Single video input size:', data[1][0][0].size())
+
+    assert (cfg.TRAIN.BATCH_SIZE % cfg.NUM_GPUS == 0)
+    sampler = DistributedSampler(data) if cfg.NUM_GPUS > 1 else None
+    if (sampler is not None and is_master_proc):
+        print ('Using distributed sampler')
+        print ('Batch size per gpu:', int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS))
 
     if split == 'train':
-        sampler = None
         data_loader = torch.utils.data.DataLoader(data,
-                                                  batch_size=cfg.TRAIN.BATCH_SIZE,
-                                                  shuffle=(sampler is None),
+                                                  batch_size=int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS),
+                                                  shuffle=(False if sampler else True),
                                                   num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
                                                   pin_memory=True,
                                                   sampler=sampler,
                                                   worker_init_fn=worker_init_fn)
     elif split == 'val':
-        sampler = None
         data_loader = torch.utils.data.DataLoader(data,
-                                                  batch_size = (cfg.TRAIN.BATCH_SIZE),
-                                                  # batch_size = cfg.TRAIN.BATCH_SIZE,
+                                                  batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS),
                                                   shuffle=False,
                                                   num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
                                                   pin_memory=True,
@@ -156,18 +161,16 @@ def build_data_loader(split, cfg, triplets=True):
                                                   worker_init_fn=worker_init_fn
                                                   # collate_fn=collate_fn)
                                                   )
-
     else: #test split
-        sampler=None
         data_loader = torch.utils.data.DataLoader(data,
-                                                batch_size = (cfg.TRAIN.BATCH_SIZE),
-                                                shuffle=False,
-                                                num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
-                                                pin_memory=True,
-                                                sampler=sampler,
-                                                worker_init_fn=worker_init_fn
-                                                # collate_fn=collate_fn)
-                                                )
+                                                  batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS),
+                                                  shuffle=False,
+                                                  num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
+                                                  pin_memory=True,
+                                                  sampler=sampler,
+                                                  worker_init_fn=worker_init_fn
+                                                  # collate_fn=collate_fn)
+                                                  )
 
     return data_loader, data
 

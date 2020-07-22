@@ -66,6 +66,16 @@ def parse_args():
         type=int
     )
     parser.add_argument(
+        "--shard_id",
+        default=0,
+        type=int
+    )
+    parser.add_argument(
+        "--num_shards",
+        default=1,
+        type=int
+    )
+    parser.add_argument(
         "opts",
         default=None,
         nargs=argparse.REMAINDER,

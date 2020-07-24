@@ -123,7 +123,7 @@ def load_exempler(exempler_file):
         exempler_idx.append(int(line.split(',')[0].strip()))
     return exempler_idx
 
-def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output):
+def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exempler):
     embeddings = evaluate(model, test_loader, log_interval=log_interval)
 
     distance_matrix = get_distance_matrix(embeddings)
@@ -152,7 +152,7 @@ def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output):
     # plt.show()
     png_file = os.path.join(evaluate_output, 'plot.png')
     fig.tight_layout(pad=3.5)
-    plt.savefig(png_file)
+    plt.savefig(png_file, dpi=300)
     print('figure saved to: {}'.format(png_file))
 
 
@@ -283,7 +283,7 @@ if __name__ == '__main__':
 
     # ================================ Evaluate ================================
 
-    k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output)
+    k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exempler)
     print('total runtime: {}s'.format(time.time()-start))
 
     #temporal_heat_map(model, data, cfg, evaluate_output)

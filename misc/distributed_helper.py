@@ -8,10 +8,12 @@ def run_process(local_rank_proc, NUM_PROC_PER_SHARD, func, shard_id, NUM_SHARDS,
     rank_proc = shard_id * NUM_PROC_PER_SHARD + local_rank_proc
 
     try: 
+        print('Initializing rank_proc:', rank_proc)
         torch.distributed.init_process_group(backend=dist_backend,
                                              init_method=proc_init_method,
                                              world_size=WORLD_SIZE,
                                              rank=rank_proc)
+        print('Initialized rank_proc:', rank_proc)
     except Exception as e:
         raise e
 

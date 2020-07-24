@@ -133,7 +133,7 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_m
                     epoch, batch_idx * batch_size, len(train_loader.dataset), 100. * (batch_idx * batch_size / len(train_loader.dataset)),
                     triplet_losses.val, triplet_losses.avg,
                     100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
-    
+
     if (is_master_proc):
         print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
@@ -309,4 +309,4 @@ if __name__ == '__main__':
     print ('Total nodes:', args.num_shards)
 
     # Launch processes for all gpus
-    du_helper.launch_processes(args, cfg, func=train, shard_id=args.shard_id, NUM_SHARDS=args.num_shards)
+    du_helper.launch_processes(args, cfg, func=train, shard_id=args.shard_id, NUM_SHARDS=args.num_shards, ip_address_port=args.ip_address_port)

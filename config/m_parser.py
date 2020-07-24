@@ -76,6 +76,11 @@ def parse_args():
         type=int
     )
     parser.add_argument(
+        "--ip_address_port",
+        default="tcp://localhost:9999",
+        type=str
+    )
+    parser.add_argument(
         "opts",
         default=None,
         nargs=argparse.REMAINDER,

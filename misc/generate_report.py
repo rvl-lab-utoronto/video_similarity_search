@@ -19,8 +19,9 @@ val_progress_file = './tnet_checkpoints/val_loss_and_acc.txt'
 def parse():
     parser = argparse.ArgumentParser("Video Similarity Search Training Script")
     parser.add_argument(
-        'name',
+        '--name',
         type=str, action='store',
+        default=None,
         help='used for plot name and google worksheet name'
     )
     parser.add_argument(
@@ -39,10 +40,10 @@ def parse_file(f_type='train'):
         with open (train_progress_file, newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
-                epoch.append(float(row[0].replace('epoch:', '')))
+                epoch.append(float(row[0].replace('epoch:', '').replace(',','')))
                 losses.append(float(row[3]))
                 acc.append(float(row[4]))
-                runtime.append(float(row[1].replace('runtime:', '')))
+                runtime.append(float(row[1].replace('runtime:', '').replace(',','')))
     else:
         with open (val_progress_file, newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
@@ -90,7 +91,7 @@ def write_to_google_sheet(client, worksheet_name):
         print('creating worksheet: {}'.format(worksheet_name))
         worksheet = sh.add_worksheet(title=worksheet_name, rows=1000, cols=20)
 
-    df = pd.DataFrame(worksheet.get_all_records())
+    df = pd.DataFrame()
     df['epoch'] = epoch
     df['train_loss'] = train_losses
     df['train_acc'] = train_acc
@@ -112,6 +113,10 @@ def gs_report(name):
 
 if __name__ == '__main__':
     args = parse()
+    if not args.name:
+        name=input("please specify a name (e.g. ResNet18_K, SlowFast_U): ")
+    else:
+        name = args.name
     if args.plot:
-        plot_training_progress(args.name)
-    gs_report(args.name)
+        plot_training_progress(name)
+    gs_report(name)

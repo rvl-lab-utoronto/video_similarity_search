@@ -205,6 +205,15 @@ class ColorJitter(transforms.ColorJitter):
         self.randomize = True
 
 
+class ColorDrop(transforms.RandomGrayscale):
+
+    def __init__(self, p=0.1):
+        super().__init__(p)
+        
+    def randomize_parameters(self):
+        pass
+
+
 class PickFirstChannels(object):
 
     def __init__(self, n):
@@ -215,3 +224,13 @@ class PickFirstChannels(object):
 
     def randomize_parameters(self):
         pass
+
+
+class RandomApply(transforms.RandomApply):
+
+    def __init__(self, transforms, p=0.8):
+        super().__init__(transforms, p)
+
+    def randomize_parameters(self):
+        for t in self.transforms:
+            t.randomize_parameters()

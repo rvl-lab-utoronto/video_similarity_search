@@ -11,8 +11,8 @@ from torch import nn
 from spatial_transforms import (Compose, Normalize, Resize, CenterCrop,
                                 CornerCrop, MultiScaleCornerCrop,
                                 RandomResizedCrop, RandomHorizontalFlip,
-                                ToTensor, ScaleValue, ColorJitter,
-                                PickFirstChannels)
+                                ToTensor, ScaleValue, ColorJitter, ColorDrop,
+                                PickFirstChannels, RandomApply)
 from temporal_transforms import (LoopPadding, TemporalRandomCrop,
                                  TemporalCenterCrop, TemporalEvenCrop,
                                  TemporalEndCrop, TemporalBeginCrop,
@@ -78,6 +78,10 @@ def build_spatial_transformation(cfg, split):
                             (train_crop_min_ratio, 1.0/train_crop_min_ratio))
             )
         spatial_transform.append(RandomHorizontalFlip())
+
+        spatial_transform.append(RandomApply([ColorJitter()], p=0.8))
+        spatial_transform.append(ColorDrop(p=0.2))
+
         spatial_transform.append(ToTensor())
         spatial_transform.append(normalize)
 

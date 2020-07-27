@@ -30,7 +30,7 @@ top_k = 5
 split = 'val'
 exemplar_file = None
 # exemplar_file = '/home/sherry/output/evaluate_exemplar.txt'
-np.random.seed(0)
+np.random.seed(1)
 
 # Argument parser
 def m_arg_parser(parser):

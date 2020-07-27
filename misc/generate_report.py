@@ -67,7 +67,6 @@ def parse_file(result_dir, f_type='train'):
 
 
 def plot_training_progress(result_dir, name, show_plot=False):
-
     _, _, train_losses, train_acc = parse_file(result_dir, 'train')
     _, _, val_losses, val_acc = parse_file(result_dir, 'val')
 
@@ -113,7 +112,7 @@ def write_to_google_sheet(result_dir, client, worksheet_name):
     df['runtime'] = runtime
     worksheet.update([df.columns.values.tolist()] + df.values.tolist())
 
-def gs_report(name):
+def gs_report(result_dir, name):
     # scope = ['https://spreadsheets.google.com/feeds',
     #         'https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_name(os.path.join(SOURCE_CODE_DIR, 'gs_credentials.json'), SCOPES)
@@ -130,10 +129,10 @@ if __name__ == '__main__':
     else:
         name = args.name
 
+    result_dir = args.result_dir
     if not args.result_dir:
-        name=input("Please specify the results directory with --result-dir")
+        result_dir=input("Please specify the results directory: ")
 
-    gs_report(args.result_dir, name)
+    gs_report(result_dir, name)
     if args.plot:
-        plot_training_progress(args.result_dir, name, show_plot=True)
-
+        plot_training_progress(result_dir, name, show_plot=True)

@@ -24,12 +24,12 @@ from config.m_parser import load_config, parse_args
 from train import load_checkpoint
 from misc.upload_gdrive import upload_file_to_gdrive
 
-num_exempler = 10
+num_exemplar = 10
 log_interval = 10
 top_k = 5
 split = 'val'
-exempler_file = None
-# exempler_file = '/home/sherry/output/evaluate_exempler.txt'
+exemplar_file = None
+# exemplar_file = '/home/sherry/output/evaluate_exemplar.txt'
 np.random.seed(0)
 
 def evaluate(model, test_loader, log_interval=5):
@@ -72,59 +72,59 @@ def get_distance_matrix(embeddings):
     return distance_matrix
 
 
-def get_closest_data(distance_matrix, exempler_idx, top_k):
-    test_array = distance_matrix[exempler_idx]
+def get_closest_data(distance_matrix, exemplar_idx, top_k):
+    test_array = distance_matrix[exemplar_idx]
     idx = np.argpartition(test_array, top_k)
     top_k = idx[np.argsort(test_array[idx[:top_k]])]
     return top_k
 
 
-def plot_img(cfg, fig, data, num_exempler, row, exempler_idx, k_idx, spatial_transform=None, temporal_transform=None, output=None):
-    exempler_frame = data._loading_img_path(exempler_idx, temporal_transform)
+def plot_img(cfg, fig, data, num_exemplar, row, exemplar_idx, k_idx, spatial_transform=None, temporal_transform=None, output=None):
+    exemplar_frame = data._loading_img_path(exemplar_idx, temporal_transform)
     test_frame = [data._loading_img_path(i, temporal_transform) for i in k_idx]
 
-    exempler_title = '-'.join(exempler_frame.split('/')[-3:-2])
+    exemplar_title = '-'.join(exemplar_frame.split('/')[-3:-2])
 
-    print(exempler_frame)
+    print(exemplar_frame)
     print('top k ids:', end=' ')
     for i in k_idx:
         print(i, end=' ')
     print()
     pprint.pprint(test_frame)
 
-    ax = fig.add_subplot(num_exempler,len(test_frame)+1, row*(len(test_frame)+1)+1)
-    image = plt.imread(exempler_frame)
+    ax = fig.add_subplot(num_exemplar,len(test_frame)+1, row*(len(test_frame)+1)+1)
+    image = plt.imread(exemplar_frame)
     plt.imshow(image)
-    ax.set_title(exempler_title, fontsize=5, pad=0.3)
+    ax.set_title(exemplar_title, fontsize=5, pad=0.3)
     plt.axis('off')
     for i in range(len(test_frame)):
         test_title = '-'.join(test_frame[i].split('/')[-3:-2])
-        ax = fig.add_subplot(num_exempler,len(test_frame)+1, row*(len(test_frame)+1)+i+2)
+        ax = fig.add_subplot(num_exemplar,len(test_frame)+1, row*(len(test_frame)+1)+i+2)
         image = plt.imread(test_frame[i])
         plt.imshow(image)
         ax.set_title(test_title, fontsize=5, pad=0.3)
         plt.axis('off')
 
     with open(os.path.join(output, 'results.txt'), 'a') as f:
-        f.write('exempler_frame:\n{}\n'.format(exempler_frame))
+        f.write('exemplar_frame:\n{}\n'.format(exemplar_frame))
         for frame in test_frame:
             f.write(frame)
             f.write('\n')
         f.write('\n')
 
-    with open(os.path.join(output, 'exempler.txt'), 'a') as f:
-        f.write('{}, {}'.format(exempler_idx, exempler_frame))
+    with open(os.path.join(output, 'exemplar.txt'), 'a') as f:
+        f.write('{}, {}'.format(exemplar_idx, exemplar_frame))
         f.write('\n')
 
-def load_exempler(exempler_file):
-    with open(exempler_file, 'r') as f:
+def load_exemplar(exemplar_file):
+    with open(exemplar_file, 'r') as f:
         lines = f.readlines()
-    exempler_idx  = []
+    exemplar_idx  = []
     for line in lines:
-        exempler_idx.append(int(line.split(',')[0].strip()))
-    return exempler_idx
+        exemplar_idx.append(int(line.split(',')[0].strip()))
+    return exemplar_idx
 
-def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exempler):
+def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exemplar):
     embeddings = evaluate(model, test_loader, log_interval=log_interval)
 
     distance_matrix = get_distance_matrix(embeddings)
@@ -133,23 +133,23 @@ def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exe
     temporal_transform = [TemporalCenterFrame()]
     temporal_transform = TemporalCompose(temporal_transform)
 
-    if exempler_file:
-        exempler_indices = load_exempler(exempler_file)
-        num_exempler = len(exempler_indices)
-        print('exempler_idx retrieved: {}'.format(exempler_indices))
-        print('number of exemplers is: {}'.format(num_exempler))
+    if exemplar_file:
+        exemplar_indices = load_exemplar(exemplar_file)
+        num_exemplar = len(exemplar_indices)
+        print('exemplar_idx retrieved: {}'.format(exemplar_indices))
+        print('number of exemplars is: {}'.format(num_exemplar))
 
     fig = plt.figure()
-    for i in range(num_exempler):
-        if not exempler_file:
-            exempler_idx = np.random.randint(0, distance_matrix.shape[0]-1)
+    for i in range(num_exemplar):
+        if not exemplar_file:
+            exemplar_idx = np.random.randint(0, distance_matrix.shape[0]-1)
         else:
-            exempler_idx = exempler_indices[i]
+            exemplar_idx = exemplar_indices[i]
 
-        print('exempler video id: {}'.format(exempler_idx))
-        k_idx = get_closest_data(distance_matrix, exempler_idx, top_k)
+        print('exemplar video id: {}'.format(exemplar_idx))
+        k_idx = get_closest_data(distance_matrix, exemplar_idx, top_k)
         k_nearest_data = [data[i] for i in k_idx]
-        plot_img(cfg, fig, data, num_exempler, i, exempler_idx, k_idx, spatial_transform, temporal_transform, output=evaluate_output)
+        plot_img(cfg, fig, data, num_exemplar, i, exemplar_idx, k_idx, spatial_transform, temporal_transform, output=evaluate_output)
     # plt.show()
     png_file = os.path.join(evaluate_output, '{}_plot.png'.format(os.path.basename(evaluate_output)))
     fig.tight_layout(pad=3.5)
@@ -250,6 +250,7 @@ if __name__ == '__main__':
     global device; device = torch.device("cuda" if cuda else "cpu")
 
     name = input('Please specify the name (e.g. ResNet18_K, SlowFast_U): ')
+    num_exemplar = int(input('Please specify number of exemplar videos: '))
 
     start = time.time()
     now = datetime.now()
@@ -285,7 +286,7 @@ if __name__ == '__main__':
 
     # ================================ Evaluate ================================
 
-    k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exempler)
+    k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exemplar)
     print('total runtime: {}s'.format(time.time()-start))
 
     #temporal_heat_map(model, data, cfg, evaluate_output)

@@ -21,7 +21,7 @@ from models.model_utils import model_selector, multipathway_input
 from datasets.data_loader import build_spatial_transformation
 from datasets.temporal_transforms import TemporalCenterFrame, TemporalSpecificCrop
 from datasets.temporal_transforms import Compose as TemporalCompose
-from config.m_parser import load_config, parse_args
+from config.m_parser import load_config, arg_parser
 from train import load_checkpoint
 
 num_exempler = 5
@@ -30,6 +30,26 @@ top_k = 5
 split = 'val'
 exempler_file = None 
 # exempler_file = '/home/sherry/output/evaluate_exempler.txt'
+
+# Argument parser
+def m_arg_parser(parser):
+    parser.add_argument(
+        '--heatmap',
+        action='store_true',
+        help='generate_plots'
+    )
+    parser.add_argument(
+        "--ex_idx",
+        default=None,
+        type=int
+    )
+    parser.add_argument(
+        "--test_idx",
+        default=None,
+        type=int
+    )
+    return parser
+
 
 def evaluate(model, test_loader, log_interval=5):
     model.eval()
@@ -156,9 +176,8 @@ def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exe
     print('figure saved to: {}'.format(png_file))
 
 
-def temporal_heat_map(model, data, cfg, evaluate_output):
-    exemplar_idx = 455
-    test_idx = 456
+def temporal_heat_map(model, data, cfg, evaluate_output, exemplar_idx=455,
+        test_idx=456):
 
     num_frames_exemplar = data.data[exemplar_idx]['num_frames']
 
@@ -239,7 +258,7 @@ def temporal_heat_map(model, data, cfg, evaluate_output):
         
 
 if __name__ == '__main__':
-    args = parse_args()
+    args = m_arg_parser(arg_parser()).parse_args()
     cfg = load_config(args)
 
     force_data_parallel = True
@@ -255,6 +274,8 @@ if __name__ == '__main__':
     if not os.path.exists(evaluate_output):
         os.makedirs(evaluate_output)
         print('made output dir:{}'.format(evaluate_output))
+
+    np.random.seed(7)
 
     # ============================== Model Setup ===============================
 
@@ -283,8 +304,15 @@ if __name__ == '__main__':
 
     # ================================ Evaluate ================================
 
-    k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exempler)
-    print('total runtime: {}s'.format(time.time()-start))
+    if args.heatmap:
+        if args.ex_idx and args.test_idx:
+            temporal_heat_map(model, data, cfg, evaluate_output, args.ex_idx,
+                args.test_idx)
+        else:
+            print ('No exemplar and test indices provided')
+            temporal_heat_map(model, data, cfg, evaluate_output)
+    else:
+        k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exempler)
+        print('total runtime: {}s'.format(time.time()-start))
 
-    #temporal_heat_map(model, data, cfg, evaluate_output)
     

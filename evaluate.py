@@ -28,9 +28,9 @@ num_exemplar = 10
 log_interval = 10
 top_k = 5
 split = 'val'
-exemplar_file = None
-# exemplar_file = '/home/sherry/output/evaluate_exemplar.txt'
-np.random.seed(1)
+# exemplar_file = None
+exemplar_file = '/home/sherry/output/u_exemplar.txt'
+np.random.seed(7)
 
 def evaluate(model, test_loader, log_interval=5):
     model.eval()
@@ -252,9 +252,14 @@ if __name__ == '__main__':
     name = input('Please specify the name (e.g. ResNet18_K, SlowFast_U): ')
     num_exemplar = int(input('Please specify number of exemplar videos: '))
 
+    if not args.output:
+        output = input('Please specify output directory: ')
+    else:
+        output = args.output
+
     start = time.time()
     now = datetime.now()
-    evaluate_output = os.path.join(args.output, '{}_evaluate_{}'.format(name, now.strftime("%d_%m_%Y_%H_%M_%S")))
+    evaluate_output = os.path.join(output, '{}_evaluate_{}'.format(name, now.strftime("%d_%m_%Y_%H_%M_%S")))
     if not os.path.exists(evaluate_output):
         os.makedirs(evaluate_output)
         print('made output dir:{}'.format(evaluate_output))

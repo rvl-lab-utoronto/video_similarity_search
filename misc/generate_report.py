@@ -9,6 +9,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from httplib2 import Http
 from oauth2client.service_account import ServiceAccountCredentials
+from upload_gdrive import upload_file_to_gdrive, SCOPES
+# from googleapiclient.discovery import build
+# from google_auth_oauthlib.flow import InstalledAppFlow
+# from google.auth.transport.requests import Request
+# from googleapiclient.http import MediaFileUpload
+
 
 SOURCE_CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -80,12 +86,12 @@ def plot_training_progress(result_dir, name, show_plot=False):
     plt.ylabel('Accuracy')
     plt.title('Training and Validation Accuracy vs. Epoch')
     plt.legend(['Training', 'Validation'])
-    plt.savefig('{}_train_val_loss.png'.format(name))
-    plt.savefig('{}_train_val_loss.png'.format(name))
-    print('plots saved to:{}'.format('{}_train_val_loss.png'.format(name)))
+    plot_name = '{}_train_val_loss.png'.format(name)
+    plt.savefig(plot_name)
+    upload_file_to_gdrive(plot_name, 'evaluate')
+    print('plots saved to:{}, and uploaded to google drive folder under /evaluate'.format(plot_name))
     if (show_plot):
         plt.show()
-
 
 def write_to_google_sheet(result_dir, client, worksheet_name):
     epoch, runtime, train_losses, train_acc = parse_file(result_dir, 'train')
@@ -107,11 +113,10 @@ def write_to_google_sheet(result_dir, client, worksheet_name):
     df['runtime'] = runtime
     worksheet.update([df.columns.values.tolist()] + df.values.tolist())
 
-
-def gs_report(result_dir, name):
-    scope = ['https://spreadsheets.google.com/feeds',
-            'https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name(os.path.join(SOURCE_CODE_DIR, 'gs_credentials.json'), scope)
+def gs_report(name):
+    # scope = ['https://spreadsheets.google.com/feeds',
+    #         'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_name(os.path.join(SOURCE_CODE_DIR, 'gs_credentials.json'), SCOPES)
     client = gspread.authorize(creds)
     write_to_google_sheet(result_dir, client, name)
     print('updated to worksheet:{}'.format(name))

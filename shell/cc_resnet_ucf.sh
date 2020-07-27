@@ -17,6 +17,8 @@ echo 'Extracted jpg.tar.gz'
 python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/train.py \
 --cfg '/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/custom_configs/cc_resnet_ucf.yaml' \
 --output '/home/cheny257/projects/def-florian7/cheny257/output/ResNet18_U' \
+--checkpoint_path 'checkpoint:/home/cheny257/projects/def-florian7/cheny257/output/ResNet18_U/tnet_checkpoints/3dresnet/checkpoint.pth.tar' \
 --gpu 0,1,2,3 \
 --batch_size 40 \
---num_data_workers 4
+--num_data_workers 4 \
+--epoch 200

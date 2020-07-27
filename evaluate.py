@@ -7,7 +7,6 @@ import argparse
 import pprint
 import time
 import numpy as np
-import random
 import torch
 import cv2
 import torch.nn as nn
@@ -23,13 +22,15 @@ from datasets.temporal_transforms import TemporalCenterFrame, TemporalSpecificCr
 from datasets.temporal_transforms import Compose as TemporalCompose
 from config.m_parser import load_config, parse_args
 from train import load_checkpoint
+from misc.upload_gdrive import upload_file_to_gdrive
 
-num_exempler = 5
+num_exempler = 10
 log_interval = 10
 top_k = 5
 split = 'val'
-exempler_file = None 
+exempler_file = None
 # exempler_file = '/home/sherry/output/evaluate_exempler.txt'
+np.random.seed(0)
 
 def evaluate(model, test_loader, log_interval=5):
     model.eval()
@@ -123,7 +124,7 @@ def load_exempler(exempler_file):
         exempler_idx.append(int(line.split(',')[0].strip()))
     return exempler_idx
 
-def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output):
+def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exempler):
     embeddings = evaluate(model, test_loader, log_interval=log_interval)
 
     distance_matrix = get_distance_matrix(embeddings)
@@ -131,29 +132,30 @@ def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output):
     spatial_transform = build_spatial_transformation(cfg, split)
     temporal_transform = [TemporalCenterFrame()]
     temporal_transform = TemporalCompose(temporal_transform)
-    
+
     if exempler_file:
         exempler_indices = load_exempler(exempler_file)
         num_exempler = len(exempler_indices)
         print('exempler_idx retrieved: {}'.format(exempler_indices))
         print('number of exemplers is: {}'.format(num_exempler))
-        
+
     fig = plt.figure()
     for i in range(num_exempler):
         if not exempler_file:
-            exempler_idx = random.randint(0, distance_matrix.shape[0]-1)
+            exempler_idx = np.random.randint(0, distance_matrix.shape[0]-1)
         else:
             exempler_idx = exempler_indices[i]
-            
+
         print('exempler video id: {}'.format(exempler_idx))
         k_idx = get_closest_data(distance_matrix, exempler_idx, top_k)
         k_nearest_data = [data[i] for i in k_idx]
         plot_img(cfg, fig, data, num_exempler, i, exempler_idx, k_idx, spatial_transform, temporal_transform, output=evaluate_output)
     # plt.show()
-    png_file = os.path.join(evaluate_output, 'plot.png')
+    png_file = os.path.join(evaluate_output, '{}_plot.png'.format(os.path.basename(evaluate_output)))
     fig.tight_layout(pad=3.5)
-    plt.savefig(png_file)
-    print('figure saved to: {}'.format(png_file))
+    plt.savefig(png_file, dpi=300)
+    upload_file_to_gdrive(png_file, 'evaluate')
+    print('figure saved to: {}, and uploaded to GoogleDrive'.format(png_file))
 
 
 def temporal_heat_map(model, data, cfg, evaluate_output):
@@ -184,18 +186,18 @@ def temporal_heat_map(model, data, cfg, evaluate_output):
                 test_video_in = test_video_in.to(device)
         test_embedding = model(test_video_in)
         #print('Test embed size:', test_embedding.size())
- 
+
         # Loop across exemplar video, use [i-cfg.DATA.SAMPLE_SIZE,...,i] as the frames for the temporal crop
         for i in range(num_frames_crop, num_frames_exemplar, stride):
             temporal_transform_exemplar = TemporalSpecificCrop(begin_index=i-num_frames_crop, size=num_frames_crop)
             exemplar_video, _, _ = data._get_video_custom_temporal(exemplar_idx, temporal_transform_exemplar)  # full siz
             exemplar_video = exemplar_video.unsqueeze(0)
-            
+
             if (cfg.MODEL.ARCH == 'slowfast'):
                 exemplar_video_in = multipathway_input(exemplar_video, cfg)
                 if cuda:
                     for j in range(len(exemplar_video_in)):
-                        exemplar_video_in[j] = exemplar_video_in[j].to(device)                
+                        exemplar_video_in[j] = exemplar_video_in[j].to(device)
             else:
                 if cuda:
                     exemplar_video_in = exemplar_video_in.to(device)
@@ -205,7 +207,7 @@ def temporal_heat_map(model, data, cfg, evaluate_output):
             #print('Exemplar embed size:', exemplar_embedding.size())
             dist = F.pairwise_distance(exemplar_embedding, test_embedding, 2)
             dists.append(dist.item())
-        
+
     #print(dists)
     x = []
     y = []
@@ -236,22 +238,22 @@ def temporal_heat_map(model, data, cfg, evaluate_output):
             dist_idx += 1
 
         cv2.waitKey(int(1.0/fps*1000.0))
-        
+
 
 if __name__ == '__main__':
     args = parse_args()
     cfg = load_config(args)
 
     force_data_parallel = True
-
     os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
     global cuda; cuda = torch.cuda.is_available()
     global device; device = torch.device("cuda" if cuda else "cpu")
 
-    start = time.time()
+    name = input('Please specify the name (e.g. ResNet18_K, SlowFast_U): ')
 
+    start = time.time()
     now = datetime.now()
-    evaluate_output = os.path.join(args.output, 'evaluate_{}'.format(now.strftime("%d_%m_%Y_%H_%M_%S")))
+    evaluate_output = os.path.join(args.output, '{}_evaluate_{}'.format(name, now.strftime("%d_%m_%Y_%H_%M_%S")))
     if not os.path.exists(evaluate_output):
         os.makedirs(evaluate_output)
         print('made output dir:{}'.format(evaluate_output))
@@ -283,8 +285,7 @@ if __name__ == '__main__':
 
     # ================================ Evaluate ================================
 
-    k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output)
+    k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exempler)
     print('total runtime: {}s'.format(time.time()-start))
 
     #temporal_heat_map(model, data, cfg, evaluate_output)
-    

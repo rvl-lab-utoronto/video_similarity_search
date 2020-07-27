@@ -10,10 +10,6 @@ import matplotlib.pyplot as plt
 from httplib2 import Http
 from oauth2client.service_account import ServiceAccountCredentials
 from upload_gdrive import upload_file_to_gdrive, SCOPES
-# from googleapiclient.discovery import build
-# from google_auth_oauthlib.flow import InstalledAppFlow
-# from google.auth.transport.requests import Request
-# from googleapiclient.http import MediaFileUpload
 
 
 SOURCE_CODE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -113,9 +109,9 @@ def write_to_google_sheet(result_dir, client, worksheet_name):
     worksheet.update([df.columns.values.tolist()] + df.values.tolist())
 
 def gs_report(result_dir, name):
-    # scope = ['https://spreadsheets.google.com/feeds',
-    #         'https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name(os.path.join(SOURCE_CODE_DIR, 'gs_credentials.json'), SCOPES)
+    scope = ['https://spreadsheets.google.com/feeds',
+            'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_name(os.path.join(SOURCE_CODE_DIR, 'gs_credentials.json'), scope)
     client = gspread.authorize(creds)
     write_to_google_sheet(result_dir, client, name)
     print('updated to worksheet:{}'.format(name))

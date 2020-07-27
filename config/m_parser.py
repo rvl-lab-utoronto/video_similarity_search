@@ -7,7 +7,7 @@ from default_params import get_cfg
 
 
 # Argument parser
-def parse_args():
+def arg_parser():
     parser = argparse.ArgumentParser("Video Similarity Search Training Script")
     parser.add_argument(
         '--pretrain_path',
@@ -86,7 +86,7 @@ def parse_args():
         nargs=argparse.REMAINDER,
         help="See config/defaults.py for all options",
     )
-    return parser.parse_args()
+    return parser
 
 
 # Get default cfg and merge parameters from cfg file and opts in arguments

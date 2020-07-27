@@ -19,7 +19,7 @@ import torch.backends.cudnn as cudnn
 from models.triplet_net import Tripletnet
 from datasets import data_loader
 from models.model_utils import model_selector, multipathway_input
-from config.m_parser import load_config, parse_args
+from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 
 log_interval = 5 #log interval for batch number
@@ -286,7 +286,7 @@ def train(args, cfg):
 
 
 if __name__ == '__main__':
-    args = parse_args()
+    args = arg_parser().parse_args()
     cfg = load_config(args)
 
     if not os.path.exists(cfg.OUTPUT_PATH):

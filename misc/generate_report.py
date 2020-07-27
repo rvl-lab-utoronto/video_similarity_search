@@ -1,4 +1,3 @@
-
 import csv
 import os
 import io
@@ -16,6 +15,7 @@ SOURCE_CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 train_progress_file = './tnet_checkpoints/train_loss_and_acc.txt'
 val_progress_file = './tnet_checkpoints/val_loss_and_acc.txt'
 
+
 def parse():
     parser = argparse.ArgumentParser("Video Similarity Search Training Script")
     parser.add_argument(
@@ -25,11 +25,18 @@ def parse():
         help='used for plot name and google worksheet name'
     )
     parser.add_argument(
+        '--result_dir',
+        type=str, action='store',
+        default=None,
+        help='result directory'
+    )
+    parser.add_argument(
         '-p', '--plot', action='store_true', help='generate_plots'
     )
     return parser.parse_args()
 
-def parse_file(f_type='train'):
+
+def parse_file(result_dir, f_type='train'):
     epoch = []
     losses = []
     acc = []
@@ -37,7 +44,7 @@ def parse_file(f_type='train'):
     assert f_type in ['train', 'val'], "f_type:{} is not recognized".format(f_type)
 
     if f_type == 'train':
-        with open (train_progress_file, newline='') as csvfile:
+        with open (os.path.join(result_dir, train_progress_file), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
                 epoch.append(float(row[0].replace('epoch:', '').replace(',','')))
@@ -45,7 +52,7 @@ def parse_file(f_type='train'):
                 acc.append(float(row[4]))
                 runtime.append(float(row[1].replace('runtime:', '').replace(',','')))
     else:
-        with open (val_progress_file, newline='') as csvfile:
+        with open (os.path.join(result_dir, val_progress_file), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
                 losses.append(float(row[2]))
@@ -53,10 +60,10 @@ def parse_file(f_type='train'):
     return epoch, runtime, losses, acc
 
 
-def plot_training_progress(name):
+def plot_training_progress(result_dir, name, show_plot=False):
 
-    _, _, train_losses, train_acc = parse_file('train')
-    _, _, val_losses, val_acc = parse_file('val')
+    _, _, train_losses, train_acc = parse_file(result_dir, 'train')
+    _, _, val_losses, val_acc = parse_file(result_dir, 'val')
 
     plt.subplot(1, 2, 1)
     plt.plot(np.arange(len(train_losses)), train_losses)
@@ -74,15 +81,15 @@ def plot_training_progress(name):
     plt.title('Training and Validation Accuracy vs. Epoch')
     plt.legend(['Training', 'Validation'])
     plt.savefig('{}_train_val_loss.png'.format(name))
-    # plt.show()
+    plt.savefig('{}_train_val_loss.png'.format(name))
     print('plots saved to:{}'.format('{}_train_val_loss.png'.format(name)))
+    if (show_plot):
+        plt.show()
 
 
-
-
-def write_to_google_sheet(client, worksheet_name):
-    epoch, runtime, train_losses, train_acc = parse_file('train')
-    _, _, val_losses, val_acc = parse_file('val')
+def write_to_google_sheet(result_dir, client, worksheet_name):
+    epoch, runtime, train_losses, train_acc = parse_file(result_dir, 'train')
+    _, _, val_losses, val_acc = parse_file(result_dir, 'val')
     sh = client.open('training_results')
 
     try:
@@ -101,22 +108,27 @@ def write_to_google_sheet(client, worksheet_name):
     worksheet.update([df.columns.values.tolist()] + df.values.tolist())
 
 
-def gs_report(name):
+def gs_report(result_dir, name):
     scope = ['https://spreadsheets.google.com/feeds',
             'https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_name(os.path.join(SOURCE_CODE_DIR, 'gs_credentials.json'), scope)
     client = gspread.authorize(creds)
-    write_to_google_sheet(client, name)
+    write_to_google_sheet(result_dir, client, name)
     print('updated to worksheet:{}'.format(name))
-
 
 
 if __name__ == '__main__':
     args = parse()
+
     if not args.name:
-        name=input("please specify a name (e.g. ResNet18_K, SlowFast_U): ")
+        name=input("Please specify a worksheet name with --name (e.g. ResNet18_K, SlowFast_U): ")
     else:
         name = args.name
+
+    if not args.result_dir:
+        name=input("Please specify the results directory with --result-dir")
+
+    gs_report(args.result_dir, name)
     if args.plot:
-        plot_training_progress(name)
-    gs_report(name)
+        plot_training_progress(args.result_dir, name, show_plot=True)
+

@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=6
 #SBATCH --gres=gpu:t4:4
 #SBATCH --mem=48G
-#SBATCH --job-name=resnet_kinetics
+#SBATCH --job-name=resnet18_K
 #SBATCH --output=%x-%j.out
 
 cd $SLURM_TMPDIR
@@ -20,7 +20,7 @@ echo 'Extracted train zip'
 python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/train.py \
 --cfg '/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/custom_configs/cc_resnet_kinetics.yaml' \
 --output '/home/cheny257/projects/def-florian7/cheny257/output/ResNet18_K' \
+--checkpoint_path 'checkpoint:/home/cheny257/projects/def-florian7/cheny257/output/ResNet18_K/tnet_checkpoints/3dresnet/checkpoint.pth.tar' \
 --gpu 0,1,2,3 \
 --batch_size 40 \
 --num_data_workers 4
-# --checkpoint_path '/home/cheny257/projects/def-florian7/cheny257/output/kinetics_4/tnet_checkpoints/3dresnet/checkpoint.pth.tar' \

@@ -12,7 +12,6 @@ GOOGLE_FOLDER_MAPPING = {
 }
 
 SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly',
-            'https://spreadsheets.google.com/feeds',
             'https://www.googleapis.com/auth/drive']
 
 def upload_file_to_gdrive(file_path, folder_name):

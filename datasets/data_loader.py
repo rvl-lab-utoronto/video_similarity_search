@@ -109,7 +109,7 @@ def build_temporal_transformation(cfg, triplets=True):
 
         #positive
         positive_temporal_transform = []
-        positive_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION, start_index=cfg.DATA.SAMPLE_DURATION+1))
+        positive_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION, start_index=cfg.DATA.SAMPLE_DURATION))
         positive_temporal_transform = TemporalCompose(positive_temporal_transform)
         TempTransform['positive'] = positive_temporal_transform
 

@@ -246,7 +246,10 @@ def train(args, cfg):
     if cuda:
         if torch.cuda.device_count() > 1:
             #tripletnet = nn.DataParallel(tripletnet)
-            tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
+            if cfg.MODEL.ARCH == '3dresnet':
+                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device], find_unused_parameters=True)
+            else:
+                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:

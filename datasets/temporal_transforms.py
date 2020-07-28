@@ -118,15 +118,14 @@ class TemporalRandomCrop(object):
     def __call__(self, frame_indices):
         rand_end = max(0, len(frame_indices) - self.size - 1)
         rand_start = min(rand_end, self.start_index)
-        
+
         begin_index = random.randint(rand_start, rand_end)
         end_index = min(begin_index + self.size, len(frame_indices))
 
         out = frame_indices[begin_index:end_index]
-
+        
         if len(out) < self.size:
             out = self.loop(out)
-
         return out
 
 

@@ -107,7 +107,7 @@ class UCF101():
                 if (is_master_proc):
                     print ('empty folder', video_paths[i])
                 continue
-            elif num_frames < sample_duration:
+            elif num_frames < 2 * sample_duration:
                 #print ('disregarding video with num frames = {} < sample duration = {} : {}'.format(num_frames, sample_duration, video_paths[i]))
                 continue
 

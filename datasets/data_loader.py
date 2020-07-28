@@ -101,16 +101,16 @@ def build_temporal_transformation(cfg, triplets=True):
     if triplets:
         TempTransform = {}
         #anchor
-        begin_temporal_transform = []
-        begin_temporal_transform.append(TemporalBeginCrop(cfg.DATA.SAMPLE_DURATION))
-        begin_temporal_transform = TemporalCompose(begin_temporal_transform)
-        TempTransform['anchor'] = begin_temporal_transform
+        anchor_temporal_transform = []
+        anchor_temporal_transform.append(TemporalBeginCrop(cfg.DATA.SAMPLE_DURATION))
+        anchor_temporal_transform = TemporalCompose(anchor_temporal_transform)
+        TempTransform['anchor'] = anchor_temporal_transform
 
         #positive
-        end_temporal_transform = []
-        end_temporal_transform.append(TemporalEndCrop(cfg.DATA.SAMPLE_DURATION))
-        end_temporal_transform = TemporalCompose(end_temporal_transform)
-        TempTransform['positive'] = end_temporal_transform
+        positive_temporal_transform = []
+        positive_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION, start_index=cfg.DATA.SAMPLE_DURATION+1))
+        positive_temporal_transform = TemporalCompose(positive_temporal_transform)
+        TempTransform['positive'] = positive_temporal_transform
 
         #negative
         temporal_transform = []

@@ -32,22 +32,25 @@ split = 'val'
 exemplar_file = '/home/sherry/output/u_exemplar.txt'
 np.random.seed(7)
 
+
 # Argument parser
 def m_arg_parser(parser):
     parser.add_argument(
         '--heatmap',
         action='store_true',
-        help='generate_plots'
+        help='Run temporal heatmap visualization'
     )
     parser.add_argument(
         "--ex_idx",
         default=None,
-        type=int
+        type=int,
+        help='Exemplar video dataset index for the temporal heat map'
     )
     parser.add_argument(
         "--test_idx",
         default=None,
-        type=int
+        type=int,
+        help='Test video dataset index for the temporal heat map'
     )
     return parser
 
@@ -136,6 +139,7 @@ def plot_img(cfg, fig, data, num_exemplar, row, exemplar_idx, k_idx, spatial_tra
         f.write('{}, {}'.format(exemplar_idx, exemplar_frame))
         f.write('\n')
 
+
 def load_exemplar(exemplar_file):
     with open(exemplar_file, 'r') as f:
         lines = f.readlines()
@@ -143,6 +147,7 @@ def load_exemplar(exemplar_file):
     for line in lines:
         exemplar_idx.append(int(line.split(',')[0].strip()))
     return exemplar_idx
+
 
 def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exemplar):
     embeddings = evaluate(model, test_loader, log_interval=log_interval)

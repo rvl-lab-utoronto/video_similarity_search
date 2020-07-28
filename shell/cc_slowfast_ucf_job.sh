@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=def-florian7_gpu 
-#SBATCH --time=0-01:00:00
+#SBATCH --time=0-23:00:00
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=6
 #SBATCH --gres=gpu:t4:4
@@ -12,6 +12,6 @@ cd $SLURM_TMPDIR
 mkdir work_ucf
 cd work_ucf
 tar -xzf /home/salar77h/projects/def-florian7/datasets/UCF101/jpg.tar.gz
-echo 'Extracted jpg.tar.gz'
+'Extracted jpg.tar.gz'
 
-python /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/train.py --cfg /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/config/custom_configs/slowfast_ucf_cc.yaml --gpu 0,1,2,3 --num_data_workers 4 --batch_size 40
+python /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/train.py --cfg /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/config/custom_configs/slowfast_ucf_cc.yaml --gpu 0,1,2,3 --num_data_workers 4 --batch_size 40 --output /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/output_ucf1-newspatial

@@ -7,7 +7,7 @@ from default_params import get_cfg
 
 
 # Argument parser
-def parse_args():
+def arg_parser():
     parser = argparse.ArgumentParser("Video Similarity Search Training Script")
     parser.add_argument(
         '--pretrain_path',
@@ -66,12 +66,27 @@ def parse_args():
         type=int
     )
     parser.add_argument(
+        "--shard_id",
+        default=0,
+        type=int
+    )
+    parser.add_argument(
+        "--num_shards",
+        default=1,
+        type=int
+    )
+    parser.add_argument(
+        "--ip_address_port",
+        default="tcp://localhost:9999",
+        type=str
+    )
+    parser.add_argument(
         "opts",
         default=None,
         nargs=argparse.REMAINDER,
         help="See config/defaults.py for all options",
     )
-    return parser.parse_args()
+    return parser
 
 
 # Get default cfg and merge parameters from cfg file and opts in arguments

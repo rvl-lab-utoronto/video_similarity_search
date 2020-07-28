@@ -44,12 +44,13 @@ class Kinetics():
                  annotation_path,
                  split, #training, ...
                  sample_duration,
+                 is_master_proc=True,
                  video_path_formatter=(lambda root_path, label, video_id:
                                        root_path / label / video_id)
                  ):
 
         self.dataset, self.idx_to_class_map = self.__make_dataset(
-            root_path, annotation_path, split, video_path_formatter, sample_duration)
+            root_path, annotation_path, split, video_path_formatter, sample_duration, is_master_proc)
 
     def get_dataset(self):
         return self.dataset
@@ -60,7 +61,7 @@ class Kinetics():
     def image_name_formatter(self, x):
         return f'{x:06d}.jpg'
 
-    def __make_dataset(self, root_path, annotation_path, split, video_path_formatter, sample_duration):
+    def __make_dataset(self, root_path, annotation_path, split, video_path_formatter, sample_duration, is_master_proc):
         video_ids, video_paths, frame_counts, labels = parse_database(
             root_path, annotation_path, split, video_path_formatter)
 
@@ -70,10 +71,12 @@ class Kinetics():
         dataset = []
         for i in range(n_videos):
             if i % (n_videos // 10) == 0:
-                print('dataset loading [{}/{}]'.format(i, n_videos))
+                if (is_master_proc):
+                    print('dataset loading [{}/{}]'.format(i, n_videos))
 
             if (frame_counts[i] == 0):
-                print ('empty folder', video_paths[i])
+                if (is_master_proc):
+                    print ('empty folder', video_paths[i])
                 continue
             elif frame_counts[i] < sample_duration:
                 # print ('disregarding video with num frames = {} < sample duration = {} : {}'.format(frame_counts[i], sample_duration, video_paths[i]))

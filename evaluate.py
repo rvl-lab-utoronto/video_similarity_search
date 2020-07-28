@@ -20,7 +20,7 @@ from models.model_utils import model_selector, multipathway_input
 from datasets.data_loader import build_spatial_transformation
 from datasets.temporal_transforms import TemporalCenterFrame, TemporalSpecificCrop
 from datasets.temporal_transforms import Compose as TemporalCompose
-from config.m_parser import load_config, parse_args
+from config.m_parser import load_config, arg_parser
 from train import load_checkpoint
 from misc.upload_gdrive import upload_file_to_gdrive
 
@@ -28,9 +28,31 @@ num_exemplar = 10
 log_interval = 10
 top_k = 5
 split = 'val'
-# exemplar_file = None
-exemplar_file = '/home/sherry/output/u_exemplar.txt'
-np.random.seed(7)
+exemplar_file = None
+#exemplar_file = '/home/sherry/output/u_exemplar.txt'
+
+
+# Argument parser
+def m_arg_parser(parser):
+    parser.add_argument(
+        '--heatmap',
+        action='store_true',
+        help='Run temporal heatmap visualization'
+    )
+    parser.add_argument(
+        "--ex_idx",
+        default=None,
+        type=int,
+        help='Exemplar video dataset index for the temporal heat map'
+    )
+    parser.add_argument(
+        "--test_idx",
+        default=None,
+        type=int,
+        help='Test video dataset index for the temporal heat map'
+    )
+    return parser
+
 
 def evaluate(model, test_loader, log_interval=5):
     model.eval()
@@ -116,6 +138,7 @@ def plot_img(cfg, fig, data, num_exemplar, row, exemplar_idx, k_idx, spatial_tra
         f.write('{}, {}'.format(exemplar_idx, exemplar_frame))
         f.write('\n')
 
+
 def load_exemplar(exemplar_file):
     with open(exemplar_file, 'r') as f:
         lines = f.readlines()
@@ -123,6 +146,7 @@ def load_exemplar(exemplar_file):
     for line in lines:
         exemplar_idx.append(int(line.split(',')[0].strip()))
     return exemplar_idx
+
 
 def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exemplar):
     embeddings = evaluate(model, test_loader, log_interval=log_interval)
@@ -158,9 +182,8 @@ def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exe
     print('figure saved to: {}, and uploaded to GoogleDrive'.format(png_file))
 
 
-def temporal_heat_map(model, data, cfg, evaluate_output):
-    exemplar_idx = 455
-    test_idx = 456
+def temporal_heat_map(model, data, cfg, evaluate_output, exemplar_idx=455,
+        test_idx=456):
 
     num_frames_exemplar = data.data[exemplar_idx]['num_frames']
 
@@ -241,7 +264,7 @@ def temporal_heat_map(model, data, cfg, evaluate_output):
 
 
 if __name__ == '__main__':
-    args = parse_args()
+    args = m_arg_parser(arg_parser()).parse_args()
     cfg = load_config(args)
 
     force_data_parallel = True
@@ -263,6 +286,8 @@ if __name__ == '__main__':
     if not os.path.exists(evaluate_output):
         os.makedirs(evaluate_output)
         print('made output dir:{}'.format(evaluate_output))
+
+    np.random.seed(7)
 
     # ============================== Model Setup ===============================
 
@@ -291,7 +316,15 @@ if __name__ == '__main__':
 
     # ================================ Evaluate ================================
 
-    k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exemplar)
-    print('total runtime: {}s'.format(time.time()-start))
+    if args.heatmap:
+        if args.ex_idx and args.test_idx:
+            temporal_heat_map(model, data, cfg, evaluate_output, args.ex_idx,
+                args.test_idx)
+        else:
+            print ('No exemplar and test indices provided')
+            temporal_heat_map(model, data, cfg, evaluate_output)
+    else:
+        k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output,
+                num_exemplar)
+        print('total runtime: {}s'.format(time.time()-start))
 
-    #temporal_heat_map(model, data, cfg, evaluate_output)

@@ -17,3 +17,4 @@ ray
 gspread
 oauth2client
 apiclient
+google-api-python-client

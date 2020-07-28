@@ -78,7 +78,7 @@ class Kinetics():
                 if (is_master_proc):
                     print ('empty folder', video_paths[i])
                 continue
-            elif frame_counts[i] < sample_duration:
+            elif frame_counts[i] < 2 * sample_duration:
                 # print ('disregarding video with num frames = {} < sample duration = {} : {}'.format(frame_counts[i], sample_duration, video_paths[i]))
                 continue
 

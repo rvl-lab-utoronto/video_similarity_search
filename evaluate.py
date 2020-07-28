@@ -28,9 +28,8 @@ num_exemplar = 10
 log_interval = 10
 top_k = 5
 split = 'val'
-# exemplar_file = None
-exemplar_file = '/home/sherry/output/u_exemplar.txt'
-np.random.seed(7)
+exemplar_file = None
+#exemplar_file = '/home/sherry/output/u_exemplar.txt'
 
 
 # Argument parser

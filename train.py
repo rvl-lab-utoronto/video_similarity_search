@@ -292,6 +292,24 @@ if __name__ == '__main__':
     args = arg_parser().parse_args()
     cfg = load_config(args)
 
+    shard_id = args.shard_id
+    if args.compute_canada:
+        os.system('cd {}'.format(os.environ['SLURM_TMPDIR']))
+        os.system('mkdir work_vid_sim')
+        os.system('cd work_vid_sim')
+        if cfg.TRAIN.DATASET == 'ucf101':
+            os.system('tar -xzf /home/salar77h/projects/def-florian7/datasets/UCF101/jpg.tar.gz')
+            print ('Extracted jpg.tar.gz')
+        elif cfg.TRAIN.DATASET == 'kinetics':
+            os.system('tar -xzf /home/salar77h/projects/def-florian7/datasets/kinetics400/frames_shortedge320px_25fps/val_split.tar.gz')
+            print ('Extracted val zip')
+            os.system('tar -xzf /home/salar77h/projects/def-florian7/datasets/kinetics400/frames_shortedge320px_25fps/train_split.tar.gz')
+            print ('Extracted train zip')
+        shard_id = os.environ['SLURM_NODEID']
+
+    print ('Total nodes:', args.num_shards)
+    print ('Node id:', shard_id)
+
     if not os.path.exists(cfg.OUTPUT_PATH):
         os.makedirs(cfg.OUTPUT_PATH)
 
@@ -308,8 +326,5 @@ if __name__ == '__main__':
         cfg.NUM_GPUS = torch.cuda.device_count()
         print("Using {} GPU(s) per node".format(torch.cuda.device_count()))
 
-    print ('Node id:', args.shard_id)
-    print ('Total nodes:', args.num_shards)
-
     # Launch processes for all gpus
-    du_helper.launch_processes(args, cfg, func=train, shard_id=args.shard_id, NUM_SHARDS=args.num_shards, ip_address_port=args.ip_address_port)
+    du_helper.launch_processes(args, cfg, func=train, shard_id=shard_id, NUM_SHARDS=args.num_shards, ip_address_port=args.ip_address_port)

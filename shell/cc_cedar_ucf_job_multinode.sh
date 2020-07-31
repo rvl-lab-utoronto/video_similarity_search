@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --account=def-florian7_gpu 
-#SBATCH --time=0-00:30:00
+#SBATCH --time=0-00:10:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
 #SBATCH --job-name=slowfast_ucf
 #SBATCH --output=%x-%j.out
-#SBATCH --gres=gpu:t4:4
+#SBATCH --gres=gpu:v100l:4
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=8
 # --wait-all-nodes=1

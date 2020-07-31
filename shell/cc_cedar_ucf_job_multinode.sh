@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --job-name=slowfast_ucf
 #SBATCH --output=%x-%j.out
-#SBATCH --gres=gpu:v100l:4
+#SBATCH --gres=gpu:t4:4
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=8
 # --wait-all-nodes=1
@@ -39,7 +39,7 @@ MPORT=3456
 echo $MPORT
 
 #srun -N1 -n1 -r 1 cd $SLURM_TMPDIR && mkdir work_ucf && cd work_ucf && tar -xzf /home/salar77h/projects/def-florian7/datasets/UCF101/jpg.tar.gz && 
-srun python /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/train.py --cfg /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/config/custom_configs/slowfast_ucf_cc.yaml --gpu 0 --num_data_workers 4 --batch_size 40 --output /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/output_ucf1-distrib --num_shards $SLURM_JOB_NODES --epoch 2 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT --compute_canada
+srun python /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/train.py --cfg /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/config/custom_configs/slowfast_ucf_cc.yaml --gpu 0 --num_data_workers 4 --batch_size 40 --output /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/output_ucf1-distrib --num_shards 2 --epoch 2 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT --compute_canada
 
 #srun -N1 -n1 -r 0 cd $SLURM_TMPDIR && mkdir work_ucf && cd work_ucf && tar -xzf /home/salar77h/projects/def-florian7/datasets/UCF101/jpg.tar.gz python /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/train.py --cfg /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/config/custom_configs/slowfast_ucf_cc.yaml --gpu 0 --num_data_workers 4 --batch_size 40 --output /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/output_ucf1-distrib --num_shards 2 --shard_id 1 --epoch 2 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT &
 

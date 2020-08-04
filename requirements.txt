@@ -3,6 +3,7 @@ scipy
 pandas
 matplotlib
 scikit-learn
+scikit-image
 opencv-python
 torch
 torchvision
@@ -13,7 +14,6 @@ ipdb
 h5py
 simplejson
 fvcore
-ray
 gspread
 oauth2client
 apiclient

@@ -1,11 +1,17 @@
+import os
 import torch
+import torch.nn as nn
 import cv2
 import numpy as np
 from torch.autograd import Function
 import torch.nn.functional as F
+from scipy.ndimage import zoom
 
+from models.triplet_net import Tripletnet
 from models.model_utils import model_selector, multipathway_input
 from config.m_parser import load_config, arg_parser
+from datasets import data_loader
+from train import load_checkpoint
 
 
 class FeatureExtractor():
@@ -59,7 +65,7 @@ class ModelOutputs():
     def __call__(self, x):
         target_activations = []
         for name, module in self.model._modules.items():
-            print(name)
+            #print(name)
             if self.model_arch == 'slowfast':
                 if module == self.feature_module:
                     target_activations, x = self.feature_extractor(x)
@@ -90,14 +96,50 @@ class VideoSimilarityGradCam:
         self.model.eval()
         self.cuda = use_cuda
         self.model_arch = model_arch
-        if self.cuda:
-            self.model = model.cuda()
+        #if self.cuda:
+        #    self.model = model.cuda()
 
         self.extractor1 = ModelOutputs(self.model, self.feature_module, target_layer_names, self.model_arch)
         self.extractor2 = ModelOutputs(self.model, self.feature_module, target_layer_names, self.model_arch)
 
     def forward(self, input):
         return self.model(input)
+
+    def create_mask(self, features, grads_val, input_3d_shape):
+        target = features[-1]
+        target = target.cpu().data.numpy()[0, :]
+        print('\ntarget shape:', target.shape)
+
+        weights = np.mean(grads_val, axis=(2, 3, 4))[0, :]
+        print('weights shape:', weights.shape)
+
+        cam = np.zeros(target.shape[1:], dtype=np.float32)
+        for i, w in enumerate(weights):
+            cam += w * target[i, :, :, :]
+        print('cam shape:', cam.shape)
+
+        # only take positive - only interested in features with positive
+        # influence on class of interest, i.e. pixels whose intensity should be
+        # increased in order to increased probability of this class
+        cam = np.maximum(cam, 0)
+        
+        # spline interpolation
+        scale = tuple(input_3d_shape[i] / cam.shape[i] for i in range(len(cam.shape)))
+        cam = zoom(cam, scale)
+
+        # trilinear interpolation
+        #out_size = tuple(i for i in input_3d_shape)  # d*w*h
+        #upsample = nn.Upsample(size=out_size, mode='trilinear')  
+        #cam = torch.tensor(cam).unsqueeze(0).unsqueeze(0)  # n*c*d*w*h
+        #cam = upsample(cam)
+
+        print('upsampled cam shape:', cam.shape)
+        
+        # Min-Max feature scaling - bring all values into range [0,1]
+        cam = cam - np.min(cam)
+        cam = cam / np.max(cam)
+
+        return cam
 
     def __call__(self, input1, input2):
         if self.cuda:
@@ -107,11 +149,14 @@ class VideoSimilarityGradCam:
                 
                 for i in range(len(input1)):
                     print('input size:', input1[i].size())
+
+                input_3d_shape = input1[1].shape[2:]
             else:
+                input1, input2 = input1.to(device), input2.to(device)
                 print('input size:', input1.size())
+                input_3d_shape = input1.shape[2:]
 
         features1, output1 = self.extractor1(input1)
-        print()
         features2, output2 = self.extractor2(input2)
 
         for i in range(len(features1)):
@@ -119,78 +164,140 @@ class VideoSimilarityGradCam:
         print('output', output1.size())
 
         similarity = 1.0 / F.pairwise_distance(output1, output2, 2)
+        similarity = similarity.requires_grad_(True)
+
         self.feature_module.zero_grad()
         self.model.zero_grad()
         similarity.backward(retain_graph=True)
 
         grads_val1 = self.extractor1.get_gradients()[-1].cpu().data.numpy()
         grads_val2 = self.extractor2.get_gradients()[-1].cpu().data.numpy()
-        print('gradval shape:',grads_val1.shape)
-        #print(grads_val1[0][1])
-        #print(grads_val1[0][2])
-        #print()
-        #print(grads_val2[0][1])
-        #print(grads_val2[0][2])
+        print('gradval shape:', grads_val1.shape)
 
-        target1 = features1[-1]
-        target1 = target1.cpu().data.numpy()[0, :]
-        target2 = features2[-1]
-        target2 = target2.cpu().data.numpy()[0, :]
-        print('target shape:', target1.shape)
+        cam1 = self.create_mask(features1, grads_val1, input_3d_shape)
+        cam2 = self.create_mask(features2, grads_val2, input_3d_shape)
 
-        '''
+        return cam1, cam2
 
 
-        weights = np.mean(grads_val, axis=(2, 3))[0, :]
-        print('weights shape:', weights.shape)
-        cam = np.zeros(target.shape[1:], dtype=np.float32)
+def get_img_and_cam(vid, masks, idx=None):
+    if idx is None:
+        idx = vid.shape[0] // 2  # take center image
+    img = vid[idx]
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    mask = masks[idx]
 
-        for i, w in enumerate(weights):
-            cam += w * target[i, :, :]
+    heatmap1 = cv2.applyColorMap(np.uint8(255 * mask), cv2.COLORMAP_JET)
+    heatmap = np.float32(heatmap1) / 255
+    cam = heatmap + np.float32(img)
+    cam = cam / np.max(cam)
+    cam = np.uint8(255 * cam)
 
-        print('cam shape:', cam.shape)
+    return img, cam, heatmap1
 
-        # only take positive - only interested in features with positive
-        # influence on class of interest, i.e. pixels whose intensity should be
-        # increased in order to increased probability of this class
-        cam = np.maximum(cam, 0)
 
-        # upsample - bilinear interpolation by default
-        cam = cv2.resize(cam, input.shape[2:])
+def show_cams_on_images(vid1, masks1, vid2, masks2):
+    vid1 = vid1[0].permute(1,2,3,0).numpy()
+    vid2 = vid2[0].permute(1,2,3,0).numpy()
+    #img1_np, cam1, heatmap1 = get_img_and_cam(vid1, mask1)
+    #img2_np, cam2, heatmap2 = get_img_and_cam(vid2, mask2)
 
-        # Min-Max feature scaling - bring all values into range [0,1]
-        cam = cam - np.min(cam)
-        cam = cam / np.max(cam)
+    #side_by_side1 = np.hstack((img1_np, cam1, heatmap1))
+    #side_by_side2 = np.hstack((img2_np, cam2, heatmap2))
+    #blank_divider = np.full((2,3*128,3), 256, dtype=int)
+    #grad_cams = np.vstack((side_by_side1, blank_divider, side_by_side2))
 
-        print('upsampled cam shape:',cam.shape)
-        return cam
-        '''
-        return None
+    #grad_cams = np.hstack((cam1, cam2))
+
+    #cv2.imwrite("cam.jpg", grad_cams)
+    #cv2.imshow('Videos', grad_cams)
+    #cv2.waitKey()
+
+    fps = 25.0
+    for i in range(len(vid1)):
+        img1_np, cam1, heatmap1 = get_img_and_cam(vid1, mask1, i)
+        img2_np, cam2, heatmap2 = get_img_and_cam(vid2, mask2, i)
+
+        imgs = np.vstack((img1_np, img2_np))
+        cams = np.vstack((cam1, cam2))
+        heatmaps = np.vstack((heatmap1, heatmap2))
+        #all_imgs = np.hstack((imgs, cams, heatmaps))
+
+        cv2.imshow('Videos', imgs)
+        cv2.imshow('Gradcams', cams)
+        cv2.imshow('Heatmaps', heatmaps)
+        #cv2.imshow('All', all_imgs)
+        cv2.waitKey(int(1.0/fps*1000.0))
+    cv2.waitKey()
 
 
 if __name__ == '__main__':
     args = arg_parser().parse_args()
     cfg = load_config(args)
 
-    cuda = torch.cuda.is_available()
-    global device; device = torch.cuda.current_device()
+    np.random.seed(7)
 
-    model = model_selector(cfg)
+    force_data_parallel = True
+    os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
+    cuda = torch.cuda.is_available()
+    global device; device = torch.device("cuda" if cuda else "cpu")
+
+    # ============================== Model Setup ===============================
+
+    model=model_selector(cfg)
+    print('\n=> finished generating {} backbone model...'.format(cfg.MODEL.ARCH))
+
+    tripletnet = Tripletnet(model)
+    if cuda:
+        cfg.NUM_GPUS = torch.cuda.device_count()
+        print("Using {} GPU(s)".format(cfg.NUM_GPUS))
+        if cfg.NUM_GPUS > 1 or force_data_parallel:
+            tripletnet = nn.DataParallel(tripletnet)
+
+    if args.checkpoint_path is not None:
+        start_epoch, best_acc = load_checkpoint(tripletnet, args.checkpoint_path)
+
+    model = tripletnet.module.embeddingnet
     #print(model._modules.items())
+    if cuda:
+        model.to(device)
+
+    print('=> finished generating similarity network...')
+
+    # ============================== Data Loaders ==============================
+
+    test_loader, data = data_loader.build_data_loader('val', cfg, triplets=False)
+    print()
+
+    # ================================ Evaluate ================================
 
     grad_cam = VideoSimilarityGradCam(model=model, feature_module=model.s5_fuse, \
                             target_layer_names=[], use_cuda=cuda, model_arch=cfg.MODEL.ARCH)
 
-    x = torch.randn(1, 3, cfg.DATA.SAMPLE_DURATION, cfg.DATA.SAMPLE_SIZE, \
-                    cfg.DATA.SAMPLE_SIZE, dtype=torch.float, requires_grad=True)
-    y = torch.randn(1, 3, cfg.DATA.SAMPLE_DURATION, cfg.DATA.SAMPLE_SIZE, \
-                    cfg.DATA.SAMPLE_SIZE, dtype=torch.float, requires_grad=True)
+    #x = torch.randn(1, 3, cfg.DATA.SAMPLE_DURATION, cfg.DATA.SAMPLE_SIZE, \
+    #                cfg.DATA.SAMPLE_SIZE, dtype=torch.float, requires_grad=True)
+    #y = torch.randn(1, 3, cfg.DATA.SAMPLE_DURATION, cfg.DATA.SAMPLE_SIZE, \
+    #                cfg.DATA.SAMPLE_SIZE, dtype=torch.float, requires_grad=True)
+
+    x_idx = 450
+    y_idx = 452
+    print('Img 1 path:', data.data[x_idx]['video'])
+    print('Img 2 path:', data.data[y_idx]['video'])
+    x, _, _ = data.__getitem__(x_idx)  # cropped size
+    y, _, _ = data.__getitem__(y_idx)  # cropped size
+    x = x.unsqueeze(0)
+    y = y.unsqueeze(0)
+    
+    x_copy = x.clone().detach()
+    y_copy = y.clone().detach()
+
     if cfg.MODEL.ARCH == 'slowfast':
         x = multipathway_input(x, cfg)
         y = multipathway_input(y, cfg)
     
-    print()
-    mask = grad_cam(x, y)
+    mask1, mask2 = grad_cam(x, y)
+
+    show_cams_on_images(x_copy, mask1, y_copy, mask2)
     
 
 

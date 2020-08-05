@@ -296,8 +296,9 @@ if __name__ == '__main__':
 
     tripletnet = Tripletnet(model)
     if cuda:
-        if torch.cuda.device_count() > 1 or force_data_parallel:
-            print("Let's use {} GPUs".format(torch.cuda.device_count()))
+        cfg.NUM_GPUS = torch.cuda.device_count()
+        print("Using {} GPU(s)".format(cfg.NUM_GPUS))
+        if cfg.NUM_GPUS > 1 or force_data_parallel:
             tripletnet = nn.DataParallel(tripletnet)
 
     if args.checkpoint_path is not None:

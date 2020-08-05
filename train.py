@@ -306,7 +306,7 @@ if __name__ == '__main__':
 
     if torch.cuda.is_available():
         cfg.NUM_GPUS = torch.cuda.device_count()
-        print("Using {} GPU(s) per node".format(torch.cuda.device_count()))
+        print("Using {} GPU(s) per node".format(cfg.NUM_GPUS))
 
     print ('Node id:', args.shard_id)
     print ('Total nodes:', args.num_shards)

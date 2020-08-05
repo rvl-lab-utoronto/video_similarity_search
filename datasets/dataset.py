@@ -58,8 +58,12 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
     if get_image_backend() == 'accimage':
         from datasets.loader import ImageLoaderAccImage
         loader = VideoLoader(Dataset.image_name_formatter, ImageLoaderAccImage())
+        if (is_master_proc):
+            print('Image loader:', 'ImageLoaderAccImage')
     else:
         loader = VideoLoader(Dataset.image_name_formatter)
+        if (is_master_proc):
+            print('Image loader:', 'ImageLoaderPIL')
 
     if triplets:
         if (is_master_proc):

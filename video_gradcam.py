@@ -180,38 +180,32 @@ class VideoSimilarityGradCam:
         return cam1, cam2
 
 
-def get_img_and_cam(vid, masks, idx=None):
+def get_img_and_cam(vid, masks, idx=None, alpha=0.4):
     if idx is None:
         idx = vid.shape[0] // 2  # take center image
     img = vid[idx]
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     mask = masks[idx]
 
-    heatmap1 = cv2.applyColorMap(np.uint8(255 * mask), cv2.COLORMAP_JET)
-    heatmap = np.float32(heatmap1) / 255
-    cam = heatmap + np.float32(img)
-    cam = cam / np.max(cam)
-    cam = np.uint8(255 * cam)
+    # Mask must be type uint8 before applying color mask
+    heatmap = cv2.applyColorMap(np.uint8(255 * mask), cv2.COLORMAP_JET)
 
-    return img, cam, heatmap1
+    # Need to convert from float32 to uint8 before using addWeighted, 
+    # since heatmap type is uint8. Apply min max normalization since not certain
+    # of the range of the values in the original image, and then put in range
+    # 0 to 255.
+    img = img - np.min(img)
+    img = img / np.max(img)
+    img = np.uint8(255 * img)
+
+    cam = cv2.addWeighted(heatmap, alpha, img, 1.0-alpha, 0)
+
+    return img, cam, heatmap
 
 
 def show_cams_on_images(vid1, masks1, vid2, masks2):
     vid1 = vid1[0].permute(1,2,3,0).numpy()
     vid2 = vid2[0].permute(1,2,3,0).numpy()
-    #img1_np, cam1, heatmap1 = get_img_and_cam(vid1, mask1)
-    #img2_np, cam2, heatmap2 = get_img_and_cam(vid2, mask2)
-
-    #side_by_side1 = np.hstack((img1_np, cam1, heatmap1))
-    #side_by_side2 = np.hstack((img2_np, cam2, heatmap2))
-    #blank_divider = np.full((2,3*128,3), 256, dtype=int)
-    #grad_cams = np.vstack((side_by_side1, blank_divider, side_by_side2))
-
-    #grad_cams = np.hstack((cam1, cam2))
-
-    #cv2.imwrite("cam.jpg", grad_cams)
-    #cv2.imshow('Videos', grad_cams)
-    #cv2.waitKey()
 
     fps = 25.0
     for i in range(len(vid1)):
@@ -221,12 +215,12 @@ def show_cams_on_images(vid1, masks1, vid2, masks2):
         imgs = np.vstack((img1_np, img2_np))
         cams = np.vstack((cam1, cam2))
         heatmaps = np.vstack((heatmap1, heatmap2))
-        #all_imgs = np.hstack((imgs, cams, heatmaps))
+        all_imgs = np.hstack((imgs, cams, heatmaps))
 
-        cv2.imshow('Videos', imgs)
-        cv2.imshow('Gradcams', cams)
-        cv2.imshow('Heatmaps', heatmaps)
-        #cv2.imshow('All', all_imgs)
+        #cv2.imshow('Videos', imgs)
+        #cv2.imshow('Gradcams', cams)
+        #cv2.imshow('Heatmaps', heatmaps)
+        cv2.imshow('Videos and their Similarity Heatmaps', all_imgs)
         cv2.waitKey(int(1.0/fps*1000.0))
     cv2.waitKey()
 
@@ -279,8 +273,8 @@ if __name__ == '__main__':
     #y = torch.randn(1, 3, cfg.DATA.SAMPLE_DURATION, cfg.DATA.SAMPLE_SIZE, \
     #                cfg.DATA.SAMPLE_SIZE, dtype=torch.float, requires_grad=True)
 
-    x_idx = 450
-    y_idx = 452
+    x_idx = 62
+    y_idx = 61
     print('Img 1 path:', data.data[x_idx]['video'])
     print('Img 2 path:', data.data[y_idx]['video'])
     x, _, _ = data.__getitem__(x_idx)  # cropped size

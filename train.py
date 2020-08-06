@@ -326,24 +326,8 @@ if __name__ == '__main__':
     cfg = load_config(args)
 
     shard_id = args.shard_id
-    #print ('tmpdir:',os.environ['SLURM_TMPDIR'])
     if args.compute_canada:
-        '''cmd='cd {}'.format(os.environ['SLURM_TMPDIR'])
-        print(cmd)
-        os.system(cmd)
-        os.system('mkdir work_vid_sim')
-        os.system('cd work_vid_sim')
-        if cfg.TRAIN.DATASET == 'ucf101':
-            #os.system('tar -xzf /home/salar77h/projects/def-florian7/datasets/UCF101/jpg.tar.gz')
-            print ('Extracted jpg.tar.gz')
-        elif cfg.TRAIN.DATASET == 'kinetics':
-            os.system('tar -xzf /home/salar77h/projects/def-florian7/datasets/kinetics400/frames_shortedge320px_25fps/val_split.tar.gz')
-            print ('Extracted val zip')
-            os.system('tar -xzf /home/salar77h/projects/def-florian7/datasets/kinetics400/frames_shortedge320px_25fps/train_split.tar.gz')
-            print ('Extracted train zip')'''
         shard_id = int(os.environ['SLURM_NODEID'])
-    else:
-        print ('Running locally')
 
     print ('Total nodes:', args.num_shards)
     print ('Node id:', shard_id)

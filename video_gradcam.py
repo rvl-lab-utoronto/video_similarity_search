@@ -132,6 +132,7 @@ class VideoSimilarityGradCam:
         #upsample = nn.Upsample(size=out_size, mode='trilinear')  
         #cam = torch.tensor(cam).unsqueeze(0).unsqueeze(0)  # n*c*d*w*h
         #cam = upsample(cam)
+        #cam = cam[0][0].cpu().data.numpy()
 
         print('upsampled cam shape:', cam.shape)
         
@@ -207,26 +208,42 @@ def show_cams_on_images(vid1, masks1, vid2, masks2):
     vid1 = vid1[0].permute(1,2,3,0).numpy()
     vid2 = vid2[0].permute(1,2,3,0).numpy()
 
-    fps = 25.0
-    for i in range(len(vid1)):
-        img1_np, cam1, heatmap1 = get_img_and_cam(vid1, mask1, i)
-        img2_np, cam2, heatmap2 = get_img_and_cam(vid2, mask2, i)
+    fps = 10.0
+    while (True):
+        for i in range(len(vid1)):
+            img1_np, cam1, heatmap1 = get_img_and_cam(vid1, mask1, i)
+            img2_np, cam2, heatmap2 = get_img_and_cam(vid2, mask2, i)
 
-        imgs = np.vstack((img1_np, img2_np))
-        cams = np.vstack((cam1, cam2))
-        heatmaps = np.vstack((heatmap1, heatmap2))
-        all_imgs = np.hstack((imgs, cams, heatmaps))
+            imgs = np.vstack((img1_np, img2_np))
+            cams = np.vstack((cam1, cam2))
+            heatmaps = np.vstack((heatmap1, heatmap2))
+            all_imgs = np.hstack((imgs, cams, heatmaps))
 
-        #cv2.imshow('Videos', imgs)
-        #cv2.imshow('Gradcams', cams)
-        #cv2.imshow('Heatmaps', heatmaps)
-        cv2.imshow('Videos and their Similarity Heatmaps', all_imgs)
-        cv2.waitKey(int(1.0/fps*1000.0))
-    cv2.waitKey()
+            cv2.imshow('Videos and their Similarity Heatmaps', all_imgs)
+            cv2.waitKey(int(1.0/fps*1000.0))
+        cv2.waitKey(2000)
+    #cv2.waitKey()
+
+
+# Argument parser
+def m_arg_parser(parser):
+    parser.add_argument(
+        "--vid1",
+        default=61,
+        type=int,
+        help='Video 1 dataset index'
+    )
+    parser.add_argument(
+        "--vid2",
+        default=62,
+        type=int,
+        help='Video 2 dataset index'
+    )
+    return parser
 
 
 if __name__ == '__main__':
-    args = arg_parser().parse_args()
+    args = m_arg_parser(arg_parser()).parse_args()
     cfg = load_config(args)
 
     np.random.seed(7)
@@ -273,24 +290,21 @@ if __name__ == '__main__':
     #y = torch.randn(1, 3, cfg.DATA.SAMPLE_DURATION, cfg.DATA.SAMPLE_SIZE, \
     #                cfg.DATA.SAMPLE_SIZE, dtype=torch.float, requires_grad=True)
 
-    x_idx = 62
-    y_idx = 61
+    x_idx = args.vid1
+    y_idx = args.vid2
     print('Img 1 path:', data.data[x_idx]['video'])
     print('Img 2 path:', data.data[y_idx]['video'])
     x, _, _ = data.__getitem__(x_idx)  # cropped size
     y, _, _ = data.__getitem__(y_idx)  # cropped size
     x = x.unsqueeze(0)
     y = y.unsqueeze(0)
-    
     x_copy = x.clone().detach()
     y_copy = y.clone().detach()
-
     if cfg.MODEL.ARCH == 'slowfast':
         x = multipathway_input(x, cfg)
         y = multipathway_input(y, cfg)
     
     mask1, mask2 = grad_cam(x, y)
-
     show_cams_on_images(x_copy, mask1, y_copy, mask2)
     
 

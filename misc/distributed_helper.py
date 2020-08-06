@@ -5,7 +5,7 @@ import torch
 # proc_init_method includes TCP or shared file-system
 
 def run_process(local_rank_proc, NUM_PROC_PER_SHARD, func, shard_id, NUM_SHARDS, cmd_args, cfg, proc_init_method="tcp://localhost:9999", dist_backend="nccl"):
-    print('run_process')
+    #print('run_process')
     WORLD_SIZE = NUM_PROC_PER_SHARD * NUM_SHARDS
     rank_proc = shard_id * NUM_PROC_PER_SHARD + local_rank_proc
 
@@ -64,9 +64,9 @@ def is_master_proc(num_gpus):
 
 # Get the world size
 def get_world_size():
-    if not dist.is_available():
+    if not torch.distributed.is_available():
         return 1
-    if not dist.is_initialized():
+    if not torch.distributed.is_initialized():
         return 1
-    return dist.get_world_size()
+    return torch.distributed.get_world_size()
 

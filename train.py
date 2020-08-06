@@ -80,6 +80,9 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_m
     # switching to training mode
     tripletnet.train()
     start = time.time()
+
+    world_size = du_helper.get_world_size()
+
     for batch_idx, (inputs, targets) in enumerate(train_loader):
         anchor, positive, negative = inputs
         batch_size = anchor.size(0)
@@ -114,30 +117,35 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_m
         # measure accuracy
         acc = accuracy(dista.detach(), distb.detach())
 
-        # Gather the predictions across all the devices
+        # Gather the predictions across all the devices (sum)
         if (cfg.NUM_GPUS > 1):
-            loss_triplet, loss, acc, loss_embedd = du_helper.all_reduce([loss_triplet, loss, acc, loss_embedd])
+            loss_triplet, loss, acc, loss_embedd = du_helper.all_reduce([loss_triplet,
+                loss, acc, loss_embedd], avg=True)
+
+        batch_size_world = batch_size * world_size
 
         # record loss and accuracy
-        triplet_losses.update(loss_triplet.item(), batch_size)
-        losses_r.update(loss.item(), batch_size)
-        accs.update(acc.item(), batch_size)
-        emb_norms.update(loss_embedd.item()/3, batch_size)
+        triplet_losses.update(loss_triplet.item(), batch_size_world)
+        losses_r.update(loss.item(), batch_size_world)
+        accs.update(acc.item(), batch_size_world)
+        emb_norms.update(loss_embedd.item()/3, batch_size_world)
 
-        batch_idx_world = batch_idx * du_helper.get_world_size()
-
-        if batch_idx_world % log_interval == 0:
+        if (batch_idx * world_size) % log_interval == 0:
             if (is_master_proc):
                 print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                     'Loss: {:.4f} ({:.4f}) \t'
                     'Acc: {:.2f}% ({:.2f}%) \t'
                     'Emb_Norm: {:.2f} ({:.2f})'.format(
-                    epoch, batch_idx_world * batch_size,
-                    len(train_loader.dataset), 100. * (batch_idx_world * batch_size / len(train_loader.dataset)),
+                    epoch, batch_idx * batch_size_world,
+                    len(train_loader.dataset), 100. * (batch_idx *
+                        batch_size_world / len(train_loader.dataset)),
                     triplet_losses.val, triplet_losses.avg,
                     100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
 
     if (is_master_proc):
+        print('\nTrain set: Average loss: {:.4f}({:.4f}), Accuracy: {:.2f}%\n'.format(
+            triplet_losses.avg, losses_r.avg, 100. * accs.avg))
+
         print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
             f.write('epoch:{} runtime:{} {:.4f} {:.4f} {:.2f}\n'.format(epoch, round((time.time()-start)/3600,2), triplet_losses.avg, losses_r.avg, 100. * accs.avg))
@@ -148,6 +156,8 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc=True)
     triplet_losses = AverageMeter()
     losses_r = AverageMeter()
     accs = AverageMeter()
+
+    world_size = du_helper.get_world_size()
 
     tripletnet.eval()
     with torch.no_grad():
@@ -181,19 +191,39 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc=True)
             # measure accuracy
             acc = accuracy(dista.detach(), distb.detach())
 
-            # Gather the predictions across all the devices
-            if (cfg.NUM_GPUS > 1):
-                triplet_loss, loss_r, acc = du_helper.all_reduce([triplet_loss, loss_r, acc])
+            # Gather the predictions across all the devices (sum)
+            #if (cfg.NUM_GPUS > 1):
+            #    triplet_loss, loss_r, acc = du_helper.all_reduce([triplet_loss,
+            #        loss_r, acc], avg=True)
+
+            #batch_size_world = batch_size * world_size
 
             # record loss and accuracy
             accs.update(acc.item(), batch_size)
             triplet_losses.update(triplet_loss.item(), batch_size)
             losses_r.update(loss_r.item(), batch_size)
 
-    print('\nTest set: Average loss: {:.4f}({:.4f}), Accuracy: {:.2f}%\n'.format(
-            triplet_losses.avg, losses_r.avg, 100. * accs.avg))
+    if cfg.NUM_GPUS > 1:
+        acc_sum = torch.tensor([accs.sum], dtype=torch.float32, device=device)
+        acc_count = torch.tensor([accs.count], dtype=torch.float32, device=device)
+
+        triplet_losses_sum = torch.tensor([triplet_losses.sum], dtype=torch.float32, device=device)
+        triplet_losses_count = torch.tensor([triplet_losses.count], dtype=torch.float32, device=device)
+
+        losses_r_sum = torch.tensor([losses_r.sum], dtype=torch.float32, device=device)
+        losses_r_count = torch.tensor([losses_r.count], dtype=torch.float32, device=device)
+
+        acc_sum, triplet_losses_sum, losses_r_sum, acc_count, triplet_losses_count, losses_r_count = du_helper.all_reduce([acc_sum, triplet_losses_sum, losses_r_sum, acc_count, triplet_losses_count,
+            losses_r_count], avg=False)
+
+        accs.avg = acc_sum.item() / acc_count.item()
+        triplet_losses.avg = triplet_losses_sum.item() / triplet_losses_count.item()
+        losses_r.avg = losses_r_sum.item() / losses_r_count.item()
 
     if (is_master_proc):
+        print('\nTest set: Average loss: {:.4f}({:.4f}), Accuracy: {:.2f}%\n'.format(
+            triplet_losses.avg, losses_r.avg, 100. * accs.avg))
+
         with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
             val_file.write('epoch:{} {:.4f} {:.4f} {:.2f}\n'.format(epoch, triplet_losses.avg, losses_r.avg, 100. * accs.avg))
 

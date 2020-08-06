@@ -13,7 +13,6 @@ ipdb
 h5py
 simplejson
 fvcore
-ray
 gspread
 oauth2client
 apiclient

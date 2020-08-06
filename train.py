@@ -119,18 +119,21 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_m
             loss_triplet, loss, acc, loss_embedd = du_helper.all_reduce([loss_triplet, loss, acc, loss_embedd])
 
         # record loss and accuracy
-        triplet_losses.update(loss_triplet.detach(), batch_size)
-        losses_r.update(loss.detach(), batch_size)
-        accs.update(acc, batch_size)
-        emb_norms.update(loss_embedd.detach()/3, batch_size)
+        triplet_losses.update(loss_triplet.item(), batch_size)
+        losses_r.update(loss.item(), batch_size)
+        accs.update(acc.item(), batch_size)
+        emb_norms.update(loss_embedd.item()/3, batch_size)
 
-        if batch_idx % log_interval == 0:
+        batch_idx_world = batch_idx * du_helper.get_world_size()
+
+        if batch_idx_world % log_interval == 0:
             if (is_master_proc):
                 print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                     'Loss: {:.4f} ({:.4f}) \t'
                     'Acc: {:.2f}% ({:.2f}%) \t'
                     'Emb_Norm: {:.2f} ({:.2f})'.format(
-                    epoch, batch_idx * batch_size, len(train_loader.dataset), 100. * (batch_idx * batch_size / len(train_loader.dataset)),
+                    epoch, batch_idx_world * batch_size,
+                    len(train_loader.dataset), 100. * (batch_idx_world * batch_size / len(train_loader.dataset)),
                     triplet_losses.val, triplet_losses.avg,
                     100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
 
@@ -182,15 +185,15 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc=True)
             if (cfg.NUM_GPUS > 1):
                 triplet_loss, loss_r, acc = du_helper.all_reduce([triplet_loss, loss_r, acc])
 
-            # record los and accuracy
-            accs.update(acc, batch_size)
-            triplet_losses.update(triplet_loss.detach(), batch_size)
-            losses_r.update(loss_r.detach(), batch_size)
+            # record loss and accuracy
+            accs.update(acc.item(), batch_size)
+            triplet_losses.update(triplet_loss.item(), batch_size)
+            losses_r.update(loss_r.item(), batch_size)
 
-    if (is_master_proc):
-        print('\nTest set: Average loss: {:.4f}({:.4f}), Accuracy: {:.2f}%\n'.format(
+    print('\nTest set: Average loss: {:.4f}({:.4f}), Accuracy: {:.2f}%\n'.format(
             triplet_losses.avg, losses_r.avg, 100. * accs.avg))
 
+    if (is_master_proc):
         with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
             val_file.write('epoch:{} {:.4f} {:.4f} {:.2f}\n'.format(epoch, triplet_losses.avg, losses_r.avg, 100. * accs.avg))
 
@@ -293,19 +296,24 @@ if __name__ == '__main__':
     cfg = load_config(args)
 
     shard_id = args.shard_id
+    #print ('tmpdir:',os.environ['SLURM_TMPDIR'])
     if args.compute_canada:
-        os.system('cd {}'.format(os.environ['SLURM_TMPDIR']))
+        '''cmd='cd {}'.format(os.environ['SLURM_TMPDIR'])
+        print(cmd)
+        os.system(cmd)
         os.system('mkdir work_vid_sim')
         os.system('cd work_vid_sim')
         if cfg.TRAIN.DATASET == 'ucf101':
-            os.system('tar -xzf /home/salar77h/projects/def-florian7/datasets/UCF101/jpg.tar.gz')
+            #os.system('tar -xzf /home/salar77h/projects/def-florian7/datasets/UCF101/jpg.tar.gz')
             print ('Extracted jpg.tar.gz')
         elif cfg.TRAIN.DATASET == 'kinetics':
             os.system('tar -xzf /home/salar77h/projects/def-florian7/datasets/kinetics400/frames_shortedge320px_25fps/val_split.tar.gz')
             print ('Extracted val zip')
             os.system('tar -xzf /home/salar77h/projects/def-florian7/datasets/kinetics400/frames_shortedge320px_25fps/train_split.tar.gz')
-            print ('Extracted train zip')
-        shard_id = os.environ['SLURM_NODEID']
+            print ('Extracted train zip')'''
+        shard_id = int(os.environ['SLURM_NODEID'])
+    else:
+        print ('Running locally')
 
     print ('Total nodes:', args.num_shards)
     print ('Node id:', shard_id)

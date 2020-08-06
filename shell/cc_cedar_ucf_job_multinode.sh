@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=def-florian7_gpu 
-#SBATCH --time=0-00:30:00
+#SBATCH --time=0-00:10:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
 #SBATCH --job-name=slowfast_ucf
@@ -17,6 +17,9 @@
 #srun cd work_ucf
 #srun tar -xzf /home/salar77h/projects/def-florian7/datasets/UCF101/jpg.tar.gz
 #echo 'Extracted jpg.tar.gz'
+clush -w $(slurm_hl2hl.py --format PDSH) tar -xzf /home/salar77h/projects/def-florian7/datasets/UCF101/jpg.tar.gz -C $SLURM_TMPDIR
+
+cd $SLURM_TMPDIR
 
 #echo $SLURM_NODE_ALIASES
 #echo $SLURM_SRUN_COMM_HOST
@@ -27,6 +30,8 @@
 #Make sure this node (MASTER) comes first
 #HOSTLIST="$MASTER $SLAVES"
 #echo $HOSTLIST
+
+echo $SLURM_TMPDIR
 
 export MASTER_ADDRESS=$(hostname)
 echo $MASTER_ADDRESS
@@ -39,7 +44,7 @@ MPORT=3456
 echo $MPORT
 
 #srun -N1 -n1 -r 1 cd $SLURM_TMPDIR && mkdir work_ucf && cd work_ucf && tar -xzf /home/salar77h/projects/def-florian7/datasets/UCF101/jpg.tar.gz && 
-srun python /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/train.py --cfg /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/config/custom_configs/slowfast_ucf_cc.yaml --gpu 0 --num_data_workers 4 --batch_size 40 --output /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/output_ucf1-distrib --num_shards $SLURM_JOB_NODES --epoch 2 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT --compute_canada
+srun python /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/train.py --cfg /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/config/custom_configs/slowfast_ucf_cc.yaml --gpu 0,1,2,3 --num_data_workers 4 --batch_size 40 --output /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/output_ucf1-distrib --num_shards 2 --epoch 2 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT --compute_canada
 
 #srun -N1 -n1 -r 0 cd $SLURM_TMPDIR && mkdir work_ucf && cd work_ucf && tar -xzf /home/salar77h/projects/def-florian7/datasets/UCF101/jpg.tar.gz python /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/train.py --cfg /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/config/custom_configs/slowfast_ucf_cc.yaml --gpu 0 --num_data_workers 4 --batch_size 40 --output /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/output_ucf1-distrib --num_shards 2 --shard_id 1 --epoch 2 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT &
 

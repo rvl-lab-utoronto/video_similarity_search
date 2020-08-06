@@ -56,6 +56,17 @@ def all_reduce(tensors, avg=True):
 # Determines if the current process is the master process
 def is_master_proc(num_gpus):
     if torch.distributed.is_initialized():
-        return torch.distributed.get_rank() % num_gpus == 0
+        #return torch.distributed.get_rank() % num_gpus == 0
+        return torch.distributed.get_rank() == 0
     else:
         return True
+
+
+# Get the world size
+def get_world_size():
+    if not dist.is_available():
+        return 1
+    if not dist.is_initialized():
+        return 1
+    return dist.get_world_size()
+

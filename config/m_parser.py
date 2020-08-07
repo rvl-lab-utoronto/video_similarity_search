@@ -86,6 +86,11 @@ def arg_parser():
         nargs=argparse.REMAINDER,
         help="See config/defaults.py for all options",
     )
+    parser.add_argument(
+        '--compute_canada',
+        action='store_true',
+        help='Run training with compute canada environment setup'
+    )
     return parser
 
 

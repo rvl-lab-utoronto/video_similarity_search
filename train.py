@@ -327,6 +327,7 @@ if __name__ == '__main__':
 
     shard_id = args.shard_id
     if args.compute_canada:
+        print('running on compute canada')
         shard_id = int(os.environ['SLURM_NODEID'])
 
     print ('Total nodes:', args.num_shards)

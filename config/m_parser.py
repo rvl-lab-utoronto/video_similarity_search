@@ -88,6 +88,7 @@ def arg_parser():
     )
     parser.add_argument(
         '--compute_canada',
+        '-cc',
         action='store_true',
         help='Run training with compute canada environment setup'
     )

@@ -333,14 +333,16 @@ if __name__ == '__main__':
     print ('Total nodes:', args.num_shards)
     print ('Node id:', shard_id)
 
-    if not os.path.exists(cfg.OUTPUT_PATH):
-        os.makedirs(cfg.OUTPUT_PATH)
+    is_master_proc = du_helper.is_master_proc(cfg.NUM_GPUS)
+    if is_master_proc:
+        if not os.path.exists(cfg.OUTPUT_PATH):
+            os.makedirs(cfg.OUTPUT_PATH)
 
-    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets')):
-        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets'))
+        if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets')):
+            os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets'))
 
-    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
-        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
+        if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
+            os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
 
     # Set visible gpu devices
     os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)

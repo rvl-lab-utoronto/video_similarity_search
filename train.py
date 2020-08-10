@@ -264,6 +264,16 @@ def train(args, cfg):
 
     is_master_proc = du_helper.is_master_proc(cfg.NUM_GPUS)
 
+    if is_master_proc:
+        if not os.path.exists(cfg.OUTPUT_PATH):
+            os.makedirs(cfg.OUTPUT_PATH)
+
+        if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets')):
+            os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets'))
+
+        if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
+            os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
+
     # ======================== Similarity Network Setup ========================
     model=model_selector(cfg)
     if(is_master_proc):
@@ -321,6 +331,16 @@ def train(args, cfg):
         }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
 
 
+def create_output_dirs(cfg):
+    if not os.path.exists(cfg.OUTPUT_PATH):
+        os.makedirs(cfg.OUTPUT_PATH)
+
+    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets')):
+        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets'))
+
+    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
+        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
+
 if __name__ == '__main__':
     args = arg_parser().parse_args()
     cfg = load_config(args)
@@ -332,17 +352,6 @@ if __name__ == '__main__':
 
     print ('Total nodes:', args.num_shards)
     print ('Node id:', shard_id)
-
-    is_master_proc = du_helper.is_master_proc(cfg.NUM_GPUS)
-    if is_master_proc:
-        if not os.path.exists(cfg.OUTPUT_PATH):
-            os.makedirs(cfg.OUTPUT_PATH)
-
-        if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets')):
-            os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets'))
-
-        if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
-            os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
 
     # Set visible gpu devices
     os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)

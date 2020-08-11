@@ -179,6 +179,7 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc=True)
                     anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
 
             dista, distb, embedded_x, embedded_y, embedded_z = tripletnet(anchor, positive, negative)
+
             target = torch.FloatTensor(dista.size()).fill_(-1)
             if cuda:
                 target = target.to(device)
@@ -254,6 +255,17 @@ def accuracy(dista, distb):
     return (pred > 0).sum()*1.0/dista.size()[0]
 
 
+def create_output_dirs(cfg):
+    if not os.path.exists(cfg.OUTPUT_PATH):
+        os.makedirs(cfg.OUTPUT_PATH)
+
+    #if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets')):
+    #    os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets'))
+
+    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
+        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
+
+
 def train(args, cfg):
     best_acc = 0
     start_epoch = 0
@@ -265,14 +277,7 @@ def train(args, cfg):
     is_master_proc = du_helper.is_master_proc(cfg.NUM_GPUS)
 
     if is_master_proc:
-        if not os.path.exists(cfg.OUTPUT_PATH):
-            os.makedirs(cfg.OUTPUT_PATH)
-
-        if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets')):
-            os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets'))
-
-        if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
-            os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
+        create_output_dirs(cfg)
 
     # ======================== Similarity Network Setup ========================
     model=model_selector(cfg)
@@ -283,10 +288,10 @@ def train(args, cfg):
     if args.pretrain_path is not None:
         model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
 
-    tripletnet = Tripletnet(model)
-    tripletnet = tripletnet.cuda(device=device)
+    tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
 
     if cuda:
+        tripletnet = tripletnet.cuda(device=device)
         if torch.cuda.device_count() > 1:
             #tripletnet = nn.DataParallel(tripletnet)
             if cfg.MODEL.ARCH == '3dresnet':
@@ -330,16 +335,6 @@ def train(args, cfg):
             'best_prec1': best_acc,
         }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
 
-
-def create_output_dirs(cfg):
-    if not os.path.exists(cfg.OUTPUT_PATH):
-        os.makedirs(cfg.OUTPUT_PATH)
-
-    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets')):
-        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tmp_triplets'))
-
-    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
-        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
 
 if __name__ == '__main__':
     args = arg_parser().parse_args()

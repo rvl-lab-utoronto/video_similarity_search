@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from httplib2 import Http
 from oauth2client.service_account import ServiceAccountCredentials
-from upload_gdrive import upload_file_to_gdrive, SCOPES
+from upload_gdrive import GoogleDriveUploader#upload_file_to_gdrive, SCOPES
 
 
 SOURCE_CODE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -62,7 +62,7 @@ def parse_file(result_dir, f_type='train'):
     return epoch, runtime, losses, acc
 
 
-def plot_training_progress(result_dir, name, show_plot=False):
+def plot_training_progress(result_dir, name, show_plot=False, service=None):
     _, _, train_losses, train_acc = parse_file(result_dir, 'train')
     _, _, val_losses, val_acc = parse_file(result_dir, 'val')
 
@@ -83,8 +83,10 @@ def plot_training_progress(result_dir, name, show_plot=False):
     plt.legend(['Training', 'Validation'])
     plot_name = '{}_train_val_loss.png'.format(name)
     plt.savefig(plot_name)
-    upload_file_to_gdrive(plot_name, 'evaluate')
+
+    service.upload_file_to_gdrive(plot_name, 'evaluate')
     print('plots saved to:{}, and uploaded to google drive folder under /evaluate'.format(plot_name))
+
     if (show_plot):
         plt.show()
 
@@ -131,4 +133,5 @@ if __name__ == '__main__':
 
     gs_report(result_dir, name)
     if args.plot:
-        plot_training_progress(result_dir, name, show_plot=True)
+        gdrive_service = GoogleDriveUploader()
+        plot_training_progress(result_dir, name, show_plot=True, service=gdrive_service)

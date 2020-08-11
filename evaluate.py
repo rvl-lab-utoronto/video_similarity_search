@@ -22,18 +22,36 @@ from datasets.temporal_transforms import TemporalCenterFrame, TemporalSpecificCr
 from datasets.temporal_transforms import Compose as TemporalCompose
 from config.m_parser import load_config, arg_parser
 from train import load_checkpoint
-from misc.upload_gdrive import upload_file_to_gdrive
+from misc.upload_gdrive import GoogleDriveUploader
 
-num_exemplar = 10
+# num_exemplar = 10
 log_interval = 10
 top_k = 5
 split = 'val'
 exemplar_file = None
 #exemplar_file = '/home/sherry/output/u_exemplar.txt'
+np.random.seed(7)
 
 
 # Argument parser
 def m_arg_parser(parser):
+    parser.add_argument(
+        '--root_dir',
+        type=str,
+        default='.'
+    )
+    parser.add_argument(
+        '--name',
+        type=str,
+        default=None,
+        help='Please specify the name (e.g. ResNet18_K, SlowFast_U): '
+    )
+    parser.add_argument(
+        '--num_exemplar',
+        type=int,
+        default=None,
+        help='Please specify number of exemplar videos: '
+    )
     parser.add_argument(
         '--heatmap',
         action='store_true',
@@ -148,7 +166,7 @@ def load_exemplar(exemplar_file):
     return exemplar_idx
 
 
-def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exemplar):
+def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exemplar, service=None):
     embeddings = evaluate(model, test_loader, log_interval=log_interval)
 
     distance_matrix = get_distance_matrix(embeddings)
@@ -178,7 +196,7 @@ def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exe
     png_file = os.path.join(evaluate_output, '{}_plot.png'.format(os.path.basename(evaluate_output)))
     fig.tight_layout(pad=3.5)
     plt.savefig(png_file, dpi=300)
-    upload_file_to_gdrive(png_file, 'evaluate')
+    service.upload_file_to_gdrive(png_file, 'evaluate')
     print('figure saved to: {}, and uploaded to GoogleDrive'.format(png_file))
 
 
@@ -272,8 +290,13 @@ if __name__ == '__main__':
     global cuda; cuda = torch.cuda.is_available()
     global device; device = torch.device("cuda" if cuda else "cpu")
 
-    name = input('Please specify the name (e.g. ResNet18_K, SlowFast_U): ')
-    num_exemplar = int(input('Please specify number of exemplar videos: '))
+    name = args.name
+    num_exemplar = args.num_exemplar
+
+    if not name:
+        name = input('Please specify the name (e.g. ResNet18_K, SlowFast_U): ')
+    if not num_exemplar:
+        num_exemplar = int(input('Please specify number of exemplar videos: '))
 
     if not args.output:
         output = input('Please specify output directory: ')
@@ -286,8 +309,6 @@ if __name__ == '__main__':
     if not os.path.exists(evaluate_output):
         os.makedirs(evaluate_output)
         print('made output dir:{}'.format(evaluate_output))
-
-    np.random.seed(7)
 
     # ============================== Model Setup ===============================
 
@@ -326,6 +347,5 @@ if __name__ == '__main__':
             temporal_heat_map(model, data, cfg, evaluate_output)
     else:
         k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output,
-                num_exemplar)
+                num_exemplar, service=GoogleDriveUploader())
         print('total runtime: {}s'.format(time.time()-start))
-

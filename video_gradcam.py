@@ -165,7 +165,8 @@ class VideoSimilarityGradCam:
             print('features',features1[i].size())
         print('output', output1.size())
 
-        similarity = 1.0 / F.pairwise_distance(output1, output2, 2)
+        #similarity = 1.0 / F.pairwise_distance(output1, output2, 2)
+        similarity = F.cosine_similarity(output1, output2, dim=1)
         similarity = similarity.requires_grad_(True)
 
         self.feature_module.zero_grad()
@@ -271,7 +272,8 @@ class GuidedBackpropReLUModel:
 
         print('output', output1.size())
 
-        similarity = 1.0 / F.pairwise_distance(output1, output2, 2)
+        #similarity = 1.0 / F.pairwise_distance(output1, output2, 2)
+        similarity = F.cosine_similarity(output1, output2, dim=1)
         similarity = similarity.requires_grad_(True)
 
         # self.model.features.zero_grad()

@@ -353,7 +353,7 @@ if __name__ == '__main__':
 
     if torch.cuda.is_available():
         cfg.NUM_GPUS = torch.cuda.device_count()
-        print("Using {} GPU(s) per node".format(torch.cuda.device_count()))
+        print("Using {} GPU(s) per node".format(cfg.NUM_GPUS))
 
     # Launch processes for all gpus
     du_helper.launch_processes(args, cfg, func=train, shard_id=shard_id, NUM_SHARDS=args.num_shards, ip_address_port=args.ip_address_port)

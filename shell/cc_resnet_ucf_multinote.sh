@@ -45,7 +45,7 @@ srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_
 --batch_size 40 \
 --output '/home/cheny257/projects/def-florian7/cheny257/output/multinodes_test' \
 --num_shards 2 \
---epoch 2 \
+--epoch 200 \
 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT \
 -cc
 

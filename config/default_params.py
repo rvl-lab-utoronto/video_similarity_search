@@ -9,7 +9,7 @@ _C = CfgNode()
 # Training options
 # -----------------------------------------------------------------------------
 _C.TRAIN = CfgNode()
-_C.TRAIN.EPOCHS = 100
+_C.TRAIN.EPOCHS = 200
 _C.TRAIN.BATCH_SIZE = 16
 #_C.TRAIN.DATASET = "ucf101"
 _C.TRAIN.DATASET = "kinetics"
@@ -84,6 +84,8 @@ _C.DATA.INPUT_CHANNEL_NUM = 3
 # -----------------------------------------------------------------------------
 _C.LOSS = CfgNode()
 _C.LOSS.MARGIN = 0.2
+_C.LOSS.DIST_METRIC = 'cosine'
+#_C.LOSS.DIST_METRIC = 'euclidean'
 
 
 # -----------------------------------------------------------------------------

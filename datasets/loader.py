@@ -16,6 +16,15 @@ class ImageLoaderPIL(object):
                 return img.convert('RGB')
 
 
+class BinaryImageLoaderPIL(object):
+
+    def __call__(self, path):
+        # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
+        image_file = Image.open(path) # open colour image
+        image_file = image_file.convert('L') # convert image to black and white
+        return image_file
+
+
 class ImageLoaderAccImage(object):
 
     def __call__(self, path):
@@ -30,7 +39,7 @@ class VideoLoader(object):
         if image_loader is None:
             self.image_loader = ImageLoaderPIL()
         else:
-            self.image_loader = image_loader
+            self.image_loader = image_loader()
 
     def __call__(self, video_path, frame_indices):
         video = []
@@ -83,3 +92,11 @@ class VideoLoaderFlowHDF5(object):
                     video.append(Image.merge('RGB', frame))
 
         return video
+
+
+if __name__ == '__main__':
+    import cv2
+    loader=BinaryImageLoaderPIL()
+    x = loader('/media/diskstation/datasets/UCF101/lw_pose/train/TableTennisShot/v_TableTennisShot_g17_c03/image_00001_kp.png')
+    print(x)
+    x.save('result.png')

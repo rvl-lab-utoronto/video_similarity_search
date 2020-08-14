@@ -84,7 +84,7 @@ def build_spatial_transformation(cfg, split):
         spatial_transform.append(ColorDrop(p=0.2))
 
         spatial_transform.append(ToTensor())
-        spatial_transform.append(normalize)
+        # spatial_transform.append(normalize) #EDIT
 
     else: #val/ test
         spatial_transform = [
@@ -127,6 +127,11 @@ def build_temporal_transformation(cfg, triplets=True):
 
     return  TempTransform
 
+def get_channel_extention(cfg):
+    channel_ext = {}
+    if cfg.DATASET.CHANNEL_EXTENSIONS == 'keypoint':
+        channel_ext['keypoint_path'] = cfg.DATASET.KEYPOINT_PATH
+    return channel_ext
 
 def build_data_loader(split, cfg, is_master_proc=True, triplets=True):
     assert split in ['train', 'val', 'test']
@@ -134,9 +139,12 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True):
     spatial_transform = build_spatial_transformation(cfg, split)
     TempTransform = build_temporal_transformation(cfg, triplets)
 
+    channel_ext = get_channel_extention(cfg)
+
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
-                cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, is_master_proc=is_master_proc)
+                cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform,
+                channel_ext=channel_ext, is_master_proc=is_master_proc)
 
     if (is_master_proc):
         print ('Single video input size:', data[1][0][0].size())

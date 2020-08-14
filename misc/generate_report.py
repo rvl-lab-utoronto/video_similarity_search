@@ -9,7 +9,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from httplib2 import Http
 from oauth2client.service_account import ServiceAccountCredentials
-from upload_gdrive import upload_file_to_gdrive, SCOPES
+
+from upload_gdrive import GoogleDriveUploader
 
 
 SOURCE_CODE_DIR = os.path.dirname(os.path.abspath(__file__))

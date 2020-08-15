@@ -13,7 +13,7 @@ def get_class_labels(data):
     return class_labels_map
 
 
-def get_database(data, subset, root_path, video_path_formatter, split='train', channel_ext={}):
+def get_database(data, subset, root_path, video_path_formatter, split='train', channel_ext={}, val_sample=1):
     video_groups = {}
     video_paths = []
     annotations = []
@@ -30,11 +30,13 @@ def get_database(data, subset, root_path, video_path_formatter, split='train', c
         print('getting training set')
         video_ids = list(itertools.chain(*video_groups.values()))
     else: # if validation/test, only select videos from different groups.
-        print('getting validation set, randomly sample 1 clip from each group ')
-        video_ids = []
-        for name in video_groups:
-            video_ids.append(np.random.choice(video_groups[name]))
-
+        if val_sample is not None:
+            print('getting validation set, randomly sample 1 clip from each group ')
+            video_ids = []
+            for name in video_groups:
+                video_ids.append(np.random.choice(video_groups[name]))
+        else:
+            video_ids = list(itertools.chain(*video_groups.values()))
     video_paths = []
     for id in video_ids:
         annotations.append(data['database'][id]['annotations'])
@@ -48,6 +50,7 @@ def get_database(data, subset, root_path, video_path_formatter, split='train', c
         video_paths.append(video_path_formatter(root_path, label, id))
 
     channel_paths = {}
+    print(channel_ext)
     for key in channel_ext:
         channel_ext_path = channel_ext[key]
         if key not in channel_paths:
@@ -70,7 +73,8 @@ class UCF101():
                  channel_ext={},
                  is_master_proc=True,
                  video_path_formatter=(lambda root_path, label, video_id:
-                                       root_path / label / video_id)
+                                       root_path / label / video_id),
+                 val_sample=1
                  ):
 
         self.split=split
@@ -78,8 +82,10 @@ class UCF101():
             subset = 'training'
         elif split == 'val':
             subset = 'validation'
-            
+
         self.channel_ext = channel_ext
+        self.val_sample = val_sample
+
         self.dataset, self.idx_to_class_map = self.__make_dataset(
                 root_path, annotation_path, subset, video_path_formatter,
                 sample_duration, is_master_proc)
@@ -101,7 +107,7 @@ class UCF101():
         with open(annotation_path, 'r') as f:
             data = json.load(f)
         video_ids, video_paths, annotations, channel_paths = get_database(data, subset, root_path, video_path_formatter, \
-                                                        split=self.split, channel_ext=self.channel_ext)
+                                                        split=self.split, channel_ext=self.channel_ext, val_sample=self.val_sample)
         class_to_idx = get_class_labels(data)
         idx_to_class = {}
         for name, label in class_to_idx.items():

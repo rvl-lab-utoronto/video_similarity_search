@@ -5,7 +5,7 @@ DATASET:
     VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
     ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
     CHANNEL_EXTENSIONS: 'keypoint'
-    KEYPOINT_PATH: /media/diskstation/datasets/UCF101/lw_pose/train
+    KEYPOINT_PATH: /media/diskstation/datasets/UCF101/lw_pose
 
 
 MODEL:

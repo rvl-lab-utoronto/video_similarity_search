@@ -68,7 +68,7 @@ def get_normalize_method(mean, std, no_mean_norm, no_std_norm):
         else:
             return Normalize(mean, std)
 
-def build_spatial_transformation(cfg, split):
+def build_spatial_transformation(cfg, split): #TODO: rewrite the normalize function
     mean, std = get_mean_std(value_scale, dataset=mean_dataset)
     normalize = get_normalize_method(mean, std, no_mean_norm,
                                          no_std_norm)
@@ -92,7 +92,7 @@ def build_spatial_transformation(cfg, split):
             CenterCrop(cfg.DATA.SAMPLE_SIZE),
             ToTensor()
         ]
-        spatial_transform.extend([ScaleValue(value_scale), normalize])
+        spatial_transform.extend([ScaleValue(value_scale)])#, normalize])
 
     spatial_transform = Compose(spatial_transform)
     return spatial_transform
@@ -140,7 +140,6 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True):
     TempTransform = build_temporal_transformation(cfg, triplets)
 
     channel_ext = get_channel_extention(cfg)
-
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform,

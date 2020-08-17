@@ -3,7 +3,7 @@
 #SBATCH --time=0-20:10:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=resnet_ucf_multinodes
+#SBATCH --job-name=resnet_u_kp_multinodes
 #SBATCH --output=%x-%j.out
 #SBATCH --gres=gpu:v100l:4
 #SBATCH --mem=48G

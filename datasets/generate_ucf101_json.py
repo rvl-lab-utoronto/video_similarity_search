@@ -3,9 +3,11 @@ import json
 from pathlib import Path
 
 import pandas as pd
-# from .utils import get_n_frames
 import h5py
 
+"""
+Pulled from https://github.com/kenshohara/3D-ResNets-PyTorch
+"""
 
 def get_n_frames(video_path):
     return len([

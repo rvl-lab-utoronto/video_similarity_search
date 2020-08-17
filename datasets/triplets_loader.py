@@ -102,24 +102,9 @@ class TripletsData(data.Dataset):
 
         negative = self.data[negative_idx]
 
-        # a_path = anchor['video']
-        # p_path = positive['video']
-        # n_path = negative['video']
-
         p_target = positive[self.target_type]
         n_target = negative[self.target_type]
 
-        # a_frame_indices = list(range(1, anchor['num_frames'] + 1))
-        # p_frame_indices = list(range(1, positive['num_frames'] + 1))
-        # n_frame_indices = list(range(1, negative['num_frames'] + 1))
-        #
-        # a_frame_id = self.anchor_temporal_transform(a_frame_indices)
-        # p_frame_id = self.positive_temporal_transform(p_frame_indices)
-        # n_frame_id = self.negative_temporal_transform(n_frame_indices)
-        #
-        # a_clip = self.__loading(a_path, a_frame_id)
-        # p_clip = self.__loading(p_path, p_frame_id)
-        # n_clip = self.__loading(n_path, n_frame_id)
         a_clip = self._load_clip(anchor, self.anchor_temporal_transform)
         p_clip = self._load_clip(positive, self.positive_temporal_transform)
         n_clip = self._load_clip(negative, self.negative_temporal_transform)

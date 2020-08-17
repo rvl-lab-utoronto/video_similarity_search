@@ -32,7 +32,7 @@ def collate_fn(batch):
 
 def get_data(split, video_path, annotation_path, dataset_name, input_type,
              file_type, triplets, sample_duration, spatial_transform=None,
-             temporal_transform=None, target_transform=None, channel_ext={},
+             temporal_transform=None, normalize=None, target_transform=None, channel_ext={},
              is_master_proc=True):
 
     assert split in ['train', 'val', 'test']
@@ -78,6 +78,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                             spatial_transform=spatial_transform,
                             temporal_transform=temporal_transform,
                             target_transform=target_transform,
+                            normalize=normalize,
                             video_loader=loader)
     else:
         if (is_master_proc):

@@ -25,6 +25,7 @@ class TripletsData(data.Dataset):
                  spatial_transform=None,
                  temporal_transform=None,
                  target_transform=None,
+                 normalize=None,
                  video_loader=None,
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
                  target_type='label'):
@@ -33,6 +34,7 @@ class TripletsData(data.Dataset):
         self.split=split
         self.channel_ext=channel_ext
         self.spatial_transform = spatial_transform
+        self.normalize=normalize
 
         if temporal_transform is not None:
             self.anchor_temporal_transform = temporal_transform['anchor']
@@ -67,13 +69,15 @@ class TripletsData(data.Dataset):
         if self.spatial_transform is not None:
             self.spatial_transform.randomize_parameters()
             clip = [self.spatial_transform(img) for img in clip]
-            clip = torch.stack(clip, 0)
-            for channel in channel_paths:
-                channel_clip = self.kp_loader(channel, frame_indices)
+
+        for channel in channel_paths:
+            channel_clip = self.kp_loader(channel, frame_indices)
+            if self.spatial_transform is not None:
                 channel_clip = [self.spatial_transform(img) for img in channel_clip]
-                channel_clip = torch.stack(channel_clip, 0)
-                clip = torch.cat((clip, channel_clip), dim=1)
-        clip = clip.permute(1, 0, 2, 3) #change to (C, D, H, W)
+                clip = [torch.cat((clip[i], channel_clip[i]), dim=0) for i in range(len(clip))]
+
+        clip = [self.normalize(img) for img in clip]
+        clip = torch.stack(clip, 0).permute(1, 0, 2, 3) #change to (C, D, H, W)
         return clip
 
 

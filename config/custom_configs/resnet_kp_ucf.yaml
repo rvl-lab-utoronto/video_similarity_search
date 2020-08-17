@@ -1,0 +1,34 @@
+TRAIN:
+    DATASET: "ucf101"
+
+DATASET:
+    VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
+    ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
+    CHANNEL_EXTENSIONS: 'keypoint'
+    KEYPOINT_PATH: /media/diskstation/datasets/UCF101/lw_pose
+
+
+MODEL:
+    ARCH: '3dresnet'
+
+RESNET:
+    MODEL_DEPTH: 18
+    N_CLASSES: 1039
+    N_INPUT_CHANNELS: 4 #RGB + keypoint
+    SHORTCUT: 'B'
+    CONV1_T_SIZE: 7
+    CONV1_T_STRIDE: 1
+    NO_MAX_POOl: true
+    WIDEN_FACTOR: 1
+
+DATA:
+    SAMPLE_SIZE: 224
+    SAMPLE_DURATION: 32
+    INPUT_CHANNEL_NUM: 3
+
+LOSS:
+    MARGIN: 0.1
+
+OPTIM:
+    LR: 0.01
+    MOMENTUM: 0.5

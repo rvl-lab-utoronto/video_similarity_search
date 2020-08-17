@@ -8,6 +8,7 @@ from apiclient.http import MediaFileUpload
 SOURCE_CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+
 class GoogleDriveUploader:
     def __init__(self):
         self._GOOGLE_FOLDER_MAPPING = {
@@ -80,9 +81,9 @@ class GoogleDriveUploader:
         print('folder: {} is created in parent_folder:{}'.format(folder_name, parent_folder))
         # return file.get('id')
 
-
 if __name__ == '__main__':
     # upload_file_to_gdrive('test.png', 'evaluate')
+
     # create_new_folder_on_gdrive('nani', parent_folder='pose_estimation')
     gdrive_service = GoogleDriveUploader()
     id = gdrive_service.create_new_folder_on_gdrive('nani', parent_folder='pose_estimation')

@@ -56,22 +56,23 @@ def get_mean_std(value_scale, dataset):
     return mean, std
 
 
-def get_normalize_method(mean, std, no_mean_norm, no_std_norm):
+def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3):
     if no_mean_norm:
-        if no_std_norm:
-            return Normalize([0, 0, 0], [1, 1, 1])
-        else:
-            return Normalize([0, 0, 0], std)
-    else:
-        if no_std_norm:
-            return Normalize(mean, [1, 1, 1])
-        else:
-            return Normalize(mean, std)
+        mean = [0, 0, 0]
+    elif no_std_norm:
+        std = [1, 1, 1]
+
+    extra_num_channel = num_channels-3
+    mean.extend([0] * extra_num_channel)
+    std.extend([1] * extra_num_channel)
+    print('normalize, mean:{}, std:{}'.format(mean, std))
+    return Normalize(mean, std)
+
 
 def build_spatial_transformation(cfg, split):
     mean, std = get_mean_std(value_scale, dataset=mean_dataset)
     normalize = get_normalize_method(mean, std, no_mean_norm,
-                                         no_std_norm)
+                                         no_std_norm, num_channels=cfg.RESNET.N_INPUT_CHANNELS)
     if split == 'train':
         spatial_transform = []
         spatial_transform.append(
@@ -84,7 +85,7 @@ def build_spatial_transformation(cfg, split):
         spatial_transform.append(ColorDrop(p=0.2))
 
         spatial_transform.append(ToTensor())
-        spatial_transform.append(normalize)
+        # spatial_transform.append(normalize) #EDIT
 
     else: #val/ test
         spatial_transform = [
@@ -92,10 +93,12 @@ def build_spatial_transformation(cfg, split):
             CenterCrop(cfg.DATA.SAMPLE_SIZE),
             ToTensor()
         ]
-        spatial_transform.extend([ScaleValue(value_scale), normalize])
+        spatial_transform.extend([ScaleValue(value_scale)])#, normalize])
 
     spatial_transform = Compose(spatial_transform)
-    return spatial_transform
+    normalize = Compose([normalize])
+
+    return spatial_transform, normalize
 
 
 def build_temporal_transformation(cfg, triplets=True):
@@ -127,16 +130,23 @@ def build_temporal_transformation(cfg, triplets=True):
 
     return  TempTransform
 
+def get_channel_extention(cfg):
+    channel_ext = {}
+    if cfg.DATASET.CHANNEL_EXTENSIONS == 'keypoint':
+        channel_ext['keypoint_path'] = cfg.DATASET.KEYPOINT_PATH
+    return channel_ext
 
 def build_data_loader(split, cfg, is_master_proc=True, triplets=True):
     assert split in ['train', 'val', 'test']
 
-    spatial_transform = build_spatial_transformation(cfg, split)
+    spatial_transform, normalize = build_spatial_transformation(cfg, split)
     TempTransform = build_temporal_transformation(cfg, triplets)
 
+    channel_ext = get_channel_extention(cfg)
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
-                cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, is_master_proc=is_master_proc)
+                cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, normalize=normalize,
+                channel_ext=channel_ext, is_master_proc=is_master_proc)
 
     if (is_master_proc):
         print ('Single video input size:', data[1][0][0].size())

@@ -6,7 +6,7 @@ DATASET:
     VID_PATH: ./jpg
     ANNOTATION_PATH: /home/cheny257/projects/def-florian7/datasets/UCF101/json/ucf101_01.json
     CHANNEL_EXTENSIONS: 'keypoint'
-    KEYPOINT_PATH: /home/cheny257/projects/def-florian7/datasets/UCF101/lw_pose
+    KEYPOINT_PATH: ./lw_pose
 
 
 MODEL:

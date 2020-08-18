@@ -105,9 +105,9 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_m
         if cuda:
             target = target.to(device)
 
-        loss_triplet = criterion(dista, distb, target)
-        loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
-        loss = loss_triplet + 0.001 * loss_embedd + offset #adding a small term for numerical stability
+        loss = criterion(dista, distb, target)
+        # loss_embedd = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
+        # loss = loss_triplet + 0.001 * loss_embedd + offset #adding a small term for numerical stability
 
         # compute gradient and do optimizer step
         optimizer.zero_grad()

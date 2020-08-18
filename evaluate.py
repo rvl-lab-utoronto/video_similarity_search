@@ -30,7 +30,7 @@ top_k = 5
 split = 'val'
 exemplar_file = None
 #exemplar_file = '/home/sherry/output/u_exemplar.txt'
-np.random.seed(7)
+np.random.seed(1)
 
 
 # Argument parser
@@ -315,7 +315,7 @@ if __name__ == '__main__':
     model=model_selector(cfg)
     print('=> finished generating {} backbone model...'.format(cfg.MODEL.ARCH))
 
-    tripletnet = Tripletnet(model)
+    tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
     if cuda:
         cfg.NUM_GPUS = torch.cuda.device_count()
         print("Using {} GPU(s)".format(cfg.NUM_GPUS))

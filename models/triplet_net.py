@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Tripletnet(nn.Module):
-    def __init__(self, embeddingnet, dist_metric):
+    def __init__(self, embeddingnet, dist_metric='cosine'):
         super(Tripletnet, self).__init__()
         self.embeddingnet = embeddingnet
 

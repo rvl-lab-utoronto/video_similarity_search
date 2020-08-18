@@ -86,9 +86,11 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
         data = VideoDataset(data = Dataset.get_dataset(),
                             class_names = Dataset.get_idx_to_class_map(),
                             split=split,
+                            channel_ext=channel_ext,
                             spatial_transform=spatial_transform,
                             temporal_transform=temporal_transform,
                             target_transform=target_transform,
+                            normalize=normalize,
                             video_loader=loader,
                             image_name_formatter=Dataset.image_name_formatter)
 

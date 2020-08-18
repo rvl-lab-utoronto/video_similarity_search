@@ -32,7 +32,7 @@ srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_
 --cfg '/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/custom_configs/cc_resnet_kp_ucf.yaml' \
 --gpu 0,1,2,3 \
 --num_data_workers 4 \
---batch_size 32 \
+--batch_size 24 \
 --output '/home/cheny257/projects/def-florian7/cheny257/output/ResNet18_U_kp_08172020' \
 --num_shards 2 \
 --epoch 200 \

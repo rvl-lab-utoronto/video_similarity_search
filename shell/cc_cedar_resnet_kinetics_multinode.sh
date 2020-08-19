@@ -33,8 +33,7 @@ srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_
 --gpu 0,1,2,3 \
 --num_data_workers 4 \
 --batch_size 40 \
---output '/home/cheny257/projects/def-florian7/cheny257/output/ResNet18_K_multinode_20hr' \
---checkpoint_path '/home/cheny257/projects/def-florian7/cheny257/output/ResNet18_K_multinode_20hr/tnet_checkpoints/3dresnet/checkpoint.pth.tar' \
+--output '/home/cheny257/projects/def-florian7/cheny257/output/ResNet18_K_08192020' \
 --num_shards 2 \
 --epoch 100 \
 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT \

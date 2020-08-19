@@ -83,7 +83,7 @@ _C.DATA.INPUT_CHANNEL_NUM = 3
 # Loss Options
 # -----------------------------------------------------------------------------
 _C.LOSS = CfgNode()
-_C.LOSS.MARGIN = 0.2
+_C.LOSS.MARGIN = 0.5
 _C.LOSS.DIST_METRIC = 'cosine'
 #_C.LOSS.DIST_METRIC = 'euclidean'
 

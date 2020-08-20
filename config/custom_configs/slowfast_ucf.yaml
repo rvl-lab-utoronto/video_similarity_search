@@ -1,11 +1,14 @@
 TRAIN:
     DATASET: ucf101
-    BATCH_SIZE: 16
+    BATCH_SIZE: 8
     NUM_DATA_WORKERS: 4
 
 DATASET:
     VID_PATH: /media/diskstation/datasets/UCF101/jpg
     ANNOTATION_PATH: /media/diskstation/datasets/UCF101/json/ucf101_01.json
+    #KEYPOINT_PATH: /media/diskstation/datasets/UCF101/lw_pose
+    #SALIENT_PATH: /media/diskstation/datasets/UCF101/poolnet_new
+    #CHANNEL_EXTENSIONS: 'keypoint,salient'
 
 MODEL:
     ARCH: slowfast
@@ -13,6 +16,7 @@ MODEL:
 DATA:
     SAMPLE_DURATION: 32
     SAMPLE_SIZE: 128
+    INPUT_CHANNEL_NUM: 3
     
 
 

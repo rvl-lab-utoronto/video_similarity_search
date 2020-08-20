@@ -97,6 +97,7 @@ class VideoLoaderFlowHDF5(object):
 if __name__ == '__main__':
     import cv2
     loader=BinaryImageLoaderPIL()
-    x = loader('/media/diskstation/datasets/UCF101/lw_pose/train/TableTennisShot/v_TableTennisShot_g17_c03/image_00001_kp.png')
+    #x = loader('/media/diskstation/datasets/UCF101/lw_pose/train/TableTennisShot/v_TableTennisShot_g17_c03/image_00001_kp.png')
+    x = loader('/media/diskstation/datasets/UCF101/poolnet_new/TableTennisShot/v_TableTennisShot_g17_c03/image_00001_sal_fuse.png')
     print(x)
     x.save('result.png')

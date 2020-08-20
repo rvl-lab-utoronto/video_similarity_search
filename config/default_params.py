@@ -42,6 +42,7 @@ _C.DATASET.ANNOTATION_PATH = '/media/diskstation/datasets/kinetics400/vid_paths_
 
 _C.DATASET.CHANNEL_EXTENSIONS = ''
 _C.DATASET.KEYPOINT_PATH = ''
+_C.DATASET.SALIENT_PATH = ''
 
 # -----------------------------------------------------------------------------
 # Slowfast options

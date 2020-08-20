@@ -22,6 +22,7 @@ from temporal_transforms import (LoopPadding, TemporalRandomCrop,
                                  SlidingWindow, TemporalSubsampling)
 from temporal_transforms import Compose as TemporalCompose
 from dataset import get_data
+from loader import VideoLoader, BinaryImageLoaderPIL
 
 
 train_crop_min_scale = 0.25
@@ -143,11 +144,27 @@ def build_temporal_transformation(cfg, triplets=True):
     return  TempTransform
 
 
+def kp_img_name_formatter(x):
+    return f'image_{x:05d}_kp.png'
+
+
+def salient_img_name_formatter(x):
+    return f'image_{x:05d}_sal_fuse.png'
+
+
 def get_channel_extention(cfg):
     channel_ext = {}
-    if cfg.DATASET.CHANNEL_EXTENSIONS == 'keypoint':
-        channel_ext['keypoint_path'] = cfg.DATASET.KEYPOINT_PATH
-    return channel_ext
+    channel_loaders = {}
+
+    for channel_extension in cfg.DATASET.CHANNEL_EXTENSIONS.split(','):
+        if channel_extension == 'keypoint':
+            channel_ext['keypoint_path'] = cfg.DATASET.KEYPOINT_PATH
+            channel_loaders['keypoint_path'] = VideoLoader(kp_img_name_formatter, image_loader=BinaryImageLoaderPIL)
+        elif channel_extension == 'salient':
+            channel_ext['salient_path'] = cfg.DATASET.SALIENT_PATH
+            channel_loaders['salient_path'] = VideoLoader(salient_img_name_formatter, image_loader=BinaryImageLoaderPIL)
+
+    return channel_ext, channel_loaders
 
 
 def build_data_loader(split, cfg, is_master_proc=True, triplets=True):
@@ -155,14 +172,14 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True):
 
     spatial_transform, normalize = build_spatial_transformation(cfg, split)
     TempTransform = build_temporal_transformation(cfg, triplets)
-    channel_ext = get_channel_extention(cfg)
+    channel_ext, channel_loaders = get_channel_extention(cfg)
 
     assert (len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
 
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, normalize=normalize,
-                channel_ext=channel_ext, is_master_proc=is_master_proc)
+                channel_ext=channel_ext, channel_loaders=channel_loaders, is_master_proc=is_master_proc)
 
     if (is_master_proc):
         print ('Single video input size:', data[1][0][0].size())

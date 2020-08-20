@@ -1,15 +1,18 @@
 import torch
 
 
-def construct_net_input(vid_loader, mask_loader, spatial_transform, normalize_fn, path, frame_indices, channel_paths=[]):
+def construct_net_input(vid_loader, channel_loaders, spatial_transform, normalize_fn, path, frame_indices, channel_paths={}):
     clip = vid_loader(path, frame_indices)
 
     if spatial_transform is not None:
         spatial_transform.randomize_parameters()
         clip = [spatial_transform(img) for img in clip]
 
-    for channel in channel_paths:
-        channel_clip = mask_loader(channel, frame_indices)
+    for key in channel_paths:
+        channel_path = channel_paths[key]
+        channel_loader = channel_loaders[key]
+
+        channel_clip = channel_loader(channel_path, frame_indices)
         if spatial_transform is not None:
             channel_clip = [spatial_transform(img) for img in channel_clip]
         clip = [torch.cat((clip[i], channel_clip[i]), dim=0) for i in range(len(clip))]

@@ -125,14 +125,15 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_m
         accs.update(acc.item(), batch_size_world)
         emb_norms.update(embedd_norm_sum.item()/3, batch_size_world)
 
-        if (batch_idx * world_size) % log_interval == 0:
+        if ((batch_idx + 1) * world_size) % log_interval == 0:
+
             if (is_master_proc):
                 print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                     'Loss: {:.4f} ({:.4f}) \t'
                     'Acc: {:.2f}% ({:.2f}%) \t'
                     'Emb_Norm: {:.2f} ({:.2f})'.format(
-                    epoch, batch_idx * batch_size_world,
-                    len(train_loader.dataset), 100. * (batch_idx *
+                    epoch, (batch_idx + 1) * batch_size_world,
+                    len(train_loader.dataset), 100. * ((batch_idx + 1) *
                         batch_size_world / len(train_loader.dataset)),
                     losses.val, losses.avg,
                     100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
@@ -230,7 +231,7 @@ class AverageMeter(object):
 def accuracy(dista, distb):
     margin = 0
     pred = (distb - dista - margin)
-    return (pred > 0).sum()*1.0/dista.size()[0]
+    return (pred > 0).sum() * 1.0 / (dista.size()[0])
 
 
 def create_output_dirs(cfg):

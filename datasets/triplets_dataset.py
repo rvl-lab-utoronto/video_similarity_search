@@ -12,7 +12,7 @@ import os, sys, json, csv
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from pathlib import Path
-from loader import VideoLoader, BinaryImageLoaderPIL
+from loader import VideoLoader
 from dataset_utils import construct_net_input
 
 
@@ -23,6 +23,7 @@ class TripletsData(data.Dataset):
                  class_names,
                  split='train',
                  channel_ext={},
+                 channel_loaders={},
                  spatial_transform=None,
                  temporal_transform=None,
                  target_transform=None,
@@ -32,8 +33,9 @@ class TripletsData(data.Dataset):
                  target_type='label'):
         self.data = data
         self.class_names = class_names
-        self.split=split
-        self.channel_ext=channel_ext
+        self.split = split
+        self.channel_ext = channel_ext
+        self.channel_loaders = channel_loaders
         self.spatial_transform = spatial_transform
         self.normalize=normalize
 
@@ -53,15 +55,10 @@ class TripletsData(data.Dataset):
         else:
             self.loader = video_loader
 
-        self.mask_loader = VideoLoader(self.kp_img_name_formatter, image_loader=BinaryImageLoaderPIL)
-
         self.target_type = target_type
 
         self.data_labels = np.array([data[self.target_type] for data in self.data])
         self.label_to_indices = {label: np.where(self.data_labels == label)[0] for label in self.class_names.keys()}
-
-    def kp_img_name_formatter(self, x):
-        return f'image_{x:05d}_kp.png'
 
     def __getitem__(self, index, negative_sampling='RandomNegativeMining'):
         anchor=self.data[index]
@@ -98,11 +95,11 @@ class TripletsData(data.Dataset):
         frame_indices = list(range(1, data['num_frames'] + 1))
         frame_id = temporal_transform(frame_indices)
 
-        channel_paths = []
+        channel_paths = {}
         for key in self.channel_ext:
-            channel_paths.append(data[key])
+            channel_paths[key] = data[key]
 
-        clip = construct_net_input(self.loader, self.mask_loader, self.spatial_transform, self.normalize, path, frame_id, channel_paths=channel_paths)
+        clip = construct_net_input(self.loader, self.channel_loaders, self.spatial_transform, self.normalize, path, frame_id, channel_paths=channel_paths)
         return clip
 
     def __len__(self):

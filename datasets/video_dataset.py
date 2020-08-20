@@ -18,6 +18,7 @@ class VideoDataset(data.Dataset):
                  class_names,
                  split='train',
                  channel_ext={},
+                 channel_loaders={},
                  spatial_transform=None,
                  temporal_transform=None,
                  target_transform=None,
@@ -30,6 +31,7 @@ class VideoDataset(data.Dataset):
         self.class_names = class_names
         self.split=split
         self.channel_ext = channel_ext
+        self.channel_loaders=channel_loaders
         self.spatial_transform = spatial_transform
         self.temporal_transform = temporal_transform
         self.target_transform = target_transform
@@ -61,11 +63,11 @@ class VideoDataset(data.Dataset):
         if temporal_transform is not None:
             frame_indices = temporal_transform(frame_indices)
 
-        channel_paths = []
+        channel_paths = {}
         for key in self.channel_ext:
-            channel_paths.append(cur[key])
+            channel_paths[key] = cur[key]
 
-        clip = construct_net_input(self.loader, self.mask_loader, self.spatial_transform, self.normalize, path, frame_indices, channel_paths=channel_paths)
+        clip = construct_net_input(self.loader, self.channel_loaders, self.spatial_transform, self.normalize, path, frame_indices, channel_paths=channel_paths)
 
         if self.target_transform is not None:
             target = self.target_transform(target)

@@ -4,6 +4,7 @@ from pathlib import Path
 import torch
 import torch.utils.data as data
 from loader import VideoLoader, BinaryImageLoaderPIL
+from dataset_utils import construct_net_input
 
 """
 Pulled from https://github.com/kenshohara/3D-ResNets-PyTorch
@@ -35,7 +36,7 @@ class VideoDataset(data.Dataset):
         self.normalize=normalize
         self.image_name_formatter = image_name_formatter
 
-        self.kp_loader = VideoLoader(self.kp_img_name_formatter, image_loader=BinaryImageLoaderPIL)
+        self.mask_loader = VideoLoader(self.kp_img_name_formatter, image_loader=BinaryImageLoaderPIL)
 
         if video_loader is None:
             self.loader = VideoLoader(image_name_formatter)
@@ -47,23 +48,6 @@ class VideoDataset(data.Dataset):
 
     def kp_img_name_formatter(self, x):
         return f'image_{x:05d}_kp.png'
-
-    def __loading(self, path, frame_indices, channel_paths=[]):
-        clip = self.loader(path, frame_indices)
-
-        if self.spatial_transform is not None:
-            self.spatial_transform.randomize_parameters()
-            clip = [self.spatial_transform(img) for img in clip]
-
-        for channel in channel_paths:
-            channel_clip = self.kp_loader(channel, frame_indices)
-            if self.spatial_transform is not None:
-                channel_clip = [self.spatial_transform(img) for img in channel_clip]
-                clip = [torch.cat((clip[i], channel_clip[i]), dim=0) for i in range(len(clip))]
-
-        clip = [self.normalize(img) for img in clip]
-        clip = torch.stack(clip, 0).permute(1, 0, 2, 3) #change to (C, D, H, W)
-        return clip
 
     def _get_video_custom_temporal(self, index, temporal_transform=None):
         cur = self.data[index]
@@ -81,7 +65,8 @@ class VideoDataset(data.Dataset):
         for key in self.channel_ext:
             channel_paths.append(cur[key])
 
-        clip = self.__loading(path, frame_indices, channel_paths=channel_paths)
+        clip = construct_net_input(self.loader, self.mask_loader, self.spatial_transform, self.normalize, path, frame_indices, channel_paths=channel_paths)
+
         if self.target_transform is not None:
             target = self.target_transform(target)
 

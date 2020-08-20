@@ -50,7 +50,7 @@ def get_database(data, subset, root_path, video_path_formatter, split='train', c
         video_paths.append(video_path_formatter(root_path, label, id))
 
     channel_paths = {}
-    print(channel_ext)
+    print('Channel ext:', channel_ext)
     for key in channel_ext:
         channel_ext_path = channel_ext[key]
         if key not in channel_paths:

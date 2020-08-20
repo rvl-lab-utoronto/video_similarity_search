@@ -6,6 +6,8 @@ Load training and validation data and apply temporal/spatial transformation
 import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+import numpy as np
+import random
 import torch
 from torch import nn
 from torch.utils.data.distributed import DistributedSampler
@@ -19,7 +21,6 @@ from temporal_transforms import (LoopPadding, TemporalRandomCrop,
                                  TemporalEndCrop, TemporalBeginCrop,
                                  SlidingWindow, TemporalSubsampling)
 from temporal_transforms import Compose as TemporalCompose
-from data_utils import Logger, worker_init_fn, get_lr
 from dataset import get_data
 
 
@@ -35,6 +36,16 @@ mean_dataset = 'kinetics'
 value_scale = 1
 
 distributed=False
+
+
+def worker_init_fn(worker_id):
+    torch_seed = torch.initial_seed()
+
+    random.seed(torch_seed + worker_id)
+
+    if torch_seed >= 2**32:
+        torch_seed = torch_seed % 2**32
+    np.random.seed(torch_seed + worker_id)
 
 
 def get_mean_std(value_scale, dataset):
@@ -65,14 +76,15 @@ def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3):
     extra_num_channel = num_channels-3
     mean.extend([0] * extra_num_channel)
     std.extend([1] * extra_num_channel)
-    print('normalize, mean:{}, std:{}'.format(mean, std))
+    print('Normalize mean:{}, std:{}'.format(mean, std))
     return Normalize(mean, std)
 
 
 def build_spatial_transformation(cfg, split):
     mean, std = get_mean_std(value_scale, dataset=mean_dataset)
     normalize = get_normalize_method(mean, std, no_mean_norm,
-                                         no_std_norm, num_channels=cfg.RESNET.N_INPUT_CHANNELS)
+                                         no_std_norm, num_channels=cfg.DATA.INPUT_CHANNEL_NUM)
+    
     if split == 'train':
         spatial_transform = []
         spatial_transform.append(
@@ -130,19 +142,23 @@ def build_temporal_transformation(cfg, triplets=True):
 
     return  TempTransform
 
+
 def get_channel_extention(cfg):
     channel_ext = {}
     if cfg.DATASET.CHANNEL_EXTENSIONS == 'keypoint':
         channel_ext['keypoint_path'] = cfg.DATASET.KEYPOINT_PATH
     return channel_ext
 
+
 def build_data_loader(split, cfg, is_master_proc=True, triplets=True):
     assert split in ['train', 'val', 'test']
 
     spatial_transform, normalize = build_spatial_transformation(cfg, split)
     TempTransform = build_temporal_transformation(cfg, triplets)
-
     channel_ext = get_channel_extention(cfg)
+
+    assert (len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
+
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, normalize=normalize,
@@ -187,7 +203,6 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True):
                                                   )
 
     return data_loader, data
-
 
 
 if __name__ == '__main__':

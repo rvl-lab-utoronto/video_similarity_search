@@ -9,8 +9,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from torch.utils.data.dataloader import default_collate
 
 from loader import VideoLoader, VideoLoaderHDF5, VideoLoaderFlowHDF5
-from triplets_loader import TripletsData
-from videodataset import VideoDataset
+from triplets_dataset import TripletsData
+from video_dataset import VideoDataset
 from ucf101 import UCF101
 from kinetics import Kinetics
 

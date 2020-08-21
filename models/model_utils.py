@@ -12,7 +12,7 @@ def model_selector(cfg):
     if cfg.MODEL.ARCH == '3dresnet':
         model=generate_model(model_depth=cfg.RESNET.MODEL_DEPTH,
                         n_classes=cfg.RESNET.N_CLASSES,
-                        n_input_channels=cfg.RESNET.N_INPUT_CHANNELS,
+                        n_input_channels=cfg.DATA.INPUT_CHANNEL_NUM,
                         shortcut_type=cfg.RESNET.SHORTCUT,
                         conv1_t_size=cfg.RESNET.CONV1_T_SIZE,
                         conv1_t_stride=cfg.RESNET.CONV1_T_STRIDE,

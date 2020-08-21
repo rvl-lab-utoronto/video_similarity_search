@@ -12,7 +12,8 @@ import os, sys, json, csv
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from pathlib import Path
-from loader import VideoLoader, BinaryImageLoaderPIL
+from loader import VideoLoader
+from dataset_utils import construct_net_input
 
 
 class TripletsData(data.Dataset):
@@ -31,8 +32,8 @@ class TripletsData(data.Dataset):
                  target_type='label'):
         self.data = data
         self.class_names = class_names
-        self.split=split
-        self.channel_ext=channel_ext
+        self.split = split
+        self.channel_ext = channel_ext
         self.spatial_transform = spatial_transform
         self.normalize=normalize
 
@@ -52,34 +53,10 @@ class TripletsData(data.Dataset):
         else:
             self.loader = video_loader
 
-        self.kp_loader = VideoLoader(self.kp_img_name_formatter, image_loader=BinaryImageLoaderPIL)
-
         self.target_type = target_type
 
         self.data_labels = np.array([data[self.target_type] for data in self.data])
         self.label_to_indices = {label: np.where(self.data_labels == label)[0] for label in self.class_names.keys()}
-
-
-    def kp_img_name_formatter(self, x):
-        return f'image_{x:05d}_kp.png'
-
-    def __loading(self, path, frame_indices, channel_paths=[]):
-        clip = self.loader(path, frame_indices)
-
-        if self.spatial_transform is not None:
-            self.spatial_transform.randomize_parameters()
-            clip = [self.spatial_transform(img) for img in clip]
-
-        for channel in channel_paths:
-            channel_clip = self.kp_loader(channel, frame_indices)
-            if self.spatial_transform is not None:
-                channel_clip = [self.spatial_transform(img) for img in channel_clip]
-                clip = [torch.cat((clip[i], channel_clip[i]), dim=0) for i in range(len(clip))]
-
-        clip = [self.normalize(img) for img in clip]
-        clip = torch.stack(clip, 0).permute(1, 0, 2, 3) #change to (C, D, H, W)
-        return clip
-
 
     def __getitem__(self, index, negative_sampling='RandomNegativeMining'):
         anchor=self.data[index]
@@ -116,15 +93,12 @@ class TripletsData(data.Dataset):
         frame_indices = list(range(1, data['num_frames'] + 1))
         frame_id = temporal_transform(frame_indices)
 
-        channel_paths = []
+        channel_paths = {}
         for key in self.channel_ext:
-            channel_paths.append(data[key])
+            channel_paths[key] = data[key]
 
-        clip = self.__loading(path, frame_id, channel_paths=channel_paths)
+        clip = construct_net_input(self.loader, self.channel_ext, self.spatial_transform, self.normalize, path, frame_id, channel_paths=channel_paths)
         return clip
-
-
-
 
     def __len__(self):
         return len(self.data)

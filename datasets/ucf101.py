@@ -27,11 +27,9 @@ def get_database(data, subset, root_path, video_path_formatter, split='train', c
             video_groups[group].append(key)
 
     if subset == 'training':
-        print('getting training set')
         video_ids = list(itertools.chain(*video_groups.values()))
     else: # if validation/test, only select videos from different groups.
         if val_sample is not None:
-            print('getting validation set, randomly sample 1 clip from each group ')
             video_ids = []
             for name in video_groups:
                 video_ids.append(np.random.choice(video_groups[name]))
@@ -50,9 +48,8 @@ def get_database(data, subset, root_path, video_path_formatter, split='train', c
         video_paths.append(video_path_formatter(root_path, label, id))
 
     channel_paths = {}
-    print(channel_ext)
     for key in channel_ext:
-        channel_ext_path = channel_ext[key]
+        channel_ext_path = channel_ext[key][0]
         if key not in channel_paths:
             channel_paths[key]=[]
         for id in video_ids:
@@ -81,6 +78,8 @@ class UCF101():
         if split == 'train':
             subset = 'training'
         elif split == 'val':
+            if is_master_proc and val_sample is not None:
+                print('Randomly sampling 1 clip from each group for the validation set')
             subset = 'validation'
 
         self.channel_ext = channel_ext

@@ -1,7 +1,7 @@
 import torch
 
 
-def construct_net_input(vid_loader, channel_loaders, spatial_transform, normalize_fn, path, frame_indices, channel_paths={}):
+def construct_net_input(vid_loader, channel_ext, spatial_transform, normalize_fn, path, frame_indices, channel_paths={}):
     clip = vid_loader(path, frame_indices)
 
     if spatial_transform is not None:
@@ -10,7 +10,7 @@ def construct_net_input(vid_loader, channel_loaders, spatial_transform, normaliz
 
     for key in channel_paths:
         channel_path = channel_paths[key]
-        channel_loader = channel_loaders[key]
+        channel_loader = channel_ext[key][1]
 
         channel_clip = channel_loader(channel_path, frame_indices)
         if spatial_transform is not None:

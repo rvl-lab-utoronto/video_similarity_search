@@ -18,7 +18,6 @@ class VideoDataset(data.Dataset):
                  class_names,
                  split='train',
                  channel_ext={},
-                 channel_loaders={},
                  spatial_transform=None,
                  temporal_transform=None,
                  target_transform=None,
@@ -31,14 +30,11 @@ class VideoDataset(data.Dataset):
         self.class_names = class_names
         self.split=split
         self.channel_ext = channel_ext
-        self.channel_loaders=channel_loaders
         self.spatial_transform = spatial_transform
         self.temporal_transform = temporal_transform
         self.target_transform = target_transform
         self.normalize=normalize
         self.image_name_formatter = image_name_formatter
-
-        self.mask_loader = VideoLoader(self.kp_img_name_formatter, image_loader=BinaryImageLoaderPIL)
 
         if video_loader is None:
             self.loader = VideoLoader(image_name_formatter)
@@ -67,7 +63,7 @@ class VideoDataset(data.Dataset):
         for key in self.channel_ext:
             channel_paths[key] = cur[key]
 
-        clip = construct_net_input(self.loader, self.channel_loaders, self.spatial_transform, self.normalize, path, frame_indices, channel_paths=channel_paths)
+        clip = construct_net_input(self.loader, self.channel_ext, self.spatial_transform, self.normalize, path, frame_indices, channel_paths=channel_paths)
 
         if self.target_transform is not None:
             target = self.target_transform(target)

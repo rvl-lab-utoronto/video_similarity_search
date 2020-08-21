@@ -68,7 +68,7 @@ def get_mean_std(value_scale, dataset):
     return mean, std
 
 
-def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3):
+def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3, is_master_proc=True):
     if no_mean_norm:
         mean = [0, 0, 0]
     elif no_std_norm:
@@ -77,14 +77,15 @@ def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3):
     extra_num_channel = num_channels-3
     mean.extend([0] * extra_num_channel)
     std.extend([1] * extra_num_channel)
-    print('Normalize mean:{}, std:{}'.format(mean, std))
+    if (is_master_proc):
+        print('Normalize mean:{}, std:{}'.format(mean, std))
     return Normalize(mean, std)
 
 
-def build_spatial_transformation(cfg, split):
+def build_spatial_transformation(cfg, split, is_master_proc=True):
     mean, std = get_mean_std(value_scale, dataset=mean_dataset)
     normalize = get_normalize_method(mean, std, no_mean_norm,
-                                         no_std_norm, num_channels=cfg.DATA.INPUT_CHANNEL_NUM)
+                                         no_std_norm, num_channels=cfg.DATA.INPUT_CHANNEL_NUM, is_master_proc=is_master_proc)
     
     if split == 'train':
         spatial_transform = []
@@ -154,32 +155,34 @@ def salient_img_name_formatter(x):
 
 def get_channel_extention(cfg):
     channel_ext = {}
-    channel_loaders = {}
 
     for channel_extension in cfg.DATASET.CHANNEL_EXTENSIONS.split(','):
         if channel_extension == 'keypoint':
-            channel_ext['keypoint_path'] = cfg.DATASET.KEYPOINT_PATH
-            channel_loaders['keypoint_path'] = VideoLoader(kp_img_name_formatter, image_loader=BinaryImageLoaderPIL)
+            channel_ext['keypoint'] = [cfg.DATASET.KEYPOINT_PATH, 
+                                            VideoLoader(kp_img_name_formatter, image_loader=BinaryImageLoaderPIL)]
         elif channel_extension == 'salient':
-            channel_ext['salient_path'] = cfg.DATASET.SALIENT_PATH
-            channel_loaders['salient_path'] = VideoLoader(salient_img_name_formatter, image_loader=BinaryImageLoaderPIL)
+            channel_ext['salient'] = [cfg.DATASET.SALIENT_PATH,
+                                           VideoLoader(salient_img_name_formatter, image_loader=BinaryImageLoaderPIL)]
 
-    return channel_ext, channel_loaders
+    return channel_ext
 
 
 def build_data_loader(split, cfg, is_master_proc=True, triplets=True):
     assert split in ['train', 'val', 'test']
 
-    spatial_transform, normalize = build_spatial_transformation(cfg, split)
+    spatial_transform, normalize = build_spatial_transformation(cfg, split, is_master_proc=is_master_proc)
     TempTransform = build_temporal_transformation(cfg, triplets)
-    channel_ext, channel_loaders = get_channel_extention(cfg)
+    
+    channel_ext = get_channel_extention(cfg)
+    if (is_master_proc):
+        print('Channel ext:', channel_ext)
 
     assert (len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
 
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, normalize=normalize,
-                channel_ext=channel_ext, channel_loaders=channel_loaders, is_master_proc=is_master_proc)
+                channel_ext=channel_ext, is_master_proc=is_master_proc)
 
     if (is_master_proc):
         print ('Single video input size:', data[1][0][0].size())

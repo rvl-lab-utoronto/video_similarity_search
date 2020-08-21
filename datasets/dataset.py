@@ -33,7 +33,7 @@ def collate_fn(batch):
 def get_data(split, video_path, annotation_path, dataset_name, input_type,
              file_type, triplets, sample_duration, spatial_transform=None,
              temporal_transform=None, normalize=None, target_transform=None, channel_ext={},
-             channel_loaders={}, is_master_proc=True):
+             is_master_proc=True):
 
     assert split in ['train', 'val', 'test']
     assert dataset_name in ['kinetics', 'ucf101']
@@ -75,7 +75,6 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                             class_names = Dataset.get_idx_to_class_map(),
                             split=split,
                             channel_ext=channel_ext,
-                            channel_loaders=channel_loaders,
                             spatial_transform=spatial_transform,
                             temporal_transform=temporal_transform,
                             target_transform=target_transform,
@@ -88,7 +87,6 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                             class_names = Dataset.get_idx_to_class_map(),
                             split=split,
                             channel_ext=channel_ext,
-                            channel_loaders=channel_loaders,
                             spatial_transform=spatial_transform,
                             temporal_transform=temporal_transform,
                             target_transform=target_transform,

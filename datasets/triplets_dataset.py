@@ -23,7 +23,6 @@ class TripletsData(data.Dataset):
                  class_names,
                  split='train',
                  channel_ext={},
-                 channel_loaders={},
                  spatial_transform=None,
                  temporal_transform=None,
                  target_transform=None,
@@ -35,7 +34,6 @@ class TripletsData(data.Dataset):
         self.class_names = class_names
         self.split = split
         self.channel_ext = channel_ext
-        self.channel_loaders = channel_loaders
         self.spatial_transform = spatial_transform
         self.normalize=normalize
 
@@ -99,7 +97,7 @@ class TripletsData(data.Dataset):
         for key in self.channel_ext:
             channel_paths[key] = data[key]
 
-        clip = construct_net_input(self.loader, self.channel_loaders, self.spatial_transform, self.normalize, path, frame_id, channel_paths=channel_paths)
+        clip = construct_net_input(self.loader, self.channel_ext, self.spatial_transform, self.normalize, path, frame_id, channel_paths=channel_paths)
         return clip
 
     def __len__(self):

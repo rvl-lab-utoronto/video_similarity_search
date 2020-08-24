@@ -72,7 +72,7 @@ def load_checkpoint(model, checkpoint_path, is_master_proc=True):
 def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
-
+    emb_norms = AverageMeter()
     # switching to training mode
     tripletnet.train()
     start = time.time()

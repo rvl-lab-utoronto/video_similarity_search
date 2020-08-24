@@ -51,15 +51,15 @@ def parse_file(result_dir, f_type='train'):
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
                 epoch.append(float(row[0].replace('epoch:', '').replace(',','')))
-                losses.append(float(row[3]))
-                acc.append(float(row[4]))
+                losses.append(float(row[2]))
+                acc.append(float(row[3]))
                 runtime.append(float(row[1].replace('runtime:', '').replace(',','')))
     else:
         with open (os.path.join(result_dir, val_progress_file), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
-                losses.append(float(row[2]))
-                acc.append(float(row[3]))
+                losses.append(float(row[1]))
+                acc.append(float(row[2]))
     return epoch, runtime, losses, acc
 
 

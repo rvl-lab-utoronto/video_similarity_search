@@ -102,6 +102,7 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_m
             target = target.to(device)
 
         loss = criterion(dista, distb, target)
+        embedd_norm_sum = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
 
         # compute gradient and do optimizer step
         optimizer.zero_grad()
@@ -112,7 +113,7 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_m
         acc = accuracy(dista.detach(), distb.detach())
         # Gather the predictions across all the devices (sum)
         if (cfg.NUM_GPUS > 1):
-            loss, acc = du_helper.all_reduce([loss, acc], avg=True)
+            loss, acc, embedd_norm_sum = du_helper.all_reduce([loss, acc, embedd_norm_sum], avg=True)
 
         batch_size_world = batch_size * world_size
 
@@ -120,19 +121,23 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_m
         losses.update(loss.item(), batch_size_world)
         accs.update(acc.item(), batch_size_world)
 
-        if (batch_idx * world_size) % log_interval == 0:
+        emb_norms.update(embedd_norm_sum.item()/3, batch_size_world)
+
+        if ((batch_idx + 1) * world_size) % log_interval == 0:
             if (is_master_proc):
                 print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                     'Loss: {:.4f} ({:.4f}) \t'
-                    'Acc: {:.2f}% ({:.2f}%)'.format(
-                    epoch, batch_idx * batch_size_world,
-                    len(train_loader.dataset), 100. * (batch_idx *
+                    'Acc: {:.2f}% ({:.2f}%) \t'
+                    'Emb_Norm: {:.2f} ({:.2f})'.format(
+                    epoch, (batch_idx + 1) * batch_size_world,
+                    len(train_loader.dataset), 100. * ((batch_idx + 1) *
                         batch_size_world / len(train_loader.dataset)),
                     losses.val, losses.avg,
-                    100. * accs.val, 100. * accs.avg))
+                    100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
 
     if (is_master_proc):
-        print('\nTrain set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(losses.avg, 100. * accs.avg))
+        print('\nTrain set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
+            losses.avg, 100. * accs.avg))
 
         print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
@@ -193,7 +198,8 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc=True)
         losses.avg = losses_sum.item() / losses_count.item()
 
     if (is_master_proc):
-        print('\nTest set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(losses.avg, 100. * accs.avg))
+        print('\nTest set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
+            losses.avg, 100. * accs.avg))
 
         with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
             val_file.write('epoch:{} {:.4f} {:.2f}\n'.format(epoch, losses.avg, 100. * accs.avg))
@@ -222,7 +228,7 @@ class AverageMeter(object):
 def accuracy(dista, distb):
     margin = 0
     pred = (distb - dista - margin)
-    return (pred > 0).sum()*1.0/dista.size()[0]
+    return (pred > 0).sum() * 1.0 / (dista.size()[0])
 
 
 def create_output_dirs(cfg):

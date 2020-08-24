@@ -38,12 +38,6 @@ def get_database(data, subset, root_path, video_path_formatter, split='train', c
     video_paths = []
     for id in video_ids:
         annotations.append(data['database'][id]['annotations'])
-        # if 'video_path' in data['database'][id]:
-        #     video_paths.append(Path(data['database'][id]['video_path']))
-        #     if kp_path is not None:
-        #         kp_paths.append(Path(data['database'][id]['video_path']))
-        # else:
-        # print(data['database'][id])
         label = data['database'][id]['annotations']['label']
         video_paths.append(video_path_formatter(root_path, label, id))
 
@@ -55,7 +49,6 @@ def get_database(data, subset, root_path, video_path_formatter, split='train', c
         for id in video_ids:
             label = data['database'][id]['annotations']['label']
             channel_paths[key].append(video_path_formatter(channel_ext_path, label, id))
-
 
     return video_ids, video_paths, annotations, channel_paths
 
@@ -97,9 +90,6 @@ class UCF101():
 
     def image_name_formatter(self, x):
         return f'image_{x:05d}.jpg'
-    #
-    # def kp_img_name_formatter(self, x):
-    #     return f'image_{x:05d}_kp.png'
 
     def __make_dataset(self, root_path, annotation_path, subset,
             video_path_formatter, sample_duration, is_master_proc):

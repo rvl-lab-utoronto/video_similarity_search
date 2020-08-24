@@ -86,7 +86,7 @@ def build_spatial_transformation(cfg, split, is_master_proc=True):
     mean, std = get_mean_std(value_scale, dataset=mean_dataset)
     normalize = get_normalize_method(mean, std, no_mean_norm,
                                          no_std_norm, num_channels=cfg.DATA.INPUT_CHANNEL_NUM, is_master_proc=is_master_proc)
-    
+
     if split == 'train':
         spatial_transform = []
         spatial_transform.append(
@@ -146,7 +146,7 @@ def build_temporal_transformation(cfg, triplets=True):
 
 
 def kp_img_name_formatter(x):
-    return f'image_{x:05d}_kp.png'
+    return f'image_{x:05d}_kp.jpg'
 
 
 def salient_img_name_formatter(x):
@@ -158,7 +158,7 @@ def get_channel_extention(cfg):
 
     for channel_extension in cfg.DATASET.CHANNEL_EXTENSIONS.split(','):
         if channel_extension == 'keypoint':
-            channel_ext['keypoint'] = [cfg.DATASET.KEYPOINT_PATH, 
+            channel_ext['keypoint'] = [cfg.DATASET.KEYPOINT_PATH,
                                             VideoLoader(kp_img_name_formatter, image_loader=BinaryImageLoaderPIL)]
         elif channel_extension == 'salient':
             channel_ext['salient'] = [cfg.DATASET.SALIENT_PATH,
@@ -172,7 +172,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True):
 
     spatial_transform, normalize = build_spatial_transformation(cfg, split, is_master_proc=is_master_proc)
     TempTransform = build_temporal_transformation(cfg, triplets)
-    
+
     channel_ext = get_channel_extention(cfg)
     if (is_master_proc):
         print('Channel ext:', channel_ext)

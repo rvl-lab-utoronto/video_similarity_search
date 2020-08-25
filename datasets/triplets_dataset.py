@@ -66,6 +66,9 @@ class TripletsData(data.Dataset):
             positive = anchor.copy()
         else:
             p_idx = np.random.choice(self.label_to_indices[a_target])
+            # Ensure positive is not the same video as the anchor for validation
+            while(p_idx == index):
+                p_idx = np.random.choice(self.label_to_indices[a_target])
             positive = self.data[p_idx]
 
         if negative_sampling == 'RandomNegativeMining':

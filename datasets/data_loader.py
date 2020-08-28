@@ -167,10 +167,16 @@ def get_channel_extention(cfg):
     return channel_ext
 
 
-def build_data_loader(split, cfg, is_master_proc=True, triplets=True):
+def build_data_loader(split, cfg, is_master_proc=True, triplets=True, req_spatial_transform=None):
     assert split in ['train', 'val', 'test']
 
     spatial_transform, normalize = build_spatial_transformation(cfg, split, is_master_proc=is_master_proc)
+
+    if req_spatial_transform is not None:
+        spatial_transform = req_spatial_transform
+        if (is_master_proc):
+            print('Using requested spatial transforms')
+
     TempTransform = build_temporal_transformation(cfg, triplets)
     
     channel_ext = get_channel_extention(cfg)

@@ -5,11 +5,13 @@ import torchvision.models as models
 import cv2
 import numpy as np
 from torchvision import transforms
-import matplotlib.pyplot as plt
+from sklearn.cluster import AgglomerativeClustering
 
 from config.m_parser import load_config, arg_parser
 from datasets import data_loader
 from datasets.temporal_transforms import TemporalCenterFrame, TemporalSpecificCrop, TemporalEndFrame
+from datasets.spatial_transforms import (Compose, Resize, CenterCrop, ToTensor)
+
 
 np.random.seed(1)
 
@@ -47,6 +49,8 @@ def cv_f32_to_u8 (img):
 
 
 def get_embeddings_mask_regions(model, data, test_loader, log_interval=5):
+    print("Getting embeddings...")
+    
     model.eval()
     embeddings = []
     vid_paths = []
@@ -56,8 +60,10 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=5):
     #last_temporal_transform = TemporalEndFrame()
     #last_temporal_transform = TemporalSpecificCrop(0, size=1)
 
+    MASK_THRESHOLD = 0.01
+
     with torch.no_grad():      
-        for batch_idx, (inputs, targets, vid_path) in enumerate(test_loader): 
+        for batch_idx, (inputs, _, vid_path) in enumerate(test_loader): 
             num_frames = inputs.shape[2]
             rgb_center_img_tensor = inputs[:, :3, num_frames // 2, :, :]  # N x 3 x H x W
             masks = inputs[:,3,:,:,:]  
@@ -69,7 +75,13 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=5):
 
             center_img_salient_batch = []
             for i in range(batch_size):
-                center_img_salient = rgb_center_img_tensor[i] * mask[i] 
+                # If little to none of image is salient, use entire image
+                mask_mean = torch.mean(mask[i])
+                if mask_mean < MASK_THRESHOLD:
+                    center_img_salient = rgb_center_img_tensor[i]
+                else:
+                    center_img_salient = rgb_center_img_tensor[i] * mask[i]
+
                 # Put image values into range [0, 1] and then normalize using 
                 # mean and std for ImageNet
                 # https://pytorch.org/docs/stable/torchvision/models.html
@@ -111,7 +123,42 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=5):
                 print('Encoded [{}/{}]'.format((batch_idx+1)*batch_size, len(data)))
 
     embeddings = torch.cat(embeddings, dim=0)
+    embeddings = embeddings.squeeze()  # remove dimensions with size 1 (from avg pooling)
     return embeddings, vid_paths
+
+
+def fit_cluster(embeddings, method='AgglomerativeClustering', distance_threshold=0.95):
+    print("Clustering...")
+
+    distance_threshold = 0.24
+
+    if method == 'AgglomerativeClustering':
+        trained_cluster_obj = AgglomerativeClustering(n_clusters=None,
+                                                      linkage='average',
+                                                      distance_threshold=distance_threshold,
+                                                      affinity='cosine').fit(embeddings)
+        labels = trained_cluster_obj.labels_
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+
+    print("Fitted " + str(n_clusters) + " clusters with " + str(method))
+    return trained_cluster_obj
+
+
+def cluster_embeddings(vid_paths, clustering_obj):
+    
+    clusters = {}
+    
+    for idx, vid_path in enumerate(vid_paths):
+        #print (vid_path, 'cluster:', clustering_obj.labels_[idx])
+        cluster_label = clustering_obj.labels_[idx]
+        if cluster_label not in clusters:
+            clusters[cluster_label] = []
+
+        vid_label = vid_path.split(os.sep)[-2]
+        clusters[cluster_label].append(vid_label)
+
+    for idx, cluster in enumerate(clusters):
+        print(idx, ':', clusters[cluster])
 
 
 if __name__ == '__main__':
@@ -132,8 +179,8 @@ if __name__ == '__main__':
 
     img_model = models.resnet18(pretrained=True)
 
-    # Discard average pool and FC
-    img_model = torch.nn.Sequential(*(list(img_model.children())[:-2]))
+    # Discard FC (last kept is avg pool)
+    img_model = torch.nn.Sequential(*(list(img_model.children())[:-1]))
     #print (img_model)
 
     if cuda:
@@ -143,11 +190,26 @@ if __name__ == '__main__':
 
     # ============================== Data Loaders ==============================
 
-    split = 'val'
-    test_loader, data = data_loader.build_data_loader(split, cfg, triplets=False)
+    split = 'train'
+
+    spatial_transform = [
+        Resize(cfg.DATA.SAMPLE_SIZE),
+        CenterCrop(cfg.DATA.SAMPLE_SIZE),
+        ToTensor()
+    ]
+    spatial_transform = Compose(spatial_transform)
+
+    test_loader, data = data_loader.build_data_loader(split, cfg, triplets=False, req_spatial_transform=spatial_transform)
     print()
 
     # =============================== Embeddings ===============================
 
-    embeddings, vid_info = get_embeddings_mask_regions(img_model, data, test_loader)
+    embeddings, vid_paths = get_embeddings_mask_regions(img_model, data, test_loader)
     print('Embeddings size', embeddings.size())
+
+    # =============================== Clustering ===============================
+
+    trained_clustering_obj = fit_cluster(embeddings)
+
+    cluster_embeddings(vid_paths, trained_clustering_obj)
+

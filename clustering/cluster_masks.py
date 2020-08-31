@@ -31,6 +31,12 @@ def m_arg_parser(parser):
         default=None,
         help='Directory holding already-processed embeddings of salient-masked center frames'
     )
+    parser.add_argument(
+        '--split',
+        type=str,
+        default=None,
+        help='dataset split to cluster'
+    )
     return parser
 
 
@@ -56,12 +62,12 @@ def cv_f32_to_u8 (img):
     return img
 
 
-def get_embeddings_mask_regions(model, data, test_loader, log_interval=5):
+def get_embeddings_mask_regions(model, data, test_loader, log_interval=2):
     print("Getting embeddings...")
     
     model.eval()
     embeddings = []
-    vid_paths = []
+    #vid_paths = []
 
     #center_temporal_transform = TemporalCenterFrame()
     #first_temporal_transform = TemporalSpecificCrop(0, size=1)
@@ -71,7 +77,7 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=5):
     MASK_THRESHOLD = 0.01
 
     with torch.no_grad():      
-        for batch_idx, (inputs, _, vid_path) in enumerate(test_loader): 
+        for batch_idx, (inputs, _, _) in enumerate(test_loader): 
             num_frames = inputs.shape[2]
             rgb_center_img_tensor = inputs[:, :3, num_frames // 2, :, :]  # N x 3 x H x W
             masks = inputs[:,3,:,:,:]  
@@ -122,7 +128,7 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=5):
 
             embedd = model(center_img_salient)
             embeddings.append(embedd.detach().cpu())
-            vid_paths.extend(vid_path)
+            #vid_paths.extend(vid_path)
 
             if (batch_idx == 0):
                 print('Embedd size', embedd.size())
@@ -132,7 +138,7 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=5):
 
     embeddings = torch.cat(embeddings, dim=0)
     embeddings = embeddings.squeeze()  # remove dimensions with size 1 (from avg pooling)
-    return embeddings, vid_paths
+    return embeddings
 
 
 def fit_cluster(embeddings, method='AgglomerativeClustering', distance_threshold=0.95):
@@ -153,20 +159,20 @@ def fit_cluster(embeddings, method='AgglomerativeClustering', distance_threshold
 
 
 def cluster_embeddings(data, clustering_obj):
-    
-    clusters = {}
-    
-    for idx, (_, _, vid_path) in enumerate(data): 
-        #print (vid_path, 'cluster:', clustering_obj.labels_[idx])
-        cluster_label = clustering_obj.labels_[idx]
-        if cluster_label not in clusters:
-            clusters[cluster_label] = []
+ 
+    labels = clustering_obj.labels_
+    n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+    start_cluster = -1 if -1 in labels else 0
 
-        vid_label = vid_path.split(os.sep)[-2]
-        clusters[cluster_label].append(vid_label)
+    cluster_to_data_idxs = {label: np.where(clustering_obj.labels_ == label)[0] for label in range(start_cluster, start_cluster + n_clusters)}
 
-    for idx, cluster in enumerate(clusters):
-        print(idx, ':', clusters[cluster])
+    for cluster in cluster_to_data_idxs:
+        cur_cluster_vids = []
+        for data_idx in cluster_to_data_idxs[cluster]:
+            vid_path = data.data[data_idx]['video']
+            vid_label = vid_path.split(os.sep)[-2]
+            cur_cluster_vids.append(vid_label)
+        print(cluster, ':', cur_cluster_vids)
 
 
 if __name__ == '__main__':
@@ -201,7 +207,10 @@ if __name__ == '__main__':
 
     # ============================== Data Loaders ==============================
 
-    split = 'val'
+    if args.split is None:
+        split = 'train'
+    else:
+        split = args.split
 
     spatial_transform = [
         Resize(cfg.DATA.SAMPLE_SIZE),
@@ -226,7 +235,7 @@ if __name__ == '__main__':
         print ('Embeddings loaded from', embedding_pkl_file)
     else:
         start_time = time.time()
-        embeddings, _ = get_embeddings_mask_regions(img_model, data, test_loader)
+        embeddings = get_embeddings_mask_regions(img_model, data, test_loader)
         print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
         
         with open(embedding_pkl_file, 'wb') as handle:

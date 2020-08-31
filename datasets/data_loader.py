@@ -167,7 +167,7 @@ def get_channel_extention(cfg):
     return channel_ext
 
 
-def build_data_loader(split, cfg, is_master_proc=True, triplets=True, req_spatial_transform=None):
+def build_data_loader(split, cfg, is_master_proc=True, triplets=True, req_spatial_transform=None, req_train_shuffle=None):
     assert split in ['train', 'val', 'test']
 
     spatial_transform, normalize = build_spatial_transformation(cfg, split, is_master_proc=is_master_proc)
@@ -200,9 +200,13 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True, req_spatia
         print ('Batch size per gpu:', int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS))
 
     if split == 'train':
+        if req_train_shuffle is not None:
+            shuffle = req_train_shuffle
+        else:
+            shuffle=(False if sampler else True)
         data_loader = torch.utils.data.DataLoader(data,
                                                   batch_size=int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS),
-                                                  shuffle=(False if sampler else True),
+                                                  shuffle=shuffle,
                                                   num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
                                                   pin_memory=True,
                                                   sampler=sampler,

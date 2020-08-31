@@ -6,6 +6,8 @@ import cv2
 import numpy as np
 from torchvision import transforms
 from sklearn.cluster import AgglomerativeClustering
+import time
+import pickle as pkl
 
 from config.m_parser import load_config, arg_parser
 from datasets import data_loader
@@ -22,6 +24,12 @@ def m_arg_parser(parser):
         type=str,
         default=None,
         help='Please specify the name (e.g. ResNet18_K, SlowFast_U): '
+    )
+    parser.add_argument(
+        '--embedding_dir',
+        type=str,
+        default=None,
+        help='Directory holding already-processed embeddings of salient-masked center frames'
     )
     return parser
 
@@ -144,11 +152,11 @@ def fit_cluster(embeddings, method='AgglomerativeClustering', distance_threshold
     return trained_cluster_obj
 
 
-def cluster_embeddings(vid_paths, clustering_obj):
+def cluster_embeddings(data, clustering_obj):
     
     clusters = {}
     
-    for idx, vid_path in enumerate(vid_paths):
+    for idx, (_, _, vid_path) in enumerate(data): 
         #print (vid_path, 'cluster:', clustering_obj.labels_[idx])
         cluster_label = clustering_obj.labels_[idx]
         if cluster_label not in clusters:
@@ -175,6 +183,9 @@ if __name__ == '__main__':
     else:
         output = args.output
 
+    if not os.path.exists(cfg.OUTPUT_PATH):
+        os.makedirs(cfg.OUTPUT_PATH)
+
     # ======================= Imagenet-pretrained Model ========================
 
     img_model = models.resnet18(pretrained=True)
@@ -190,7 +201,7 @@ if __name__ == '__main__':
 
     # ============================== Data Loaders ==============================
 
-    split = 'train'
+    split = 'val'
 
     spatial_transform = [
         Resize(cfg.DATA.SAMPLE_SIZE),
@@ -199,17 +210,37 @@ if __name__ == '__main__':
     ]
     spatial_transform = Compose(spatial_transform)
 
-    test_loader, data = data_loader.build_data_loader(split, cfg, triplets=False, req_spatial_transform=spatial_transform)
+    test_loader, data = data_loader.build_data_loader(split, cfg, triplets=False, req_spatial_transform=spatial_transform, req_train_shuffle=False)
     print()
 
     # =============================== Embeddings ===============================
 
-    embeddings, vid_paths = get_embeddings_mask_regions(img_model, data, test_loader)
-    print('Embeddings size', embeddings.size())
+    if args.embedding_dir:
+        embedding_pkl_file = os.path.join(args.embedding_dir, 'embedding_file.pkl')
+    else:
+        embedding_pkl_file = os.path.join(args.output, 'embedding_file.pkl')
 
+    if args.embedding_dir and os.path.isfile(embedding_pkl_file):
+        with open(embedding_pkl_file, 'rb') as handle:
+            embeddings = torch.load(handle)
+        print ('Embeddings loaded from', embedding_pkl_file)
+    else:
+        start_time = time.time()
+        embeddings, _ = get_embeddings_mask_regions(img_model, data, test_loader)
+        print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
+        
+        with open(embedding_pkl_file, 'wb') as handle:
+            torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
+        print ('Embeddings saved to', embedding_pkl_file)
+
+    print('Embeddings size', embeddings.size())
+    print()
+    
     # =============================== Clustering ===============================
 
+    start_time = time.time()
     trained_clustering_obj = fit_cluster(embeddings)
+    print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
-    cluster_embeddings(vid_paths, trained_clustering_obj)
+    cluster_embeddings(data, trained_clustering_obj)
 

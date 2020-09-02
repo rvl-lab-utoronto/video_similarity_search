@@ -11,7 +11,6 @@ import pickle as pkl
 
 from config.m_parser import load_config, arg_parser
 from datasets import data_loader
-from datasets.temporal_transforms import TemporalCenterFrame, TemporalSpecificCrop, TemporalEndFrame
 from datasets.spatial_transforms import (Compose, Resize, CenterCrop, ToTensor)
 
 
@@ -20,10 +19,9 @@ np.random.seed(1)
 # Argument parser
 def m_arg_parser(parser):
     parser.add_argument(
-        '--name',
-        type=str,
-        default=None,
-        help='Please specify the name (e.g. ResNet18_K, SlowFast_U): '
+        '--visualize',
+        action='store_true',
+        help='Visalize salient masks only'
     )
     parser.add_argument(
         '--embedding_dir',
@@ -62,17 +60,12 @@ def cv_f32_to_u8 (img):
     return img
 
 
-def get_embeddings_mask_regions(model, data, test_loader, log_interval=2):
+def get_embeddings_mask_regions(model, data, test_loader, log_interval=2, visualize=False):
     print("Getting embeddings...")
     
     model.eval()
     embeddings = []
     #vid_paths = []
-
-    #center_temporal_transform = TemporalCenterFrame()
-    #first_temporal_transform = TemporalSpecificCrop(0, size=1)
-    #last_temporal_transform = TemporalEndFrame()
-    #last_temporal_transform = TemporalSpecificCrop(0, size=1)
 
     MASK_THRESHOLD = 0.01
 
@@ -110,37 +103,39 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=2):
             #print ('salient', center_img_salient.size())    
             #print(vid_path)
 
-            # Visualize mask region (use batch size 1)
-            #center_img_salient = center_img_salient.squeeze(0)
-            #center_img = vid_tensor_to_numpy(center_img_salient.unsqueeze(1))[0]
-            #center_img = cv2.cvtColor(center_img, cv2.COLOR_RGB2BGR)
-            #center_img = cv_f32_to_u8(center_img)
-            #cv2.imshow('input', center_img)
-            #cv2.waitKey()
+            if (visualize):
+                # Visualize mask region (use batch size 1)
+                center_img_salient = center_img_salient.squeeze(0)
+                center_img = vid_tensor_to_numpy(center_img_salient.unsqueeze(1))[0]
+                center_img = cv2.cvtColor(center_img, cv2.COLOR_RGB2BGR)
+                center_img = cv_f32_to_u8(center_img)
+                cv2.imshow('input', center_img)
+                cv2.waitKey()
 
-            ## Visualize mask
-            ##mask = vid_tensor_to_numpy(input[3].unsqueeze(0))[0]
-            ##print(mask)
-            ##mask = cv2.merge([mask, mask, mask])
+                ## Visualize mask
+                ##mask = vid_tensor_to_numpy(input[3].unsqueeze(0))[0]
+                ##print(mask)
+                ##mask = cv2.merge([mask, mask, mask])
+            else:
+                if cuda:
+                    center_img_salient = center_img_salient.to(device)
 
-            if cuda:
-                center_img_salient = center_img_salient.to(device)
+                embedd = model(center_img_salient)
+                embeddings.append(embedd.detach().cpu())
+                #vid_paths.extend(vid_path)
 
-            embedd = model(center_img_salient)
-            embeddings.append(embedd.detach().cpu())
-            #vid_paths.extend(vid_path)
+                if (batch_idx == 0):
+                    print('Embedd size', embedd.size())
 
-            if (batch_idx == 0):
-                print('Embedd size', embedd.size())
-
-            if (batch_idx+1) % log_interval == 0:
-                print('Encoded [{}/{}]'.format((batch_idx+1)*batch_size, len(data)))
+                if (batch_idx+1) % log_interval == 0:
+                    print('Encoded [{}/{}]'.format((batch_idx+1)*batch_size, len(data)))
 
     embeddings = torch.cat(embeddings, dim=0)
     embeddings = embeddings.squeeze()  # remove dimensions with size 1 (from avg pooling)
     return embeddings
 
 
+# Perform clustering 
 def fit_cluster(embeddings, method='AgglomerativeClustering', distance_threshold=0.95):
     print("Clustering...")
 
@@ -158,6 +153,7 @@ def fit_cluster(embeddings, method='AgglomerativeClustering', distance_threshold
     return trained_cluster_obj
 
 
+# Print clusters 
 def cluster_embeddings(data, clustering_obj):
  
     labels = clustering_obj.labels_
@@ -235,7 +231,7 @@ if __name__ == '__main__':
         print ('Embeddings loaded from', embedding_pkl_file)
     else:
         start_time = time.time()
-        embeddings = get_embeddings_mask_regions(img_model, data, test_loader)
+        embeddings = get_embeddings_mask_regions(img_model, data, test_loader, visualize=args.visualize)
         print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
         
         with open(embedding_pkl_file, 'wb') as handle:

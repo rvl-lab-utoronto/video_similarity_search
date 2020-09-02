@@ -253,3 +253,8 @@ if __name__ == '__main__':
 
     cluster_embeddings(data, trained_clustering_obj)
 
+    with open(os.path.join(args.output, 'vid_clusters.txt'), "a") as f:
+        for label in trained_clustering_obj.labels_:
+            f.write('{}\n'.format(label))
+        print('Saved cluster labels to', os.path.join(args.output, 'vid_clusters.txt'))
+

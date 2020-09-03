@@ -5,6 +5,7 @@ Build and Train Triplet network. Supports saving and loading checkpoints,
 
 import sys, os
 #import gc
+import numpy as np
 import time
 import csv
 import argparse
@@ -70,7 +71,7 @@ def load_checkpoint(model, checkpoint_path, is_master_proc=True):
     return start_epoch, best_prec1
 
 
-def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc=True):
+def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc=True, p=1.0):
     losses = AverageMeter()
     accs = AverageMeter()
     # emb_norms = AverageMeter()
@@ -83,43 +84,73 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master
 
     world_size = du_helper.get_world_size()
 
-    for batch_idx, (input, targets, info) in enumerate(train_loader):
+    for batch_idx, (inputs, targets) in enumerate(train_loader):
         # if batch_idx > 2:
         #     break
 
-        batch_size = input.size(0)
+        anchor, positive, _ = inputs
+        batch_size = anchor.size(0)
         # print('batch_size', batch_size)
         if cuda:
-            input=input.to(device)
-        outputs = model(input)
+            anchor = anchor.to(device)
+            positive = positive.to(device)
+        anchor_outputs = model(anchor)
+        positive_outputs = model(positive)
+
+        outputs = torch.cat((anchor_outputs, positive_outputs), 0)
 
         # #1 means, dista should be larger than distb
         # target = torch.FloatTensor(dista.size()).fill_(-1)
         if cuda:
+            targets = torch.cat(targets[:2], 0)
+            print(targets)
             targets = targets.to(device)
-        #
-        loss, n_triplets = criterion(outputs, targets)
-        # print('targets', targets)
-        # print('loss', loss)
-        # print('triplets', n_triplets)
+
+        if np.random.random_sample() < p:
+            sampling_strategy = 'random_negative'
+            anchor_target = torch.tensor(range(0, anchor.size(0)), dtype=torch.int)
+            positive_target = torch.tensor(range(0, positive.size(0)), dtype=torch.int)
+            targets = torch.cat((anchor_target, positive_target), 0)
+            print('targets', targets)
+
+        else:
+            sampling_strategy = 'random_semi_hard'
+
+        loss, n_triplets = criterion(outputs, targets, sampling_strategy=sampling_strategy)
         # embedd_norm_sum = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
-        #
+
         # # compute gradient and do optimizer step
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
+        if (cfg.NUM_GPUS > 1):
+            loss = du_helper.all_reduce([loss], avg=True)
+
+        batch_size_world = batch_size * world_size
+
+        losses.update(loss.item(), batch_size_world)
         running_n_triplets += n_triplets
-        running_loss += loss.item() if n_triplets > 0 else 0
+        # running_loss += loss.item() if n_triplets > 0 else 0
+        # losses.
 
         if (is_master_proc) and (batch_idx + 1) % log_interval == 0:
             print(
                 f"Training: {epoch}, {batch_idx+1}\
-                Loss:{round(running_loss/log_interval, 2)}\
+                Loss:{round(losses.avg, 4)}\
                 N_Triplets:{running_n_triplets/log_interval}"
             )
-            running_loss = 0.0
+            # running_loss = 0.0
             running_n_triplets = 0
+
+    if (is_master_proc):
+        print('\nTrain set: Average loss: {:.4f}%\n'.format(losses.avg))
+        print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
+        with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
+            f.write('epoch:{} runtime:{} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg))
+        print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
+
+
 
 
 def validate(val_loader, model, criterion, epoch, cfg, is_master_proc=True):
@@ -270,7 +301,7 @@ def train(args, cfg):
 
     # ============================== Data Loaders ==============================
 
-    train_loader, _ = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=False)
+    train_loader, _ = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
     val_loader, _ = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=True)
 
     # # ======================== Loss and Optimizer Setup ========================

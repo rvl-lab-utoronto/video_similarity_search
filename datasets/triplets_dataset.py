@@ -58,14 +58,19 @@ class TripletsData(data.Dataset):
         self.data_labels = np.array([data[self.target_type] for data in self.data])
         self.label_to_indices = {label: np.where(self.data_labels == label)[0] for label in self.class_names.keys()}
 
-    def __getitem__(self, index, negative_sampling='RandomNegativeMining'):
+    def __getitem__(self, index, positive_sampling='SameInstance', negative_sampling='RandomNegativeMining'):
         anchor=self.data[index]
         a_target = anchor[self.target_type]
 
-        if self.split=='train':
-            positive = anchor.copy()
-        else:
-            p_idx = np.random.choice(self.label_to_indices[a_target])
+        if positive_sampling == 'SameInstance' and self.split == 'train':
+            if self.split=='train':
+                positive = anchor.copy()
+            else: #validation split, use true label
+                p_idx = np.random.choice(self.label_to_indices[a_target])
+                positive = self.data[p_idx]
+                
+        else: #different instance, sample positive from the same psuedo-label
+            p_idx = np.random.choice(self.label_to_indices[a_target]) #TODO
             positive = self.data[p_idx]
 
         if negative_sampling == 'RandomNegativeMining':

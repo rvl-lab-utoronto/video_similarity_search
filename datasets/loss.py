@@ -7,15 +7,15 @@ import torch.nn.functional as F
 
 
 class OnlineTripleLoss(nn.Module):
-    def __init__(self, margin, sampling_strategy="random_sh"):
+    def __init__(self, margin):
         super(OnlineTripleLoss, self).__init__()
         self.margin = margin
-        self.triplet_selector = NegativeTripletSelector(
-            margin, sampling_strategy
-        )
+        self.triplet_selector = None #NegativeTripletSelector(margin, sampling_strategy)
 
-    def forward(self, embeddings, labels):
+    def forward(self, embeddings, labels, sampling_strategy="random_negative"):
+        self.triplet_selector = NegativeTripletSelector(self.margin, sampling_strategy)
         triplets = self.triplet_selector.get_triplets(embeddings, labels)
+
         ap_dists = F.pairwise_distance(
             embeddings[triplets[0], :], embeddings[triplets[1], :]
         )
@@ -27,7 +27,7 @@ class OnlineTripleLoss(nn.Module):
 
 
 class NegativeTripletSelector:
-    def __init__(self, margin, sampling_strategy="random_sh"):
+    def __init__(self, margin, sampling_strategy="random_negative"):
         super(NegativeTripletSelector, self).__init__()
         self.margin = margin
         self.sampling_strategy = sampling_strategy
@@ -35,8 +35,8 @@ class NegativeTripletSelector:
     def get_triplets(self, embeddings, labels):
         distance_matrix = pdist(embeddings, eps=0)
         unique_labels, counts = torch.unique(labels, return_counts=True)
-        # print('labels', labels)
-        # print('unique_labels', unique_labels, counts)
+        print('labels', labels)
+        print('unique_labels', unique_labels, counts)
 
         triplets_indices = [[] for i in range(3)]
         for i, label in enumerate(unique_labels):
@@ -65,21 +65,31 @@ class NegativeTripletSelector:
             pos_idx = anchor_positive[1]
             ap_dist = dist_mat[anchor_idx, pos_idx]
             an_dists = dist_mat[anchor_idx, negative_indices]
-            if self.sampling_strategy == "random_sh":
-                neg_list_idx = random_semi_hard_sampling(
-                    ap_dist, an_dists, self.margin
-                )
-            elif self.sampling_strategy == "fixed_sh":
-                neg_list_idx = fixed_semi_hard_sampling(
-                    ap_dist, an_dists, self.margin
-                )
+
+            if self.sampling_strategy == 'random_negative':
+                print('random_negative')
+                print('negative_indices', negative_indices)
+                neg_idx = random.choice(negative_indices)
+
+            elif self.sampling_strategy == "random_semi_hard":
+                neg_list_idx = random_semi_hard_sampling(ap_dist, an_dists, self.margin)
+                neg_idx = negative_indices[neg_list_idx]
+
+            elif self.sampling_strategy == "fixed_semi_hard":
+                neg_list_idx = fixed_semi_hard_sampling(ap_dist, an_dists, self.margin)
+                neg_idx = negative_indices[neg_list_idx]
             else:
                 neg_list_idx = None
-            if neg_list_idx is not None:
-                neg_idx = negative_indices[neg_list_idx]
-                triplets_indices[0].append(anchor_idx)
-                triplets_indices[1].append(pos_idx)
-                triplets_indices[2].append(neg_idx)
+                neg_idx = None
+
+            if neg_idx is None:
+                neg_idx = random.choice(negative_indices)
+
+            print('neg idx', neg_idx)
+            triplets_indices[0].append(anchor_idx)
+            triplets_indices[1].append(pos_idx)
+            triplets_indices[2].append(neg_idx)
+            print('triplets', triplets_indices)
         return triplets_indices
 
 

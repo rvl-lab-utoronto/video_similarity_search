@@ -72,7 +72,6 @@ class TripletsData(data.Dataset):
         # if positive_sampling == 'SameInstance' and self.split == 'train':
         # if self.split=='train':
         s_positive = anchor.copy()
-
         d_p_idx = np.random.choice(self.label_to_indices[a_target]) #TODO
         while d_p_idx == index and len(self.label_to_indices[a_target]) > 1:
             d_p_idx = np.random.choice(self.label_to_indices[a_target])

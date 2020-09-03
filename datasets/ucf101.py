@@ -121,6 +121,7 @@ class UCF101():
 
         n_videos = len(video_ids)
         dataset = []
+        cluster_idx = 0
         for i in range(n_videos):
             if i % (n_videos // 5) == 0:
                 if (is_master_proc):
@@ -135,7 +136,7 @@ class UCF101():
 
             video_path = video_paths[i]
             segment = annotations[i]['segment']
-            cluster_id = self.cluster_id[i]
+            cluster_id = self.cluster_id[cluster_idx]
 
             num_frames = segment[1] - 1
             if num_frames == 0:
@@ -157,5 +158,7 @@ class UCF101():
                 for key in channel_paths:
                     sample[key] = channel_paths[key][i]
             dataset.append(sample)
+            cluster_idx += 1
+
         dataset = np.array(dataset)
         return dataset, idx_to_class

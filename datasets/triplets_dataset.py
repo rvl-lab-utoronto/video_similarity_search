@@ -69,8 +69,6 @@ class TripletsData(data.Dataset):
         anchor=self.data[index]
         a_target = anchor[self.target_type]
 
-        # if positive_sampling == 'SameInstance' and self.split == 'train':
-        # if self.split=='train':
         s_positive = anchor.copy()
         d_p_idx = np.random.choice(self.label_to_indices[a_target]) #TODO
         while d_p_idx == index and len(self.label_to_indices[a_target]) > 1:
@@ -78,37 +76,12 @@ class TripletsData(data.Dataset):
 
         d_positive = self.data[d_p_idx]
 
-        # else: #validation split, use true label
-        #     p_idx = np.random.choice(self.label_to_indices[a_target])
-        #     positive = self.data[p_idx]
-        #
-        #     same_inst_
-
-
-
-        # if negative_sampling == 'RandomNegativeMining':
-        #     while True:
-        #         negative_idx = np.random.randint(self.__len__())
-        #         if negative_idx != index: break
-        #
-        # else:
-        #     negative_idx=None
-        #     print("TODO: NOT YET IMPLEMENTED")
-
-        # negative = self.data[negative_idx]
-
         sp_target = s_positive[self.target_type]
         dp_target = d_positive[self.target_type]
-        # n_target = negative[self.target_type]
 
         a_clip = self._load_clip(anchor, self.anchor_temporal_transform)
         sp_clip = self._load_clip(s_positive, self.positive_temporal_transform)
         dp_clip = self._load_clip(d_positive, self.positive_temporal_transform)
-        # n_clip = self._load_clip(negative, self.negative_temporal_transform)
-
-        # print('anchor', anchor)
-        # print('s_idx:{}, d_idx:{}'.format(index, d_p_idx))
-        # print("s_positive:{}, d_positive:{}".format(s_positive, d_positive))
 
         return (a_clip, sp_clip, dp_clip), (a_target, sp_target, dp_target)
 

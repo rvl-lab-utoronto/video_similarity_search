@@ -182,7 +182,8 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True):
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, normalize=normalize,
-                channel_ext=channel_ext, is_master_proc=is_master_proc)
+                channel_ext=channel_ext, cluster_path = cfg.DATASET.CLUSTER_PATH,
+                target_type=cfg.DATASET.TARGET_TYPE, is_master_proc=is_master_proc)
 
     if (is_master_proc):
         print ('Single video input size:', data[1][0][0].size())

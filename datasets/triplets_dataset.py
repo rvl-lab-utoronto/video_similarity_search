@@ -21,6 +21,7 @@ class TripletsData(data.Dataset):
     def __init__(self,
                  data,
                  class_names,
+                 cluster_id=None,
                  split='train',
                  channel_ext={},
                  spatial_transform=None,
@@ -30,8 +31,10 @@ class TripletsData(data.Dataset):
                  video_loader=None,
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
                  target_type='label'):
+
         self.data = data
         self.class_names = class_names
+        self.cluster_id = cluster_id
         self.split = split
         self.channel_ext = channel_ext
         self.spatial_transform = spatial_transform
@@ -54,44 +57,61 @@ class TripletsData(data.Dataset):
             self.loader = video_loader
 
         self.target_type = target_type
+        print('target_type', self.target_type)
 
         self.data_labels = np.array([data[self.target_type] for data in self.data])
-        self.label_to_indices = {label: np.where(self.data_labels == label)[0] for label in self.class_names.keys()}
+        if self.target_type == 'label':
+            self.label_to_indices = {label: np.where(self.data_labels == label)[0] for label in self.class_names.keys()}
+        else: #target_type == cluster_id
+            self.label_to_indices = {label: np.where(self.data_labels == label)[0] for label in self.cluster_id}
 
-    def __getitem__(self, index, positive_sampling='SameInstance', negative_sampling='RandomNegativeMining'):
+    def __getitem__(self, index):
         anchor=self.data[index]
         a_target = anchor[self.target_type]
 
-        if positive_sampling == 'SameInstance' and self.split == 'train':
-            if self.split=='train':
-                positive = anchor.copy()
-            else: #validation split, use true label
-                p_idx = np.random.choice(self.label_to_indices[a_target])
-                positive = self.data[p_idx]
-                
-        else: #different instance, sample positive from the same psuedo-label
-            p_idx = np.random.choice(self.label_to_indices[a_target]) #TODO
-            positive = self.data[p_idx]
+        # if positive_sampling == 'SameInstance' and self.split == 'train':
+        # if self.split=='train':
+        s_positive = anchor.copy()
 
-        if negative_sampling == 'RandomNegativeMining':
-            while True:
-                negative_idx = np.random.randint(self.__len__())
-                if negative_idx != index: break
+        d_p_idx = np.random.choice(self.label_to_indices[a_target]) #TODO
+        while d_p_idx == index and len(self.label_to_indices[a_target]) > 1:
+            d_p_idx = np.random.choice(self.label_to_indices[a_target])
 
-        else:
-            negative_idx=None
-            print("TODO: NOT YET IMPLEMENTED")
+        d_positive = self.data[d_p_idx]
 
-        negative = self.data[negative_idx]
+        # else: #validation split, use true label
+        #     p_idx = np.random.choice(self.label_to_indices[a_target])
+        #     positive = self.data[p_idx]
+        #
+        #     same_inst_
 
-        p_target = positive[self.target_type]
-        n_target = negative[self.target_type]
+
+
+        # if negative_sampling == 'RandomNegativeMining':
+        #     while True:
+        #         negative_idx = np.random.randint(self.__len__())
+        #         if negative_idx != index: break
+        #
+        # else:
+        #     negative_idx=None
+        #     print("TODO: NOT YET IMPLEMENTED")
+
+        # negative = self.data[negative_idx]
+
+        sp_target = s_positive[self.target_type]
+        dp_target = d_positive[self.target_type]
+        # n_target = negative[self.target_type]
 
         a_clip = self._load_clip(anchor, self.anchor_temporal_transform)
-        p_clip = self._load_clip(positive, self.positive_temporal_transform)
-        n_clip = self._load_clip(negative, self.negative_temporal_transform)
+        sp_clip = self._load_clip(s_positive, self.positive_temporal_transform)
+        dp_clip = self._load_clip(d_positive, self.positive_temporal_transform)
+        # n_clip = self._load_clip(negative, self.negative_temporal_transform)
 
-        return (a_clip, p_clip, n_clip), (a_target, p_target, n_target)
+        # print('anchor', anchor)
+        # print('s_idx:{}, d_idx:{}'.format(index, d_p_idx))
+        # print("s_positive:{}, d_positive:{}".format(s_positive, d_positive))
+
+        return (a_clip, sp_clip, dp_clip), (a_target, sp_target, dp_target)
 
     def _load_clip(self, data, temporal_transform):
         path = data['video']

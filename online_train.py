@@ -71,10 +71,9 @@ def load_checkpoint(model, checkpoint_path, is_master_proc=True):
     return start_epoch, best_prec1
 
 
-def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc=True, p=1.0):
+def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc=True, p=0):
     losses = AverageMeter()
     accs = AverageMeter()
-    # emb_norms = AverageMeter()
 
     running_n_triplets = 0
     running_loss = 0
@@ -88,36 +87,38 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master
         # if batch_idx > 2:
         #     break
 
-        anchor, positive, _ = inputs
+        anchor, s_positive, d_positive = inputs
         batch_size = anchor.size(0)
-        # print('batch_size', batch_size)
-        if cuda:
-            anchor = anchor.to(device)
-            positive = positive.to(device)
-        anchor_outputs = model(anchor)
-        positive_outputs = model(positive)
-
-        outputs = torch.cat((anchor_outputs, positive_outputs), 0)
-
-        # #1 means, dista should be larger than distb
-        # target = torch.FloatTensor(dista.size()).fill_(-1)
-        if cuda:
-            targets = torch.cat(targets[:2], 0)
-            print(targets)
-            targets = targets.to(device)
 
         if np.random.random_sample() < p:
             sampling_strategy = 'random_negative'
+            positive = s_positive
             anchor_target = torch.tensor(range(0, anchor.size(0)), dtype=torch.int)
             positive_target = torch.tensor(range(0, positive.size(0)), dtype=torch.int)
             targets = torch.cat((anchor_target, positive_target), 0)
-            print('targets', targets)
-
         else:
+            positive = d_positive
             sampling_strategy = 'random_semi_hard'
 
+
+        if cfg.MODEL.ARCH == 'slowfast':
+            anchor = multipathway_input(anchor, cfg)
+            positive = multipathway_input(positive, cfg)
+            if cuda:
+                for i in range(len(anchor)):
+                    anchor[i], positive[i]= anchor[i].to(device), positive[i].to(device)
+        elif cuda:
+            anchor, positive = anchor.to(device), positive.to(device)
+
+        anchor_outputs = model(anchor)
+        positive_outputs = model(positive)
+        outputs = torch.cat((anchor_outputs, positive_outputs), 0)
+
+        if cuda:
+            targets = torch.cat(targets[:2], 0)
+            targets = targets.to(device)
+
         loss, n_triplets = criterion(outputs, targets, sampling_strategy=sampling_strategy)
-        # embedd_norm_sum = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
 
         # # compute gradient and do optimizer step
         optimizer.zero_grad()

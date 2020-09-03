@@ -33,7 +33,7 @@ def collate_fn(batch):
 def get_data(split, video_path, annotation_path, dataset_name, input_type,
              file_type, triplets, sample_duration, spatial_transform=None,
              temporal_transform=None, normalize=None, target_transform=None, channel_ext={},
-             is_master_proc=True):
+             cluster_path=None, target_type=None, is_master_proc=True):
 
     assert split in ['train', 'val', 'test']
     assert dataset_name in ['kinetics', 'ucf101']
@@ -52,7 +52,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
     if (is_master_proc):
         print ('\nLoading', dataset_name, split, 'split')
     if dataset_name == 'ucf101':
-        Dataset = UCF101(video_path, annotation_path, split, sample_duration, channel_ext, is_master_proc, video_path_formatter)
+        Dataset = UCF101(video_path, annotation_path, split, sample_duration, channel_ext, cluster_path, is_master_proc, video_path_formatter)
 
     elif dataset_name == 'kinetics':
         Dataset = Kinetics(video_path, annotation_path, split, sample_duration, is_master_proc, video_path_formatter)
@@ -73,13 +73,15 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
             print('loading triplets...')
         data = TripletsData(data = Dataset.get_dataset(),
                             class_names = Dataset.get_idx_to_class_map(),
+                            cluster_id = Dataset.get_cluster_id(),
                             split=split,
                             channel_ext=channel_ext,
                             spatial_transform=spatial_transform,
                             temporal_transform=temporal_transform,
                             target_transform=target_transform,
                             normalize=normalize,
-                            video_loader=loader)
+                            video_loader=loader,
+                            target_type=target_type)
     else:
         if (is_master_proc):
             print('loading single data')

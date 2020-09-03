@@ -35,8 +35,8 @@ class NegativeTripletSelector:
     def get_triplets(self, embeddings, labels):
         distance_matrix = pdist(embeddings, eps=0)
         unique_labels, counts = torch.unique(labels, return_counts=True)
-        print('labels', labels)
-        print('unique_labels', unique_labels, counts)
+        # print('labels', labels)
+        # print('unique_labels', unique_labels, counts)
 
         triplets_indices = [[] for i in range(3)]
         for i, label in enumerate(unique_labels):
@@ -67,29 +67,27 @@ class NegativeTripletSelector:
             an_dists = dist_mat[anchor_idx, negative_indices]
 
             if self.sampling_strategy == 'random_negative':
-                print('random_negative')
-                print('negative_indices', negative_indices)
                 neg_idx = random.choice(negative_indices)
 
             elif self.sampling_strategy == "random_semi_hard":
                 neg_list_idx = random_semi_hard_sampling(ap_dist, an_dists, self.margin)
-                neg_idx = negative_indices[neg_list_idx]
+
+
+                neg_idx = negative_indices[neg_list_idx] if neg_list_idx is not None else None
 
             elif self.sampling_strategy == "fixed_semi_hard":
                 neg_list_idx = fixed_semi_hard_sampling(ap_dist, an_dists, self.margin)
-                neg_idx = negative_indices[neg_list_idx]
+                neg_idx = negative_indices[neg_list_idx] if neg_list_idx is not None else None
             else:
                 neg_list_idx = None
                 neg_idx = None
 
             if neg_idx is None:
-                neg_idx = random.choice(negative_indices)
+                neg_idx = fixed_easy_sampling(an_dists)
 
-            print('neg idx', neg_idx)
             triplets_indices[0].append(anchor_idx)
             triplets_indices[1].append(pos_idx)
             triplets_indices[2].append(neg_idx)
-            print('triplets', triplets_indices)
         return triplets_indices
 
 
@@ -97,7 +95,6 @@ def random_semi_hard_sampling(ap_dist, an_dists, margin):
     ap_margin_dist = ap_dist + margin
     loss = ap_margin_dist - an_dists
     possible_negs = torch.where(loss > 0)[0]
-    # print('negs',possible_negs)
 
     if possible_negs.nelement() != 0:
         neg_idx = random.choice(possible_negs)
@@ -117,6 +114,9 @@ def fixed_semi_hard_sampling(ap_dist, an_dists, margin):
     # neg_idx = torch.argmin(an_dists).item()
     return neg_idx
 
+def fixed_easy_sampling(an_dists):
+    neg_idx = torch.argmin(an_dists).item()
+    return neg_idx
 
 def pdist(vectors, eps):
     dist_mat = []

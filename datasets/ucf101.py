@@ -61,6 +61,7 @@ class UCF101():
                  split, #training, ...
                  sample_duration,
                  channel_ext={},
+                 cluster_path=None,
                  is_master_proc=True,
                  video_path_formatter=(lambda root_path, label, video_id:
                                        root_path / label / video_id),
@@ -76,6 +77,9 @@ class UCF101():
             subset = 'validation'
 
         self.channel_ext = channel_ext
+        self.cluster_path = cluster_path
+        self.cluster_id = self.read_cluster_id()
+
         self.val_sample = val_sample
 
         self.dataset, self.idx_to_class_map = self.__make_dataset(
@@ -88,8 +92,21 @@ class UCF101():
     def get_idx_to_class_map(self):
         return self.idx_to_class_map
 
+    def get_cluster_id(self):
+        return self.cluster_id
+
     def image_name_formatter(self, x):
         return f'image_{x:05d}.jpg'
+
+    def read_cluster_id(self):
+        if not self.cluster_path:
+            return None
+        with open(self.cluster_path, 'r') as f:
+            cluster_id = f.readlines()
+        cluster_id = [int(id.replace('\n', '')) for id in cluster_id]
+        print('retrieved {} cluster id from file: {}'.format(len(cluster_id), self.cluster_path))
+        return cluster_id
+
 
     def __make_dataset(self, root_path, annotation_path, subset,
             video_path_formatter, sample_duration, is_master_proc):
@@ -118,6 +135,7 @@ class UCF101():
 
             video_path = video_paths[i]
             segment = annotations[i]['segment']
+            cluster_id = self.cluster_id[i]
 
             num_frames = segment[1] - 1
             if num_frames == 0:
@@ -131,8 +149,10 @@ class UCF101():
             sample = {
                 'video': video_path,
                 'num_frames': num_frames,
-                'label': label_id
+                'label': label_id,
+                'cluster_id': cluster_id
             }
+
             if channel_paths:
                 for key in channel_paths:
                     sample[key] = channel_paths[key][i]

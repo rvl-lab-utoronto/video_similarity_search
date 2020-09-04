@@ -99,11 +99,11 @@ def evaluate(model, test_loader, log_interval=5):
                 print('val [{}/{}]'.format(batch_idx * batch_size, len(test_loader.dataset)))
 
     embeddings = torch.cat(embedding, dim=0)
+    print('embeddings size', embeddings.size())
     return embeddings
 
 
 def get_distance_matrix(embeddings):
-    print('embeddings size', embeddings.size())
     embeddings = embeddings
     distance_matrix = euclidean_distances(embeddings)
     print('distance matrix shape:', distance_matrix.shape)

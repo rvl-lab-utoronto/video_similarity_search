@@ -350,7 +350,7 @@ def train(args, cfg):
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if(is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
-        #train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_master_proc)
+        train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_master_proc)
         acc = validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc)
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)

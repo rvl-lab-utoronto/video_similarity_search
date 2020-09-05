@@ -6,9 +6,8 @@ Build and Train Triplet network. Supports saving and loading checkpoints,
 import sys, os
 #import gc
 import time
-import csv
+# import csv
 import argparse
-import shutil
 import tqdm
 import torch
 from torch import nn
@@ -17,57 +16,14 @@ import torch.backends.cudnn as cudnn
 
 from models.triplet_net import Tripletnet
 from datasets import data_loader
-from models.model_utils import model_selector, multipathway_input
+from models.model_utils import (model_selector, multipathway_input,
+                            load_pretrained_model, save_checkpoint, load_checkpoint,
+                            AverageMeter, accuracy, create_output_dirs)
+
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 
 log_interval = 5 #log interval for batch number
-
-def load_pretrained_model(model, pretrain_path, is_master_proc=True):
-    if pretrain_path:
-        if (is_master_proc):
-            print('loading pretrained model {}'.format(pretrain_path))
-        pretrain = torch.load(pretrain_path, map_location='cpu')
-        model.load_state_dict(pretrain['state_dict'])
-    return model
-
-
-def save_checkpoint(state, is_best, model_name, output_path, is_master_proc=True, filename='checkpoint.pth.tar'):
-    # Save checkpoints only from the master process
-    if not is_master_proc:
-        return
-
-    """Saves checkpoint to disk"""
-    directory = "tnet_checkpoints/%s/"%(model_name)
-    directory = os.path.join(output_path, directory)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    filename = directory + filename
-    torch.save(state, filename)
-    if (is_master_proc):
-        print('=> checkpoint:{} saved...'.format(filename))
-    if is_best:
-        shutil.copyfile(filename,  os.path.join(directory, 'model_best.pth.tar'))
-        if (is_master_proc):
-            print('=> best_model saved as:{}'.format(os.path.join(directory, 'model_best.pth.tar')))
-
-
-def load_checkpoint(model, checkpoint_path, is_master_proc=True):
-    if os.path.isfile(checkpoint_path):
-        if (is_master_proc):
-            print("=> loading checkpoint '{}'".format(checkpoint_path))
-        checkpoint = torch.load(checkpoint_path)
-        start_epoch = checkpoint['epoch']
-        best_prec1 = checkpoint['best_prec1']
-        model.load_state_dict(checkpoint['state_dict'])
-        if (is_master_proc):
-            print("=> loaded checkpoint '{}' (epoch {})".format(checkpoint_path, checkpoint['epoch']))
-    else:
-        if (is_master_proc):
-            print("=> no checkpoint found at '{}'".format(checkpoint_path))
-
-    return start_epoch, best_prec1
-
 
 def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_master_proc=True):
     losses = AverageMeter()
@@ -205,39 +161,6 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc=True)
             val_file.write('epoch:{} {:.4f} {:.2f}\n'.format(epoch, losses.avg, 100. * accs.avg))
 
     return accs.avg
-
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
-
-
-def accuracy(dista, distb):
-    margin = 0
-    pred = (distb - dista - margin)
-    return (pred > 0).sum() * 1.0 / (dista.size()[0])
-
-
-def create_output_dirs(cfg):
-    if not os.path.exists(cfg.OUTPUT_PATH):
-        os.makedirs(cfg.OUTPUT_PATH)
-
-    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
-        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
-
 
 def train(args, cfg):
     best_acc = 0

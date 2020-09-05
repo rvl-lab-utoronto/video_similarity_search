@@ -75,10 +75,10 @@ class TripletsData(data.Dataset):
         a_target = anchor[self.target_type]
 
         p_type = np.random.choice(self.positive_types, p=[self.positive_sampling_p, 1-self.positive_sampling_p])
-        if p_type == 'same_inst':
+        if p_type == 'same_inst' and self.split =='train':
             positive = anchor.copy()
 
-        else: #sample positive from a different cluster
+        else: #sample positive from a different label. validation should always sample positive from a different video
             p_idx = np.random.choice(self.label_to_indices[a_target]) #TODO
             while p_idx == index and len(self.label_to_indices[a_target]) > 1:
                 p_idx = np.random.choice(self.label_to_indices[a_target])
@@ -98,8 +98,6 @@ class TripletsData(data.Dataset):
             n_clip = self._load_clip(negative, self.negative_temporal_transform)
             return (a_clip, p_clip, n_clip), (a_target, p_target, n_target)
         else:
-            # print(a_clip.size(), p_clip.size())
-            # print(a_target, p_target)
             return (a_clip, p_clip), (a_target, p_target)
 
     def _load_clip(self, data, temporal_transform):

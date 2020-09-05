@@ -38,8 +38,6 @@ class NegativeTripletSelector:
     def get_triplets(self, embeddings, labels):
         distance_matrix = pdist(embeddings, eps=0, dist_metric=self.dist_metric) #(10,10) (0,1,2,3,4,0,1,2,3,4)
         unique_labels, counts = torch.unique(labels, return_counts=True) #(0,1,2,3,4)
-        # print('labels', labels)
-        # print('unique_labels', unique_labels, counts)
 
         triplets_indices = [[] for i in range(3)]
         for i, label in enumerate(unique_labels):
@@ -55,13 +53,10 @@ class NegativeTripletSelector:
             triplets_indices[0].extend(triplet_label_pairs[0])
             triplets_indices[1].extend(triplet_label_pairs[1])
             triplets_indices[2].extend(triplet_label_pairs[2])
-            # print('triplets', triplet_label_pairs)
         return triplets_indices
 
     def get_one_one_triplets(self, pos_labels, negative_indices, dist_mat):
-        # print('pos_labels', pos_labels)
         anchor_positives = list(combinations(pos_labels, 2))
-        # print('anchor', anchor_positives)
         triplets_indices = [[] for i in range(3)]
         for i, anchor_positive in enumerate(anchor_positives):
             anchor_idx = anchor_positive[0]
@@ -112,7 +107,6 @@ def fixed_semi_hard_sampling(ap_dist, an_dists, margin):
         neg_idx = torch.argmax(loss).item()
     else:
         neg_idx = None
-    # neg_idx = torch.argmin(an_dists).item()
     return neg_idx
 
 def hardest_easy_sampling(an_dists):

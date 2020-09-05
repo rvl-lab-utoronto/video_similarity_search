@@ -7,69 +7,22 @@ import sys, os
 #import gc
 import numpy as np
 import time
-import csv
 import argparse
-import shutil
 import tqdm
 import torch
 from torch import nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
-
 from models.triplet_net import Tripletnet
 from datasets import data_loader
-from models.model_utils import model_selector, multipathway_input
+from models.model_utils import (model_selector, multipathway_input,
+                            load_pretrained_model, save_checkpoint, load_checkpoint,
+                            AverageMeter, accuracy, create_output_dirs)
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from datasets.loss import OnlineTripleLoss
 
 log_interval = 5 #log interval for batch number
-
-def load_pretrained_model(model, pretrain_path, is_master_proc=True):
-    if pretrain_path:
-        if (is_master_proc):
-            print('loading pretrained model {}'.format(pretrain_path))
-        pretrain = torch.load(pretrain_path, map_location='cpu')
-        model.load_state_dict(pretrain['state_dict'])
-    return model
-
-
-def save_checkpoint(state, is_best, model_name, output_path, is_master_proc=True, filename='checkpoint.pth.tar'):
-    # Save checkpoints only from the master process
-    if not is_master_proc:
-        return
-
-    """Saves checkpoint to disk"""
-    directory = "tnet_checkpoints/%s/"%(model_name)
-    directory = os.path.join(output_path, directory)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    filename = directory + filename
-    torch.save(state, filename)
-    if (is_master_proc):
-        print('=> checkpoint:{} saved...'.format(filename))
-    if is_best:
-        shutil.copyfile(filename,  os.path.join(directory, 'model_best.pth.tar'))
-        if (is_master_proc):
-            print('=> best_model saved as:{}'.format(os.path.join(directory, 'model_best.pth.tar')))
-
-
-def load_checkpoint(model, checkpoint_path, is_master_proc=True):
-    if os.path.isfile(checkpoint_path):
-        if (is_master_proc):
-            print("=> loading checkpoint '{}'".format(checkpoint_path))
-        checkpoint = torch.load(checkpoint_path)
-        start_epoch = checkpoint['epoch']
-        best_prec1 = checkpoint['best_prec1']
-        model.load_state_dict(checkpoint['state_dict'])
-        if (is_master_proc):
-            print("=> loaded checkpoint '{}' (epoch {})".format(checkpoint_path, checkpoint['epoch']))
-    else:
-        if (is_master_proc):
-            print("=> no checkpoint found at '{}'".format(checkpoint_path))
-
-    return start_epoch, best_prec1
-
 
 def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc=True):
     losses = AverageMeter()
@@ -88,7 +41,6 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master
     for batch_idx, (inputs, targets) in enumerate(train_loader):
         # if batch_idx > 2:
         #     break
-
         anchor, positive = inputs
         (a_target, p_target) = targets
         batch_size = anchor.size(0)
@@ -107,7 +59,6 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master
         positive_outputs = model(positive)
         outputs = torch.cat((anchor_outputs, positive_outputs), 0)
         if cuda:
-            # print(targets)
             targets = targets.to(device)
 
         loss, n_triplets = criterion(outputs, targets, sampling_strategy=sampling_strategy)
@@ -144,15 +95,13 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master
 def validate(val_loader, model, criterion, epoch, cfg, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
-
+    print('==> using criterion:{} for validation task'.format(criterion))
     world_size = du_helper.get_world_size()
-
     tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
 
     if cuda:
         tripletnet = tripletnet.cuda(device=device)
         if torch.cuda.device_count() > 1:
-            #tripletnet = nn.DataParallel(tripletnet)
             if cfg.MODEL.ARCH == '3dresnet':
                 tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device], find_unused_parameters=True)
             else:
@@ -163,7 +112,6 @@ def validate(val_loader, model, criterion, epoch, cfg, is_master_proc=True):
         for batch_idx, (inputs, targets) in enumerate(val_loader):
             (anchor, positive, negative) = inputs
             (anchor_target, positive_target, negative_target) = targets
-
             batch_size = anchor.size(0)
 
             if cfg.MODEL.ARCH == 'slowfast':
@@ -184,7 +132,6 @@ def validate(val_loader, model, criterion, epoch, cfg, is_master_proc=True):
                 target = target.to(device)
 
             loss = criterion(dista, distb, target)
-
             # measure accuracy
             acc = accuracy(dista.detach(), distb.detach())
 
@@ -213,39 +160,6 @@ def validate(val_loader, model, criterion, epoch, cfg, is_master_proc=True):
 
     return accs.avg
 
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
-
-
-def accuracy(dista, distb):
-    margin = 0
-    pred = (distb - dista - margin)
-    return (pred > 0).sum() * 1.0 / (dista.size()[0])
-
-
-def create_output_dirs(cfg):
-    if not os.path.exists(cfg.OUTPUT_PATH):
-        os.makedirs(cfg.OUTPUT_PATH)
-
-    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
-        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
-
-
 def train(args, cfg):
     best_acc = 0
     start_epoch = 0
@@ -268,8 +182,6 @@ def train(args, cfg):
     if args.pretrain_path is not None:
         model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
 
-    # tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
-
     if cuda:
         model = model.cuda(device=device)
         if torch.cuda.device_count() > 1:
@@ -287,27 +199,23 @@ def train(args, cfg):
         print('=> finished generating similarity network...')
 
     # ============================== Data Loaders ==============================
-
     train_loader, _ = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
     val_loader, _ = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=True, negative_sampling=True)
 
     # # ======================== Loss and Optimizer Setup ========================
-    #
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
     criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
     optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
-    #
+
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
         print('\n + Number of params: {}'.format(n_parameters))
-    #
-    # # ============================= Training loop ==============================
-    #
 
+    # # ============================= Training loop ==============================
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if(is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
-        # train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc) #TODO: UNCOMMENT
+        train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc)
         acc = validate(val_loader, model, val_criterion, epoch, cfg, is_master_proc)
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)
@@ -316,7 +224,7 @@ def train(args, cfg):
             'state_dict':model.state_dict(),
             'best_prec1': best_acc,
         }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
-    #
+
 
 if __name__ == '__main__':
     args = arg_parser().parse_args()

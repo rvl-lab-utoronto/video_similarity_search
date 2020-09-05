@@ -35,6 +35,7 @@ def get_database(data, subset, root_path, video_path_formatter, split='train', c
                 video_ids.append(np.random.choice(video_groups[name]))
         else:
             video_ids = list(itertools.chain(*video_groups.values()))
+
     video_paths = []
     for id in video_ids:
         annotations.append(data['database'][id]['annotations'])
@@ -78,7 +79,7 @@ class UCF101():
 
         self.channel_ext = channel_ext
         self.cluster_path = cluster_path
-        self.cluster_id = self.read_cluster_id()
+        self.cluster_labels = self.read_cluster_labels()
 
         self.val_sample = val_sample
 
@@ -92,20 +93,20 @@ class UCF101():
     def get_idx_to_class_map(self):
         return self.idx_to_class_map
 
-    def get_cluster_id(self):
-        return self.cluster_id
+    def get_cluster_labels(self):
+        return self.cluster_labels
 
     def image_name_formatter(self, x):
         return f'image_{x:05d}.jpg'
 
-    def read_cluster_id(self):
+    def read_cluster_labels(self):
         if not self.cluster_path:
             return None
         with open(self.cluster_path, 'r') as f:
-            cluster_id = f.readlines()
-        cluster_id = [int(id.replace('\n', '')) for id in cluster_id]
-        print('retrieved {} cluster id from file: {}'.format(len(cluster_id), self.cluster_path))
-        return cluster_id
+            cluster_labels = f.readlines()
+        cluster_labels = [int(id.replace('\n', '')) for id in cluster_labels]
+        print('retrieved {} cluster id from file: {}'.format(len(cluster_labels), self.cluster_path))
+        return cluster_labels
 
 
     def __make_dataset(self, root_path, annotation_path, subset,
@@ -121,7 +122,7 @@ class UCF101():
 
         n_videos = len(video_ids)
         dataset = []
-        cluster_idx = 0
+        # cluster_idx = 0
         for i in range(n_videos):
             if i % (n_videos // 5) == 0:
                 if (is_master_proc):
@@ -136,7 +137,6 @@ class UCF101():
 
             video_path = video_paths[i]
             segment = annotations[i]['segment']
-            cluster_id = self.cluster_id[cluster_idx]
 
             num_frames = segment[1] - 1
             if num_frames == 0:
@@ -151,14 +151,17 @@ class UCF101():
                 'video': video_path,
                 'num_frames': num_frames,
                 'label': label_id,
-                'cluster_id': cluster_id
             }
 
             if channel_paths:
                 for key in channel_paths:
                     sample[key] = channel_paths[key][i]
+
+            if self.cluster_labels:
+                cluster_label = self.cluster_labels[len(dataset)-1]
+                sample['cluster_label'] = cluster_label
+
             dataset.append(sample)
-            cluster_idx += 1
 
         dataset = np.array(dataset)
         return dataset, idx_to_class

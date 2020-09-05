@@ -71,35 +71,28 @@ def load_checkpoint(model, checkpoint_path, is_master_proc=True):
     return start_epoch, best_prec1
 
 
-def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc=True, p=0):
+def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
 
     running_n_triplets = 0
     running_loss = 0
+
     # switching to training mode
     model.train()
     start = time.time()
 
     world_size = du_helper.get_world_size()
+    sampling_strategy = 'random_semi_hard'
 
     for batch_idx, (inputs, targets) in enumerate(train_loader):
         # if batch_idx > 2:
         #     break
 
-        anchor, s_positive, d_positive = inputs
+        anchor, positive = inputs
+        (a_target, p_target) = targets
         batch_size = anchor.size(0)
-
-        if np.random.random_sample() < p:
-            sampling_strategy = 'random_negative'
-            positive = s_positive
-            anchor_target = torch.tensor(range(0, anchor.size(0)), dtype=torch.int)
-            positive_target = torch.tensor(range(0, positive.size(0)), dtype=torch.int)
-            targets = torch.cat((anchor_target, positive_target), 0)
-        else:
-            positive = d_positive
-            sampling_strategy = 'random_semi_hard'
-
+        targets = torch.cat((a_target, p_target), 0)
 
         if cfg.MODEL.ARCH == 'slowfast':
             anchor = multipathway_input(anchor, cfg)
@@ -113,9 +106,8 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master
         anchor_outputs = model(anchor)
         positive_outputs = model(positive)
         outputs = torch.cat((anchor_outputs, positive_outputs), 0)
-
         if cuda:
-            targets = torch.cat(targets[:2], 0)
+            # print(targets)
             targets = targets.to(device)
 
         loss, n_triplets = criterion(outputs, targets, sampling_strategy=sampling_strategy)
@@ -132,8 +124,6 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master
 
         losses.update(loss.item(), batch_size_world)
         running_n_triplets += n_triplets
-        # running_loss += loss.item() if n_triplets > 0 else 0
-        # losses.
 
         if (is_master_proc) and (batch_idx + 1) % log_interval == 0:
             print(
@@ -141,7 +131,6 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master
                 Loss:{round(losses.avg, 4)}\
                 N_Triplets:{running_n_triplets/log_interval}"
             )
-            # running_loss = 0.0
             running_n_triplets = 0
 
     if (is_master_proc):
@@ -150,8 +139,6 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
             f.write('epoch:{} runtime:{} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg))
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
-
-
 
 
 def validate(val_loader, model, criterion, epoch, cfg, is_master_proc=True):
@@ -170,7 +157,6 @@ def validate(val_loader, model, criterion, epoch, cfg, is_master_proc=True):
                 tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device], find_unused_parameters=True)
             else:
                 tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
-
 
     tripletnet.eval()
     with torch.no_grad():
@@ -303,12 +289,12 @@ def train(args, cfg):
     # ============================== Data Loaders ==============================
 
     train_loader, _ = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
-    val_loader, _ = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=True)
+    val_loader, _ = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=True, negative_sampling=True)
 
     # # ======================== Loss and Optimizer Setup ========================
     #
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-    criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN).to(device)
+    criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
     optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
     #
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
@@ -321,7 +307,7 @@ def train(args, cfg):
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if(is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
-        train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc)
+        # train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc) #TODO: UNCOMMENT
         acc = validate(val_loader, model, val_criterion, epoch, cfg, is_master_proc)
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)

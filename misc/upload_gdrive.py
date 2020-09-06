@@ -15,7 +15,8 @@ class GoogleDriveUploader:
                         'evaluate': '1ZtVTqSOtFEetfav3fntIkJ4GnxfLWTKl',
                         'pose_estimation': '1r8zyL9LjHQcsaff-x7c7DTTpYUzWRBlr',
                         'maskrcnn_fg' : '1l80Nu24y4hzFQR8wOcikunVYSujSWRi0',
-                        'maskrcnn_kp' : '1MU1283fBf3LV5LdxJe9k5obJEkW7AWGS'
+                        'maskrcnn_kp' : '1MU1283fBf3LV5LdxJe9k5obJEkW7AWGS',
+                        'alphapose' : '1bP1c-GryHRkkOSmhcQOP7ch3CmUWElDF'
                         }
 
         self._SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly',

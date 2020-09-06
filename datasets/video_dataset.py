@@ -42,7 +42,12 @@ class VideoDataset(data.Dataset):
             self.loader = video_loader
 
         self.target_type = target_type
+        self.total_labels = []
+        self.get_all_labels()
 
+    def get_all_labels(self):
+        for d in self.data:
+            self.total_labels.append(d['label'])
 
     def kp_img_name_formatter(self, x):
         return f'image_{x:05d}_kp.png'

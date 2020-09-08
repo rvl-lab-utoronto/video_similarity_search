@@ -2,6 +2,9 @@
 Modified from https://github.com/kenshohara/3D-ResNets-PyTorch
 """
 import random
+import numpy as np
+import cv2
+import torchvision
 from torchvision.transforms import transforms
 from torchvision.transforms import functional as F
 from PIL import Image
@@ -209,7 +212,7 @@ class ColorDrop(transforms.RandomGrayscale):
 
     def __init__(self, p=0.1):
         super().__init__(p)
-        
+
     def randomize_parameters(self):
         pass
 
@@ -234,3 +237,20 @@ class RandomApply(transforms.RandomApply):
     def randomize_parameters(self):
         for t in self.transforms:
             t.randomize_parameters()
+
+
+class GaussianBlur(transforms.Lambda):
+    def __init__(self, p=0.2):
+        # super().__init__(None)
+        self.p=p
+        self.randomize_parameters()
+
+    def __call__(self, img):
+        if self.random_p < self.p:
+            image = np.array(img)
+            image_blur = cv2.GaussianBlur(image,(15,15),2)
+            return image_blur
+        return img
+
+    def randomize_parameters(self):
+        self.random_p = random.random()

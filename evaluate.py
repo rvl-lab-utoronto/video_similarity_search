@@ -30,7 +30,7 @@ top_k = 5
 split = 'val'
 exemplar_file = None
 #exemplar_file = '/home/sherry/output/u_exemplar.txt'
-np.random.seed(1)
+# np.random.seed(1)
 
 
 # Argument parser
@@ -68,6 +68,12 @@ def m_arg_parser(parser):
         default=None,
         type=int,
         help='Test video dataset index for the temporal heat map'
+    )
+    parser.add_argument(
+        "--seed",
+        default=0,
+        type=int,
+        help='seed for np.random'
     )
     return parser
 
@@ -285,6 +291,8 @@ if __name__ == '__main__':
     args = m_arg_parser(arg_parser()).parse_args()
     cfg = load_config(args)
 
+    np.random.seed(args.seed)
+
     force_data_parallel = True
     os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
     global cuda; cuda = torch.cuda.is_available()
@@ -305,7 +313,7 @@ if __name__ == '__main__':
 
     start = time.time()
     now = datetime.now()
-    evaluate_output = os.path.join(output, '{}_evaluate_{}'.format(name, now.strftime("%d_%m_%Y_%H_%M_%S")))
+    evaluate_output = os.path.join(output, '{}_evaluate'.format(name))
     if not os.path.exists(evaluate_output):
         os.makedirs(evaluate_output)
         print('made output dir:{}'.format(evaluate_output))

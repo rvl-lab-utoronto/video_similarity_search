@@ -35,15 +35,10 @@ def get_database(data, subset, root_path, video_path_formatter, split='train', c
                 video_ids.append(np.random.choice(video_groups[name]))
         else:
             video_ids = list(itertools.chain(*video_groups.values()))
+
     video_paths = []
     for id in video_ids:
         annotations.append(data['database'][id]['annotations'])
-        # if 'video_path' in data['database'][id]:
-        #     video_paths.append(Path(data['database'][id]['video_path']))
-        #     if kp_path is not None:
-        #         kp_paths.append(Path(data['database'][id]['video_path']))
-        # else:
-        # print(data['database'][id])
         label = data['database'][id]['annotations']['label']
         video_paths.append(video_path_formatter(root_path, label, id))
 
@@ -56,7 +51,6 @@ def get_database(data, subset, root_path, video_path_formatter, split='train', c
             label = data['database'][id]['annotations']['label']
             channel_paths[key].append(video_path_formatter(channel_ext_path, label, id))
 
-
     return video_ids, video_paths, annotations, channel_paths
 
 
@@ -68,6 +62,7 @@ class UCF101():
                  split, #training, ...
                  sample_duration,
                  channel_ext={},
+                 cluster_path=None,
                  is_master_proc=True,
                  video_path_formatter=(lambda root_path, label, video_id:
                                        root_path / label / video_id),
@@ -83,6 +78,9 @@ class UCF101():
             subset = 'validation'
 
         self.channel_ext = channel_ext
+        self.cluster_path = cluster_path
+        self.cluster_labels = self.read_cluster_labels()
+
         self.val_sample = val_sample
 
         self.dataset, self.idx_to_class_map = self.__make_dataset(
@@ -95,11 +93,21 @@ class UCF101():
     def get_idx_to_class_map(self):
         return self.idx_to_class_map
 
+    def get_cluster_labels(self):
+        return self.cluster_labels
+
     def image_name_formatter(self, x):
         return f'image_{x:05d}.jpg'
-    #
-    # def kp_img_name_formatter(self, x):
-    #     return f'image_{x:05d}_kp.png'
+
+    def read_cluster_labels(self):
+        if not self.cluster_path:
+            return None
+        with open(self.cluster_path, 'r') as f:
+            cluster_labels = f.readlines()
+        cluster_labels = [int(id.replace('\n', '')) for id in cluster_labels]
+        print('retrieved {} cluster id from file: {}'.format(len(cluster_labels), self.cluster_path))
+        return cluster_labels
+
 
     def __make_dataset(self, root_path, annotation_path, subset,
             video_path_formatter, sample_duration, is_master_proc):
@@ -114,6 +122,7 @@ class UCF101():
 
         n_videos = len(video_ids)
         dataset = []
+        # cluster_idx = 0
         for i in range(n_videos):
             if i % (n_videos // 5) == 0:
                 if (is_master_proc):
@@ -141,11 +150,18 @@ class UCF101():
             sample = {
                 'video': video_path,
                 'num_frames': num_frames,
-                'label': label_id
+                'label': label_id,
             }
+
             if channel_paths:
                 for key in channel_paths:
                     sample[key] = channel_paths[key][i]
+
+            if self.cluster_labels:
+                cluster_label = self.cluster_labels[len(dataset)-1]
+                sample['cluster_label'] = cluster_label
+
             dataset.append(sample)
+
         dataset = np.array(dataset)
         return dataset, idx_to_class

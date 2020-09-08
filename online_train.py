@@ -5,137 +5,113 @@ Build and Train Triplet network. Supports saving and loading checkpoints,
 
 import sys, os
 #import gc
+import numpy as np
 import time
-# import csv
 import argparse
 import tqdm
 import torch
 from torch import nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
-
 from models.triplet_net import Tripletnet
 from datasets import data_loader
 from models.model_utils import (model_selector, multipathway_input,
                             load_pretrained_model, save_checkpoint, load_checkpoint,
                             AverageMeter, accuracy, create_output_dirs)
-
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
-import evaluate
-
+from datasets.loss import OnlineTripleLoss
 
 log_interval = 5 #log interval for batch number
 
-def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_master_proc=True):
+def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
-    emb_norms = AverageMeter()
+
+    running_n_triplets = 0
+    running_loss = 0
+
     # switching to training mode
-    tripletnet.train()
+    model.train()
     start = time.time()
 
     world_size = du_helper.get_world_size()
+    sampling_strategy = 'random_semi_hard'
 
     for batch_idx, (inputs, targets) in enumerate(train_loader):
-        anchor, positive, negative = inputs
+        # if batch_idx > 2:
+        #     break
+        anchor, positive = inputs
+        (a_target, p_target) = targets
         batch_size = anchor.size(0)
+        targets = torch.cat((a_target, p_target), 0)
 
         if cfg.MODEL.ARCH == 'slowfast':
             anchor = multipathway_input(anchor, cfg)
             positive = multipathway_input(positive, cfg)
-            negative = multipathway_input(negative, cfg)
             if cuda:
                 for i in range(len(anchor)):
-                    anchor[i], positive[i], negative[i] = anchor[i].to(device), positive[i].to(device), negative[i].to(device)
-        else:
-            if cuda:
-                anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
+                    anchor[i], positive[i]= anchor[i].to(device), positive[i].to(device)
+        elif cuda:
+            anchor, positive = anchor.to(device), positive.to(device)
 
-        dista, distb, embedded_x, embedded_y, embedded_z = tripletnet(anchor, positive, negative)
-
-        #1 means, dista should be larger than distb
-        target = torch.FloatTensor(dista.size()).fill_(-1)
+        anchor_outputs = model(anchor)
+        positive_outputs = model(positive)
+        outputs = torch.cat((anchor_outputs, positive_outputs), 0)
         if cuda:
-            target = target.to(device)
+            targets = targets.to(device)
 
-        loss = criterion(dista, distb, target)
-        embedd_norm_sum = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
+        loss, n_triplets = criterion(outputs, targets, sampling_strategy=sampling_strategy)
 
-        # compute gradient and do optimizer step
+        # # compute gradient and do optimizer step
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        # measure accuracy
-        acc = accuracy(dista.detach(), distb.detach())
-        # Gather the predictions across all the devices (sum)
         if (cfg.NUM_GPUS > 1):
-            loss, acc, embedd_norm_sum = du_helper.all_reduce([loss, acc, embedd_norm_sum], avg=True)
+            loss = du_helper.all_reduce([loss], avg=True)
 
         batch_size_world = batch_size * world_size
 
-        # record loss and accuracy
         losses.update(loss.item(), batch_size_world)
-        accs.update(acc.item(), batch_size_world)
+        running_n_triplets += n_triplets
 
-        emb_norms.update(embedd_norm_sum.item()/3, batch_size_world)
-
-        if ((batch_idx + 1) * world_size) % log_interval == 0:
-            if (is_master_proc):
-                print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
-                    'Loss: {:.4f} ({:.4f}) \t'
-                    'Acc: {:.2f}% ({:.2f}%) \t'
-                    'Emb_Norm: {:.2f} ({:.2f})'.format(
-                    epoch, (batch_idx + 1) * batch_size_world,
-                    len(train_loader.dataset), 100. * ((batch_idx + 1) *
-                        batch_size_world / len(train_loader.dataset)),
-                    losses.val, losses.avg,
-                    100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
+        if (is_master_proc) and (batch_idx + 1) % log_interval == 0:
+            print(
+                f"Training: {epoch}, {batch_idx+1}\
+                Loss:{round(losses.avg, 4)}\
+                N_Triplets:{running_n_triplets/log_interval}"
+            )
+            running_n_triplets = 0
 
     if (is_master_proc):
-        print('\nTrain set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
-            losses.avg, 100. * accs.avg))
-
-        print('Epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
+        print('\nTrain set: Average loss: {:.4f}%\n'.format(losses.avg))
+        print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
-            f.write('epoch:{} runtime:{} {:.4f} {:.2f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg, 100. * accs.avg))
-            print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
+            f.write('epoch:{} runtime:{} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg))
+        print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
-def get_topk_acc(embeddings, labels):
-    distance_matrix = evaluate.get_distance_matrix(embeddings)
-    top1_sum = 0
-    top5_sum = 0
-
-    for i, label in enumerate(labels):
-        top1_idx = evaluate.get_closest_data(distance_matrix, i, top_k=1)
-        top5_idx = evaluate.get_closest_data(distance_matrix, i, top_k=5)
-        top1_label = [labels[j] for j in top1_idx]
-        top5_labels = [labels[j] for j in top5_idx]
-        #print(i, 'cur', label, 'top1', top1_label, 'top5', top5_labels)
-        top1_sum += int(label in top1_label) 
-        top5_sum += int(label in top5_labels)
-
-    top1_acc = top1_sum / len(labels)
-    top5_acc = top5_sum / len(labels)
-    return top1_acc, top5_acc
-
-
-def validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc=True):
+def validate(val_loader, model, criterion, epoch, cfg, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
-    embeddings = []
-    labels = []
-
+    print('==> using criterion:{} for validation task'.format(criterion))
     world_size = du_helper.get_world_size()
+    tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
+
+    if cuda:
+        tripletnet = tripletnet.cuda(device=device)
+        if torch.cuda.device_count() > 1:
+            if cfg.MODEL.ARCH == '3dresnet':
+                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device], find_unused_parameters=True)
+            else:
+                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
 
     tripletnet.eval()
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(val_loader):
             (anchor, positive, negative) = inputs
             (anchor_target, positive_target, negative_target) = targets
-
             batch_size = anchor.size(0)
 
             if cfg.MODEL.ARCH == 'slowfast':
@@ -154,29 +130,14 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc=True)
             target = torch.FloatTensor(dista.size()).fill_(-1)
             if cuda:
                 target = target.to(device)
-                anchor_target = anchor_target.to(device)
 
-            # Triplet loss
             loss = criterion(dista, distb, target)
-
             # measure accuracy
             acc = accuracy(dista.detach(), distb.detach())
-
-            if cfg.NUM_GPUS > 1:
-                embedded_x, anchor_target = du_helper.all_gather([embedded_x, anchor_target])
-            embeddings.append(embedded_x.detach().cpu())
-            labels.append(anchor_target.detach().cpu())
 
             # record loss and accuracy
             accs.update(acc.item(), batch_size)
             losses.update(loss.item(), batch_size)
-
-            batch_size_world = batch_size * world_size
-            if ((batch_idx + 1) * world_size) % log_interval == 0:
-                if (is_master_proc):
-                    print('Val Epoch: {} [{}/{} | {:.1f}%]'.format(epoch,
-                        (batch_idx + 1) * batch_size_world,
-                        len(val_loader.dataset), 100. * ((batch_idx + 1) * batch_size_world / len(val_loader.dataset))))
 
     if cfg.NUM_GPUS > 1:
         acc_sum = torch.tensor([accs.sum], dtype=torch.float32, device=device)
@@ -190,21 +151,12 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc=True)
         accs.avg = acc_sum.item() / acc_count.item()
         losses.avg = losses_sum.item() / losses_count.item()
 
-    # Top 1/5 Acc
     if (is_master_proc):
-        embeddings = torch.cat(embeddings, dim=0)
-        labels = torch.cat(labels, dim=0).tolist()
-        print('embeddings size', embeddings.size())
-        print('labels size', embeddings.size())
-        top1_acc, top5_acc = get_topk_acc(embeddings, labels)
-
-    # Log
-    if (is_master_proc):
-        print('\nTest set: Average loss: {:.4f}, Triplet Accuracy: {:.2f}%, Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%\n'.format(
-            losses.avg, 100. * accs.avg, 100. * top1_acc, 100. * top5_acc))
+        print('\nTest set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
+            losses.avg, 100. * accs.avg))
 
         with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
-            val_file.write('epoch:{} {:.4f} {:.2f} {:.2f} {:.2f}\n'.format(epoch, losses.avg, 100. * accs.avg, 100. * top1_acc, 100. * top5_acc))
+            val_file.write('epoch:{} {:.4f} {:.2f}\n'.format(epoch, losses.avg, 100. * accs.avg))
 
     return accs.avg
 
@@ -230,50 +182,46 @@ def train(args, cfg):
     if args.pretrain_path is not None:
         model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
 
-    tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
-
     if cuda:
-        tripletnet = tripletnet.cuda(device=device)
+        model = model.cuda(device=device)
         if torch.cuda.device_count() > 1:
-            #tripletnet = nn.DataParallel(tripletnet)
+            #model = nn.DataParallel(model)
             if cfg.MODEL.ARCH == '3dresnet':
-                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device], find_unused_parameters=True)
+                model = torch.nn.parallel.DistributedDataParallel(module=model, device_ids=[device], find_unused_parameters=True)
             else:
-                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
+                model = torch.nn.parallel.DistributedDataParallel(module=model, device_ids=[device])
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
-        start_epoch, best_acc = load_checkpoint(tripletnet, args.checkpoint_path, is_master_proc)
+        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
 
     if(is_master_proc):
         print('=> finished generating similarity network...')
 
     # ============================== Data Loaders ==============================
+    train_loader, _ = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+    val_loader, _ = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=True, negative_sampling=True)
 
-    train_loader, _ = data_loader.build_data_loader('train', cfg, is_master_proc)
-    val_loader, _ = data_loader.build_data_loader('val', cfg, is_master_proc)
+    # # ======================== Loss and Optimizer Setup ========================
+    val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
+    criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
+    optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
 
-    # ======================== Loss and Optimizer Setup ========================
-
-    criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-    optimizer = optim.SGD(tripletnet.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
-
-    n_parameters = sum([p.data.nelement() for p in tripletnet.parameters()])
+    n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
         print('\n + Number of params: {}'.format(n_parameters))
 
-    # ============================= Training loop ==============================
-
+    # # ============================= Training loop ==============================
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if(is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
-        train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_master_proc)
-        acc = validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc)
+        train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc)
+        acc = validate(val_loader, model, val_criterion, epoch, cfg, is_master_proc)
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)
         save_checkpoint({
             'epoch': epoch+1,
-            'state_dict':tripletnet.state_dict(),
+            'state_dict':model.state_dict(),
             'best_prec1': best_acc,
         }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
 

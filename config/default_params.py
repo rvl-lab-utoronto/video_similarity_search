@@ -40,9 +40,17 @@ _C.DATASET = CfgNode()
 _C.DATASET.VID_PATH = '/media/diskstation/datasets/kinetics400/frames_shortedge320px_25fps'
 _C.DATASET.ANNOTATION_PATH = '/media/diskstation/datasets/kinetics400/vid_paths_and_labels/frame_paths'
 
+_C.DATASET.CLUSTER_PATH = ''
+_C.DATASET.TARGET_TYPE_T = 'label'
+_C.DATASET.TARGET_TYPE_V = 'label'
+
+
+_C.DATASET.POSITIVE_SAMPLING_P = 0.8
+
 _C.DATASET.CHANNEL_EXTENSIONS = ''
 _C.DATASET.KEYPOINT_PATH = ''
 _C.DATASET.SALIENT_PATH = ''
+
 
 # -----------------------------------------------------------------------------
 # Slowfast options

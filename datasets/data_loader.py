@@ -15,7 +15,7 @@ from spatial_transforms import (Compose, Normalize, Resize, CenterCrop,
                                 CornerCrop, MultiScaleCornerCrop,
                                 RandomResizedCrop, RandomHorizontalFlip,
                                 ToTensor, ScaleValue, ColorJitter, ColorDrop,
-                                PickFirstChannels, RandomApply)
+                                PickFirstChannels, RandomApply, GaussianBlur)
 from temporal_transforms import (LoopPadding, TemporalRandomCrop,
                                  TemporalCenterCrop, TemporalEvenCrop,
                                  TemporalEndCrop, TemporalBeginCrop,
@@ -23,7 +23,6 @@ from temporal_transforms import (LoopPadding, TemporalRandomCrop,
 from temporal_transforms import Compose as TemporalCompose
 from dataset import get_data
 from loader import VideoLoader, BinaryImageLoaderPIL
-
 
 train_crop_min_scale = 0.25
 train_crop_min_ratio = 0.75
@@ -50,7 +49,7 @@ def worker_init_fn(worker_id):
 
 
 def get_mean_std(value_scale, dataset):
-    assert dataset in ['activitynet', 'kinetics', '0.5']
+    # assert dataset in ['activitynet', 'kinetics', '0.5']
 
     if dataset == 'activitynet':
         mean = [0.4477, 0.4209, 0.3906]
@@ -58,7 +57,8 @@ def get_mean_std(value_scale, dataset):
     elif dataset == 'kinetics':
         mean = [0.4345, 0.4051, 0.3775]
         std = [0.2768, 0.2713, 0.2737]
-    elif dataset == '0.5':
+    else:
+    # elif dataset == '0.5':
         mean = [0.5, 0.5, 0.5]
         std = [0.5, 0.5, 0.5]
 
@@ -83,7 +83,7 @@ def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3, i
 
 
 def build_spatial_transformation(cfg, split, is_master_proc=True):
-    mean, std = get_mean_std(value_scale, dataset=mean_dataset)
+    mean, std = get_mean_std(value_scale, dataset=cfg.TRAIN.DATASET)
     normalize = get_normalize_method(mean, std, no_mean_norm,
                                          no_std_norm, num_channels=cfg.DATA.INPUT_CHANNEL_NUM, is_master_proc=is_master_proc)
 
@@ -93,11 +93,11 @@ def build_spatial_transformation(cfg, split, is_master_proc=True):
             RandomResizedCrop(cfg.DATA.SAMPLE_SIZE, (train_crop_min_scale, 1.0),
                             (train_crop_min_ratio, 1.0/train_crop_min_ratio))
             )
-        spatial_transform.append(RandomHorizontalFlip())
+        spatial_transform.append(RandomHorizontalFlip(p=0.5))
 
-        spatial_transform.append(RandomApply([ColorJitter()], p=0.8))
+        spatial_transform.append(RandomApply([ColorJitter(brightness=0.8, contrast=0.8, saturation=0.8, hue=0.5)], p=0.8))
         spatial_transform.append(ColorDrop(p=0.2))
-
+        spatial_transform.append(GaussianBlur(p=0.2))
         spatial_transform.append(ToTensor())
         # spatial_transform.append(normalize) #EDIT
 

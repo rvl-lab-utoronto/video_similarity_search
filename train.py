@@ -204,8 +204,8 @@ def train(args, cfg):
 
     # ============================== Data Loaders ==============================
 
-    train_loader, _ = data_loader.build_data_loader('train', cfg, is_master_proc)
-    val_loader, _ = data_loader.build_data_loader('val', cfg, is_master_proc)
+    train_loader, _ = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True, negative_sampling=True)
+    val_loader, _ = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=True, negative_sampling=True)
 
     # ======================== Loss and Optimizer Setup ========================
 

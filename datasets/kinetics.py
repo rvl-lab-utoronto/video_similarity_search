@@ -4,6 +4,13 @@ import os
 from pathlib import Path
 import csv
 
+def kp_img_name_formatter(x):
+    return f'{x:06d}_kp.jpg'
+
+
+def salient_img_name_formatter(x):
+    return f'{x:06d}_sal_fuse.png'
+
 
 def parse_categories(annotation_path):
     idx_to_class = {}
@@ -19,11 +26,16 @@ def parse_categories(annotation_path):
     return idx_to_class
 
 
-def parse_database(root_path, annotation_path, split, video_path_formatter):
+def parse_database(root_path, annotation_path, split, video_path_formatter, channel_ext={}):
     video_ids = []
     video_paths = []
     frame_counts = []
     labels = []
+    channel_paths = {}
+
+    for key in channel_ext:
+        if key not in channel_paths:
+            channel_paths[key]=[]
 
     split_annotation_path = os.path.join(annotation_path, '{}.csv'.format(split))
     with open (split_annotation_path, newline='') as f:
@@ -31,10 +43,12 @@ def parse_database(root_path, annotation_path, split, video_path_formatter):
         for row in csv_reader:
             video_ids.append(os.path.basename(row[0]))
             video_paths.append(os.path.join(root_path, row[0]))
+            for key in channel_ext:
+                channel_paths[key].append(os.path.join(channel_ext[key][0], row[0]))
             frame_counts.append(int(row[1]))
             labels.append(int(row[2]))
 
-    return video_ids, video_paths, frame_counts, labels
+    return video_ids, video_paths, frame_counts, labels, channel_paths
 
 
 class Kinetics():
@@ -44,10 +58,13 @@ class Kinetics():
                  annotation_path,
                  split, #training, ...
                  sample_duration,
+                 channel_ext={},
                  is_master_proc=True,
                  video_path_formatter=(lambda root_path, label, video_id:
                                        root_path / label / video_id)
                  ):
+
+        self.channel_ext = channel_ext
 
         self.dataset, self.idx_to_class_map = self.__make_dataset(
             root_path, annotation_path, split, video_path_formatter, sample_duration, is_master_proc)
@@ -62,8 +79,8 @@ class Kinetics():
         return f'{x:06d}.jpg'
 
     def __make_dataset(self, root_path, annotation_path, split, video_path_formatter, sample_duration, is_master_proc):
-        video_ids, video_paths, frame_counts, labels = parse_database(
-            root_path, annotation_path, split, video_path_formatter)
+        video_ids, video_paths, frame_counts, labels, channel_paths = parse_database(
+            root_path, annotation_path, split, video_path_formatter, channel_ext=self.channel_ext)
 
         idx_to_class = parse_categories(annotation_path)
 
@@ -87,6 +104,10 @@ class Kinetics():
                 'num_frames': frame_counts[i],
                 'label': labels[i]
             }
+            if channel_paths:
+                for key in channel_paths:
+                    sample[key] = channel_paths[key][i]
+
             dataset.append(sample)
         dataset = np.array(dataset)
         return dataset, idx_to_class

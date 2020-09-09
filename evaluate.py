@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from datetime import datetime
-from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.metrics.pairwise import euclidean_distances, cosine_distances
 from datasets import data_loader
 from models.triplet_net import Tripletnet
 from models.model_utils import model_selector, multipathway_input
@@ -109,10 +109,16 @@ def evaluate(model, test_loader, log_interval=5):
     return embeddings
 
 
-def get_distance_matrix(embeddings):
+def get_distance_matrix(embeddings, dist_metric):
     embeddings = embeddings
-    distance_matrix = euclidean_distances(embeddings)
-    print('distance matrix shape:', distance_matrix.shape)
+    
+    print('Dist metric:', dist_metric)
+    assert(dist_metric in ['cosine', 'euclidean'])
+    if dist_metric == 'cosine':
+        distance_matrix = cosine_distances(embeddings)
+    elif dist_metric == 'euclidean':
+        distance_matrix = euclidean_distances(embeddings)
+    print('Distance matrix shape:', distance_matrix.shape)
 
     np.fill_diagonal(distance_matrix, float('inf'))
     return distance_matrix
@@ -175,7 +181,7 @@ def load_exemplar(exemplar_file):
 def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exemplar, service=None):
     embeddings = evaluate(model, test_loader, log_interval=log_interval)
 
-    distance_matrix = get_distance_matrix(embeddings)
+    distance_matrix = get_distance_matrix(embeddings, cfg.LOSS.DIST_METRIC)
 
     spatial_transform = build_spatial_transformation(cfg, split)
     temporal_transform = [TemporalCenterFrame()]

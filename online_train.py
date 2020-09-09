@@ -21,10 +21,12 @@ from models.model_utils import (model_selector, multipathway_input,
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from datasets.loss import OnlineTripleLoss
+from train import validate as validate_fcn
 
 log_interval = 5 #log interval for batch number
 
-def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc=True):
+
+def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
 
@@ -92,13 +94,10 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
-def validate(val_loader, model, criterion, epoch, cfg, is_master_proc=True):
-    losses = AverageMeter()
-    accs = AverageMeter()
+def validate(val_loader, model, criterion, epoch, cfg, cuda, device, is_master_proc=True):
     print('==> using criterion:{} for validation task'.format(criterion))
-    world_size = du_helper.get_world_size()
-    tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
 
+    tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
     if cuda:
         tripletnet = tripletnet.cuda(device=device)
         if torch.cuda.device_count() > 1:
@@ -107,58 +106,8 @@ def validate(val_loader, model, criterion, epoch, cfg, is_master_proc=True):
             else:
                 tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
 
-    tripletnet.eval()
-    with torch.no_grad():
-        for batch_idx, (inputs, targets) in enumerate(val_loader):
-            (anchor, positive, negative) = inputs
-            (anchor_target, positive_target, negative_target) = targets
-            batch_size = anchor.size(0)
+    return validate_fcn(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_master_proc)
 
-            if cfg.MODEL.ARCH == 'slowfast':
-                anchor = multipathway_input(anchor, cfg)
-                positive = multipathway_input(positive, cfg)
-                negative = multipathway_input(negative, cfg)
-                if cuda:
-                    for i in range(len(anchor)):
-                        anchor[i], positive[i], negative[i] = anchor[i].to(device), positive[i].to(device), negative[i].to(device)
-            else:
-                if cuda:
-                    anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
-
-            dista, distb, embedded_x, embedded_y, embedded_z = tripletnet(anchor, positive, negative)
-
-            target = torch.FloatTensor(dista.size()).fill_(-1)
-            if cuda:
-                target = target.to(device)
-
-            loss = criterion(dista, distb, target)
-            # measure accuracy
-            acc = accuracy(dista.detach(), distb.detach())
-
-            # record loss and accuracy
-            accs.update(acc.item(), batch_size)
-            losses.update(loss.item(), batch_size)
-
-    if cfg.NUM_GPUS > 1:
-        acc_sum = torch.tensor([accs.sum], dtype=torch.float32, device=device)
-        acc_count = torch.tensor([accs.count], dtype=torch.float32, device=device)
-
-        losses_sum = torch.tensor([losses.sum], dtype=torch.float32, device=device)
-        losses_count = torch.tensor([losses.count], dtype=torch.float32, device=device)
-
-        acc_sum, losses_sum, acc_count, losses_count = du_helper.all_reduce([acc_sum, losses_sum, acc_count, losses_count], avg=False)
-
-        accs.avg = acc_sum.item() / acc_count.item()
-        losses.avg = losses_sum.item() / losses_count.item()
-
-    if (is_master_proc):
-        print('\nTest set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
-            losses.avg, 100. * accs.avg))
-
-        with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
-            val_file.write('epoch:{} {:.4f} {:.2f}\n'.format(epoch, losses.avg, 100. * accs.avg))
-
-    return accs.avg
 
 def train(args, cfg):
     best_acc = 0
@@ -215,8 +164,8 @@ def train(args, cfg):
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if(is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
-        train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master_proc)
-        acc = validate(val_loader, model, val_criterion, epoch, cfg, is_master_proc)
+        #train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        acc = validate(val_loader, model, val_criterion, epoch, cfg, cuda, device, is_master_proc)
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)
         save_checkpoint({

@@ -27,7 +27,7 @@ import evaluate
 
 log_interval = 5 #log interval for batch number
 
-def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_master_proc=True):
+def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
     emb_norms = AverageMeter()
@@ -103,8 +103,8 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_m
             print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
-def get_topk_acc(embeddings, labels):
-    distance_matrix = evaluate.get_distance_matrix(embeddings)
+def get_topk_acc(embeddings, labels, dist_metric):
+    distance_matrix = evaluate.get_distance_matrix(embeddings, dist_metric)
     top1_sum = 0
     top5_sum = 0
 
@@ -122,7 +122,7 @@ def get_topk_acc(embeddings, labels):
     return top1_acc, top5_acc
 
 
-def validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc=True):
+def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
     embeddings = []
@@ -196,7 +196,7 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc=True)
         labels = torch.cat(labels, dim=0).tolist()
         print('embeddings size', embeddings.size())
         print('labels size', embeddings.size())
-        top1_acc, top5_acc = get_topk_acc(embeddings, labels)
+        top1_acc, top5_acc = get_topk_acc(embeddings, labels, cfg.LOSS.DIST_METRIC)
 
     # Log
     if (is_master_proc):
@@ -267,8 +267,8 @@ def train(args, cfg):
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if(is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
-        train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_master_proc)
-        acc = validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc)
+        train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        acc = validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_master_proc)
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)
         save_checkpoint({

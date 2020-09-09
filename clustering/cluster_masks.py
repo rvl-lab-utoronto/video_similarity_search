@@ -1,3 +1,9 @@
+# Example usage:
+# python clustering/cluster_masks.py --cfg config/custom_configs/slowfast_kinetics.yaml \
+# --gpu 2 --split train --output cluster_output_kin_train --num_data_workers 8 \
+# DATA.SAMPLE_SIZE 224 DATA.SAMPLE_DURATION 16 TRAIN.BATCH_SIZE 128
+
+
 import os
 import argparse
 import torch

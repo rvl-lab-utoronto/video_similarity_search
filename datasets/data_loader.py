@@ -23,6 +23,8 @@ from temporal_transforms import (LoopPadding, TemporalRandomCrop,
 from temporal_transforms import Compose as TemporalCompose
 from dataset import get_data
 from loader import VideoLoader, BinaryImageLoaderPIL
+import datasets.ucf101
+import datasets.kinetics  
 
 train_crop_min_scale = 0.25
 train_crop_min_ratio = 0.75
@@ -34,8 +36,6 @@ no_mean_norm=False
 no_std_norm=False
 mean_dataset = 'kinetics'
 value_scale = 1
-
-distributed=False
 
 
 def worker_init_fn(worker_id):
@@ -145,16 +145,17 @@ def build_temporal_transformation(cfg, triplets=True):
     return  TempTransform
 
 
-def kp_img_name_formatter(x):
-    return f'image_{x:05d}_kp.jpg'
-
-
-def salient_img_name_formatter(x):
-    return f'image_{x:05d}_sal_fuse.png'
-
-
 def get_channel_extention(cfg):
     channel_ext = {}
+
+    assert cfg.TRAIN.DATASET in ['kinetics', 'ucf101']
+
+    if cfg.TRAIN.DATASET == 'ucf101':
+        kp_img_name_formatter = datasets.ucf101.kp_img_name_formatter
+        salient_img_name_formatter = datasets.ucf101.salient_img_name_formatter
+    elif cfg.TRAIN.DATASET == 'kinetics':
+        kp_img_name_formatter = datasets.kinetics.kp_img_name_formatter
+        salient_img_name_formatter = datasets.kinetics.salient_img_name_formatter
 
     for channel_extension in cfg.DATASET.CHANNEL_EXTENSIONS.split(','):
         if channel_extension == 'keypoint':

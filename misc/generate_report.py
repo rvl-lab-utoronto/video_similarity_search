@@ -43,6 +43,8 @@ def parse_file(result_dir, f_type='train'):
     epoch = []
     losses = []
     acc = []
+    top1_acc = []
+    top5_acc = []
     runtime = []
     assert f_type in ['train', 'val'], "f_type:{} is not recognized".format(f_type)
 
@@ -52,7 +54,7 @@ def parse_file(result_dir, f_type='train'):
             for row in csv_reader:
                 epoch.append(float(row[0].replace('epoch:', '').replace(',','')))
                 losses.append(float(row[2]))
-                acc.append(float(row[3]))
+                #acc.append(float(row[3]))
                 runtime.append(float(row[1].replace('runtime:', '').replace(',','')))
     else:
         with open (os.path.join(result_dir, val_progress_file), newline='') as csvfile:
@@ -60,15 +62,17 @@ def parse_file(result_dir, f_type='train'):
             for row in csv_reader:
                 losses.append(float(row[1]))
                 acc.append(float(row[2]))
-    return epoch, runtime, losses, acc
+                top1_acc.append(float(row[3]))
+                top5_acc.append(float(row[4]))
+    return epoch, runtime, losses, acc, top1_acc, top5_acc
 
 
 def plot_training_progress(result_dir, name, show_plot=False, service=None):
-    _, _, train_losses, train_acc = parse_file(result_dir, 'train')
-    _, _, val_losses, val_acc = parse_file(result_dir, 'val')
+    _, _, train_losses, _, _, _ = parse_file(result_dir, 'train')
+    _, _, val_losses, val_acc, top1_acc, top5_acc = parse_file(result_dir, 'val')
 
     f = plt.figure(figsize=(9,4))
-    ax1 =  plt.subplot(1, 2, 1)
+    ax1 =  plt.subplot(1, 3, 1)
     ax1.plot(np.arange(len(train_losses)), train_losses)
     ax1.plot(np.arange(len(val_losses)), val_losses)
     ax1.set_xlabel('Epoch')
@@ -76,13 +80,22 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     ax1.set_title('Training and Validation Loss vs. Epoch')
     ax1.legend(['Training', 'Validation'])
 
-    ax2 = plt.subplot(1, 2, 2)
-    ax2.plot(np.arange(len(train_acc)), train_acc)
+    ax2 = plt.subplot(1, 3, 2)
+    #ax2.plot(np.arange(len(train_acc)), train_acc)
     ax2.plot(np.arange(len(val_acc)), val_acc)
     ax2.set_xlabel('Epoch')
-    ax2.set_ylabel('Accuracy')
-    ax2.set_title('Training and Validation Accuracy vs. Epoch')
-    ax2.legend(['Training', 'Validation'])
+    ax2.set_ylabel('Accuracy (%)')
+    ax2.set_title('Validation Triplet Accuracy vs. Epoch')
+    #ax2.legend(['Training', 'Validation'])
+
+    ax3 = plt.subplot(1, 3, 3)
+    ax3.plot(np.arange(len(top1_acc)), top1_acc)
+    ax3.plot(np.arange(len(top5_acc)), top5_acc)
+    ax3.set_xlabel('Epoch')
+    ax3.set_ylabel('Accuracy (%)')
+    ax3.set_title('Validation Top 1/5 Retrieval Accuracy vs. Epoch')
+    ax3.legend(['Top1', 'Top5'])
+
     plot_name = '{}_train_val_loss.png'.format(name)
     f.savefig(plot_name)
 

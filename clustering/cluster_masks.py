@@ -1,3 +1,9 @@
+# Example usage:
+# python clustering/cluster_masks.py --cfg config/custom_configs/slowfast_kinetics.yaml \
+# --gpu 2 --split train --output cluster_output_kin_train --num_data_workers 8 \
+# DATA.SAMPLE_SIZE 224 DATA.SAMPLE_DURATION 16 TRAIN.BATCH_SIZE 128
+
+
 import os
 import argparse
 import torch
@@ -69,6 +75,11 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=2, visual
 
     MASK_THRESHOLD = 0.01
 
+    # Mean and std for ImageNet
+    # https://pytorch.org/docs/stable/torchvision/models.html
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225])
+
     with torch.no_grad():      
         for batch_idx, (inputs, _, _) in enumerate(test_loader): 
             num_frames = inputs.shape[2]
@@ -89,12 +100,8 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=2, visual
                 else:
                     center_img_salient = rgb_center_img_tensor[i] * mask[i]
 
-                # Put image values into range [0, 1] and then normalize using 
-                # mean and std for ImageNet
-                # https://pytorch.org/docs/stable/torchvision/models.html
+                # Put image values into range [0, 1] and then normalize
                 center_img_salient = tensor_min_max_normalize(center_img_salient)
-                normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                    std=[0.229, 0.224, 0.225])
                 center_img_salient = normalize(center_img_salient)
                 center_img_salient_batch.append(center_img_salient)
             center_img_salient = torch.stack(center_img_salient_batch, dim=0)  # N x 3 channels x 1 frame x H x W

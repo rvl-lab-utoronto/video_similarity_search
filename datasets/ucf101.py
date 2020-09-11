@@ -4,6 +4,14 @@ import numpy as np
 from pathlib import Path
 import itertools
 
+def kp_img_name_formatter(x):
+    return f'image_{x:05d}_kp.jpg'
+
+
+def salient_img_name_formatter(x):
+    return f'image_{x:05d}_sal_fuse.png'
+    
+
 def get_class_labels(data):
     class_labels_map = {}
     index = 0

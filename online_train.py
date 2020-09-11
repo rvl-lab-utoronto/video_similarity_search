@@ -36,11 +36,9 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, is_master
     start = time.time()
 
     world_size = du_helper.get_world_size()
-    sampling_strategy = 'random_semi_hard'
+    sampling_strategy = cfg.DATASET.NEGATIVE_SAMPLING_STRATEGY
 
     for batch_idx, (inputs, targets) in enumerate(train_loader):
-        # if batch_idx > 2:
-        #     break
         anchor, positive = inputs
         (a_target, p_target) = targets
         batch_size = anchor.size(0)

@@ -2,3 +2,4 @@ venv
 .ftp*
 sherry_test*
 misc/token.pickle
+.vscode/ftp-sync.json

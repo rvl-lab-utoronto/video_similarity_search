@@ -81,8 +81,8 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     ax2.plot(np.arange(len(val_acc)), val_acc)
     ax2.set_xlabel('Epoch')
     ax2.set_ylabel('Accuracy')
-    ax2.set_title('Training and Validation Accuracy vs. Epoch')
-    ax2.legend(['Training', 'Validation'])
+    ax2.set_title('Validation Accuracy vs. Epoch')
+    ax2.legend(['Validation'])
     plot_name = '{}_train_val_loss.png'.format(name)
     f.savefig(plot_name)
 

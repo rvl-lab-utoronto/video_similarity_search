@@ -6,6 +6,8 @@ TRAIN:
 DATASET:
     VID_PATH: /media/diskstation/datasets/kinetics400/frames_shortedge320px_25fps
     ANNOTATION_PATH: /media/diskstation/datasets/kinetics400/vid_paths_and_labels/frame_paths
+    SALIENT_PATH: /media/diskstation/datasets/kinetics400/POOLNET_RESULTS_SALAR/POOLNET_FULL
+    CHANNEL_EXTENSIONS: 'salient'
 
 MODEL:
     ARCH: slowfast
@@ -13,6 +15,7 @@ MODEL:
 DATA:
     SAMPLE_DURATION: 32
     SAMPLE_SIZE: 128
+    INPUT_CHANNEL_NUM: 4
     
 
 

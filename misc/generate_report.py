@@ -54,7 +54,7 @@ def parse_file(result_dir, f_type='train'):
             for row in csv_reader:
                 epoch.append(float(row[0].replace('epoch:', '').replace(',','')))
                 losses.append(float(row[2]))
-                #acc.append(float(row[3]))
+                # acc.append(float(row[3]))
                 runtime.append(float(row[1].replace('runtime:', '').replace(',','')))
     else:
         with open (os.path.join(result_dir, val_progress_file), newline='') as csvfile:
@@ -119,7 +119,7 @@ def write_to_google_sheet(result_dir, client, worksheet_name):
     df = pd.DataFrame()
     df['epoch'] = epoch
     df['train_loss'] = train_losses
-    df['train_acc'] = train_acc
+    # df['train_acc'] = train_acc
     df['val_losses'] = val_losses
     df['val_acc'] = val_acc
     df['runtime'] = runtime

@@ -107,7 +107,7 @@ def evaluate(model, test_loader, log_interval=5):
     embeddings = torch.cat(embedding, dim=0)
     print('embeddings size', embeddings.size())
     return embeddings
-
+ 
 
 def get_distance_matrix(embeddings, dist_metric):
     embeddings = embeddings
@@ -122,6 +122,14 @@ def get_distance_matrix(embeddings, dist_metric):
 
     np.fill_diagonal(distance_matrix, float('inf'))
     return distance_matrix
+
+
+def get_closest_data_mat(distance_matrix, top_k):
+    idx = np.argpartition(distance_matrix, top_k, axis=-1)
+    distance_matrix_topk_unsorted = np.take_along_axis(distance_matrix, idx[:,:top_k], axis=-1)
+    idx_sorted_indices = np.argsort(distance_matrix_topk_unsorted, axis=-1)
+    top_k = np.take_along_axis(idx, idx_sorted_indices, axis=-1)
+    return top_k  # dim: distance_matrix.shape[0] x top_k
 
 
 def get_closest_data(distance_matrix, exemplar_idx, top_k):

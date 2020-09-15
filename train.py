@@ -108,12 +108,15 @@ def get_topk_acc(embeddings, labels, dist_metric):
     top1_sum = 0
     top5_sum = 0
 
+    top1_indices = evaluate.get_closest_data_mat(distance_matrix, top_k=1)  # dim: distance_matrix.shape[0] x top_k
+    top5_indices = evaluate.get_closest_data_mat(distance_matrix, top_k=5)  # dim: distance_matrix.shape[0] x top_k
+
     for i, label in enumerate(labels):
-        top1_idx = evaluate.get_closest_data(distance_matrix, i, top_k=1)
-        top5_idx = evaluate.get_closest_data(distance_matrix, i, top_k=5)
+        top1_idx = top1_indices[i]
+        top5_idx = top5_indices[i]
         top1_label = [labels[j] for j in top1_idx]
         top5_labels = [labels[j] for j in top5_idx]
-        #print(i, 'cur', label, 'top1', top1_label, 'top5', top5_labels)
+        print(i, 'cur', label, 'top1', top1_label, 'top5', top5_labels)
         top1_sum += int(label in top1_label) 
         top5_sum += int(label in top5_labels)
 
@@ -168,7 +171,7 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
             # 1 positive per anchor
             embeddings = torch.cat((embedded_x.detach().cpu(), embedded_y.detach().cpu()), dim=0)
             labels = torch.cat((anchor_target.detach().cpu(), positive_target.detach().cpu()), dim=0)
-            top1_acc, top5_acc = get_topk_acc(embeddings, labels, cfg.LOSS.DIST_METRIC)
+            top1_acc, top5_acc = get_topk_acc(embeddings, labels.tolist(), cfg.LOSS.DIST_METRIC)
 
             # record loss and accuracy
             accs.update(acc.item(), batch_size)

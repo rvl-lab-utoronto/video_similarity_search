@@ -210,7 +210,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True, negative_s
         print ('Using distributed sampler')
         print ('Batch size per gpu:', int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS))
 
-    if split == 'train':
+    if split == 'train' or split == 'val':
         if req_train_shuffle is not None:
             shuffle = req_train_shuffle
         else:
@@ -225,7 +225,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True, negative_s
     elif split == 'val':
         data_loader = torch.utils.data.DataLoader(data,
                                                   batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS),
-                                                  shuffle=False,
+                                                  shuffle=shuffle,
                                                   num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
                                                   pin_memory=True,
                                                   sampler=sampler,

@@ -24,7 +24,7 @@ from temporal_transforms import Compose as TemporalCompose
 from dataset import get_data
 from loader import VideoLoader, BinaryImageLoaderPIL
 import datasets.ucf101
-import datasets.kinetics  
+import datasets.kinetics
 
 train_crop_min_scale = 0.25
 train_crop_min_ratio = 0.75
@@ -95,7 +95,7 @@ def build_spatial_transformation(cfg, split, is_master_proc=True):
             )
         spatial_transform.append(RandomHorizontalFlip(p=0.5))
 
-        spatial_transform.append(RandomApply([ColorJitter(brightness=0.8, contrast=0.8, saturation=0.8, hue=0.5)], p=0.8))
+        spatial_transform.append(RandomApply([ColorJitter()], p=0.8))
         spatial_transform.append(ColorDrop(p=0.2))
         spatial_transform.append(GaussianBlur(p=0.2))
         spatial_transform.append(ToTensor())
@@ -242,25 +242,29 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True, negative_s
                                                   worker_init_fn=worker_init_fn
                                                   # collate_fn=collate_fn)
                                                   )
-
     return data_loader, data
+
 
 
 if __name__ == '__main__':
     sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config'))
-    from m_parser import load_config, parse_args
 
-    args = parse_args()
+    from m_parser import load_config, arg_parser
+
+    args = arg_parser().parse_args()
+    os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
     cfg = load_config(args)
 
-    # train_loader, data = build_data_loader('train', cfg)
-    val_loader, data = build_data_loader('val', cfg)
-    d = data[0]
-    # spatial_transform = build_spatial_transformation(cfg, 'train')
-    # TempTransform = build_temporal_transformation(cfg)
 
-    # data, _ = get_data('train', cfg.DATASET.VID_PATH,
-    #             cfg.DATASET.ANNOTATION_PATH, cfg.TRAIN.DATASET, input_type, False,
-    #             file_type, spatial_transform, TempTransform)
-    # a = data[1]
-    # print(a[0][0].size())
+    if torch.cuda.is_available():
+        cfg.NUM_GPUS = torch.cuda.device_count()
+        print("Using {} GPU(s) per node".format(cfg.NUM_GPUS))
+    print('gpu', cfg.NUM_GPUS)
+
+
+    # train_loader, data = build_data_loader('train', cfg)
+    # val_loader, data = build_data_loader('val', cfg)
+    sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    import misc.distributed_helper as du_helper
+
+    du_helper.launch_processes('train', cfg, func=test, shard_id=0, NUM_SHARDS=1, ip_address_port="tcp://localhost:8081")

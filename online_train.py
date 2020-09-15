@@ -21,7 +21,7 @@ from models.model_utils import (model_selector, multipathway_input,
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from datasets.loss import OnlineTripleLoss
-from train import validate as validate_fcn
+from train import validate
 
 log_interval = 5 #log interval for batch number
 
@@ -94,21 +94,6 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
-def validate(val_loader, model, criterion, epoch, cfg, cuda, device, is_master_proc=True):
-    print('==> using criterion:{} for validation task'.format(criterion))
-
-    tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
-    if cuda:
-        tripletnet = tripletnet.cuda(device=device)
-        if torch.cuda.device_count() > 1:
-            if cfg.MODEL.ARCH == '3dresnet':
-                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device], find_unused_parameters=True)
-            else:
-                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
-
-    return validate_fcn(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_master_proc)
-
-
 def train(args, cfg):
     best_acc = 0
     start_epoch = 0
@@ -144,6 +129,16 @@ def train(args, cfg):
     if args.checkpoint_path is not None:
         start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
 
+    # Triplet net used for validation
+    tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
+    if cuda:
+        tripletnet = tripletnet.cuda(device=device)
+        if torch.cuda.device_count() > 1:
+            if cfg.MODEL.ARCH == '3dresnet':
+                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device], find_unused_parameters=True)
+            else:
+                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
+
     if(is_master_proc):
         print('=> finished generating similarity network...')
 
@@ -156,6 +151,9 @@ def train(args, cfg):
     criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
     optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
 
+    print('\n==> using criterion:{} for training task'.format(criterion))
+    print('==> using criterion:{} for validation task'.format(val_criterion))
+
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
         print('\n + Number of params: {}'.format(n_parameters))
@@ -165,7 +163,7 @@ def train(args, cfg):
         if(is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
         train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
-        acc = validate(val_loader, model, val_criterion, epoch, cfg, cuda, device, is_master_proc)
+        acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)
         save_checkpoint({

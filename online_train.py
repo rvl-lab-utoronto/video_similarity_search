@@ -25,7 +25,6 @@ from train import validate as validate_fcn
 
 log_interval = 5 #log interval for batch number
 
-
 def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
@@ -72,6 +71,7 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
 
         if (cfg.NUM_GPUS > 1):
             loss = du_helper.all_reduce([loss], avg=True)
+            loss = loss[0]
 
         batch_size_world = batch_size * world_size
 
@@ -136,9 +136,9 @@ def train(args, cfg):
         if torch.cuda.device_count() > 1:
             #model = nn.DataParallel(model)
             if cfg.MODEL.ARCH == '3dresnet':
-                model = torch.nn.parallel.DistributedDataParallel(module=model, device_ids=[device], find_unused_parameters=True)
+                model = torch.nn.parallel.DistributedDataParallel(module=model, device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
             else:
-                model = torch.nn.parallel.DistributedDataParallel(module=model, device_ids=[device])
+                model = torch.nn.parallel.DistributedDataParallel(module=model, device_ids=[device], broadcast_buffers=False)
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:

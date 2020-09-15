@@ -112,13 +112,13 @@ def evaluate(model, test_loader, log_interval=5):
 def get_distance_matrix(embeddings, dist_metric):
     embeddings = embeddings
     
-    print('Dist metric:', dist_metric)
+    #print('Dist metric:', dist_metric)
     assert(dist_metric in ['cosine', 'euclidean'])
     if dist_metric == 'cosine':
         distance_matrix = cosine_distances(embeddings)
     elif dist_metric == 'euclidean':
         distance_matrix = euclidean_distances(embeddings)
-    print('Distance matrix shape:', distance_matrix.shape)
+    #print('Distance matrix shape:', distance_matrix.shape)
 
     np.fill_diagonal(distance_matrix, float('inf'))
     return distance_matrix

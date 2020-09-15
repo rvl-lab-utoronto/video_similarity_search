@@ -100,8 +100,8 @@ def train(args, cfg):
     start_epoch = 0
     cudnn.benchmark = True
 
-    global cuda; cuda = torch.cuda.is_available()
-    global device; device = torch.cuda.current_device()
+    cuda = torch.cuda.is_available()
+    device = torch.cuda.current_device()
 
     is_master_proc = du_helper.is_master_proc(cfg.NUM_GPUS)
 

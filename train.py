@@ -25,7 +25,7 @@ import misc.distributed_helper as du_helper
 import evaluate
 
 
-log_interval = 2 #log interval for batch number
+log_interval = 5 #log interval for batch number
 
 def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
@@ -168,7 +168,7 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
             # Top 1/5 Acc - use anchors and positives so there is at least
             # 1 positive per anchor
             embeddings = torch.cat((embedded_x.detach().cpu(), embedded_y.detach().cpu()), dim=0)
-            print(embeddings.size())
+            #print(embeddings.size())
             if embeddings.size()[0] < cfg.VAL.BATCH_SIZE*2: #would raise error in top5 acc
                 continue
             labels = torch.cat((anchor_target.detach().cpu(), positive_target.detach().cpu()), dim=0)

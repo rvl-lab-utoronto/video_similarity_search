@@ -88,7 +88,7 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
             running_n_triplets = 0
 
     if (is_master_proc):
-        print('\nTrain set: Average loss: {:.4f}%\n'.format(losses.avg))
+        print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
         print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
             f.write('epoch:{} runtime:{} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg))

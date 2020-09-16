@@ -132,7 +132,6 @@ class UCF101():
 
         n_videos = len(video_ids)
         dataset = []
-        # cluster_idx = 0
         for i in range(n_videos):
             if i % (n_videos // 5) == 0:
                 if (is_master_proc):

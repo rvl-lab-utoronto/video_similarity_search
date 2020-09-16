@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=def-florian7_gpu 
-#SBATCH --time=0-00:10:00
+#SBATCH --time=0-23:00:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
 #SBATCH --job-name=slowfast_ucf
@@ -24,5 +24,5 @@ echo $MASTER_ADDRESS
 MPORT=3456
 echo $MPORT
 
-srun python /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/train.py --cfg /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/config/custom_configs/slowfast_ucf_cc.yaml --gpu 0,1,2,3 --num_data_workers 4 --batch_size 40 --output /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/output_ucf1-distrib --num_shards 2 --epoch 2 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT --compute_canada
+srun python /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/online_train.py --cfg /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/config/custom_configs/slowfast_ucf_cc.yaml --gpu 0,1,2,3 --num_data_workers 4 --batch_size 48 --output /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/output_ucf6-clusters-res-p20 --num_shards 2 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT --compute_canada MODEL.ARCH 3dresnet DATASET.POSITIVE_SAMPLING_P 0.2
 

@@ -56,7 +56,8 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
         Dataset = UCF101(video_path, annotation_path, split, sample_duration, channel_ext, cluster_path, is_master_proc, video_path_formatter)
 
     elif dataset_name == 'kinetics':
-        Dataset = Kinetics(video_path, annotation_path, split, sample_duration, channel_ext, is_master_proc, video_path_formatter)
+        Dataset = Kinetics(video_path, annotation_path, split, sample_duration,
+                channel_ext, cluster_path, is_master_proc, video_path_formatter)
 
     if get_image_backend() == 'accimage':
         from datasets.loader import ImageLoaderAccImage

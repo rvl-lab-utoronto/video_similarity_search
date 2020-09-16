@@ -75,7 +75,7 @@ class TripletsData(data.Dataset):
         a_target = anchor[self.target_type]
 
         p_type = np.random.choice(self.positive_types, p=[self.positive_sampling_p, 1-self.positive_sampling_p])
-        if p_type == 'same_inst' and self.split =='train':
+        if (p_type == 'same_inst' and self.split =='train') or a_target == -1:
             positive = anchor.copy()
 
         else: #sample positive from a different label. validation should always sample positive from a different video

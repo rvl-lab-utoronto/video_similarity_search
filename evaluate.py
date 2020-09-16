@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from datetime import datetime
-from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.metrics.pairwise import euclidean_distances, cosine_distances
 from datasets import data_loader
 from models.triplet_net import Tripletnet
 from models.model_utils import model_selector, multipathway_input
@@ -105,17 +105,31 @@ def evaluate(model, test_loader, log_interval=5):
                 print('val [{}/{}]'.format(batch_idx * batch_size, len(test_loader.dataset)))
 
     embeddings = torch.cat(embedding, dim=0)
-    return embeddings
-
-
-def get_distance_matrix(embeddings):
     print('embeddings size', embeddings.size())
+    return embeddings
+ 
+
+def get_distance_matrix(embeddings, dist_metric):
     embeddings = embeddings
-    distance_matrix = euclidean_distances(embeddings)
-    print('distance matrix shape:', distance_matrix.shape)
+    
+    #print('Dist metric:', dist_metric)
+    assert(dist_metric in ['cosine', 'euclidean'])
+    if dist_metric == 'cosine':
+        distance_matrix = cosine_distances(embeddings)
+    elif dist_metric == 'euclidean':
+        distance_matrix = euclidean_distances(embeddings)
+    #print('Distance matrix shape:', distance_matrix.shape)
 
     np.fill_diagonal(distance_matrix, float('inf'))
     return distance_matrix
+
+
+def get_closest_data_mat(distance_matrix, top_k):
+    idx = np.argpartition(distance_matrix, top_k, axis=-1)
+    distance_matrix_topk_unsorted = np.take_along_axis(distance_matrix, idx[:,:top_k], axis=-1)
+    idx_sorted_indices = np.argsort(distance_matrix_topk_unsorted, axis=-1)
+    top_k = np.take_along_axis(idx, idx_sorted_indices, axis=-1)
+    return top_k  # dim: distance_matrix.shape[0] x top_k
 
 
 def get_closest_data(distance_matrix, exemplar_idx, top_k):
@@ -175,7 +189,7 @@ def load_exemplar(exemplar_file):
 def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exemplar, service=None):
     embeddings = evaluate(model, test_loader, log_interval=log_interval)
 
-    distance_matrix = get_distance_matrix(embeddings)
+    distance_matrix = get_distance_matrix(embeddings, cfg.LOSS.DIST_METRIC)
 
     spatial_transform = build_spatial_transformation(cfg, split)
     temporal_transform = [TemporalCenterFrame()]

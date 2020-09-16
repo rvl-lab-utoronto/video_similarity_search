@@ -11,7 +11,7 @@ import torchvision.models as models
 import cv2
 import numpy as np
 from torchvision import transforms
-from sklearn.cluster import AgglomerativeClustering
+from sklearn.cluster import AgglomerativeClustering, DBSCAN, OPTICS
 import time
 import pickle as pkl
 
@@ -143,7 +143,7 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=2, visual
 
 
 # Perform clustering 
-def fit_cluster(embeddings, method='AgglomerativeClustering', distance_threshold=0.95):
+def fit_cluster(embeddings, method='DBSCAN'):
     print("Clustering...")
 
     distance_threshold = 0.24
@@ -153,8 +153,18 @@ def fit_cluster(embeddings, method='AgglomerativeClustering', distance_threshold
                                                       linkage='average',
                                                       distance_threshold=distance_threshold,
                                                       affinity='cosine').fit(embeddings)
-        labels = trained_cluster_obj.labels_
-        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+    elif method == 'DBSCAN':
+        # If small clusters have too many incorrect increase min_samples, if there are some very large clusters with
+        # too many incorrect decrease eps, if too few / little cluster representation decrease min_samples, if too many -1 increase eps
+        trained_cluster_obj = DBSCAN(eps=0.12, # 0.18 for ucf val, #0.13 for ucf train, #0.12 for kin train
+                                     min_samples=3, #3 for ucf val, #2-5 (3 main) for ucf train, 3 for kin train
+                                     metric='cosine',
+                                     n_jobs=-1).fit(embeddings)
+    elif method == 'OPTICS':
+        trained_cluster_obj = OPTICS(min_samples=3, max_eps=0.20, cluster_method='dbscan', metric='cosine', n_jobs=-1).fit(embeddings)
+
+    labels = trained_cluster_obj.labels_
+    n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
 
     print("Fitted " + str(n_clusters) + " clusters with " + str(method))
     return trained_cluster_obj
@@ -164,10 +174,7 @@ def fit_cluster(embeddings, method='AgglomerativeClustering', distance_threshold
 def cluster_embeddings(data, clustering_obj):
  
     labels = clustering_obj.labels_
-    n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-    start_cluster = -1 if -1 in labels else 0
-
-    cluster_to_data_idxs = {label: np.where(clustering_obj.labels_ == label)[0] for label in range(start_cluster, start_cluster + n_clusters)}
+    cluster_to_data_idxs = {label: np.where(clustering_obj.labels_ == label)[0] for label in set(labels)}
 
     for cluster in cluster_to_data_idxs:
         cur_cluster_vids = []
@@ -194,6 +201,8 @@ if __name__ == '__main__':
 
     if not os.path.exists(cfg.OUTPUT_PATH):
         os.makedirs(cfg.OUTPUT_PATH)
+
+    print("Starting...")
 
     # ======================= Imagenet-pretrained Model ========================
 

@@ -22,10 +22,12 @@ from models.model_utils import (model_selector, multipathway_input,
 
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
+import evaluate
 
-log_interval = 5 #log interval for batch number
 
-def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_master_proc=True):
+log_interval = 2 #log interval for batch number
+
+def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
     emb_norms = AverageMeter()
@@ -95,15 +97,39 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_m
         print('\nTrain set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
             losses.avg, 100. * accs.avg))
 
-        print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
+        print('Epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
             f.write('epoch:{} runtime:{} {:.4f} {:.2f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg, 100. * accs.avg))
             print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
-def validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc=True):
+def get_topk_acc(embeddings, labels, dist_metric):
+    distance_matrix = evaluate.get_distance_matrix(embeddings, dist_metric)
+    top1_sum = 0
+    top5_sum = 0
+
+    top1_indices = evaluate.get_closest_data_mat(distance_matrix, top_k=1)  # dim: distance_matrix.shape[0] x top_k
+    top5_indices = evaluate.get_closest_data_mat(distance_matrix, top_k=5)  # dim: distance_matrix.shape[0] x top_k
+
+    for i, label in enumerate(labels):
+        top1_idx = top1_indices[i]
+        top5_idx = top5_indices[i]
+        top1_label = [labels[j] for j in top1_idx]
+        top5_labels = [labels[j] for j in top5_idx]
+        #print(i, 'cur', label, 'top1', top1_label, 'top5', top5_labels)
+        top1_sum += int(label in top1_label) 
+        top5_sum += int(label in top5_labels)
+
+    top1_acc = top1_sum / len(labels)
+    top5_acc = top5_sum / len(labels)
+    return top1_acc, top5_acc
+
+
+def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
+    top1_accs = AverageMeter()
+    top5_accs = AverageMeter()
 
     world_size = du_helper.get_world_size()
 
@@ -131,34 +157,68 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc=True)
             target = torch.FloatTensor(dista.size()).fill_(-1)
             if cuda:
                 target = target.to(device)
+                anchor_target = anchor_target.to(device)
 
+            # Triplet loss
             loss = criterion(dista, distb, target)
 
             # measure accuracy
             acc = accuracy(dista.detach(), distb.detach())
 
+            # Top 1/5 Acc - use anchors and positives so there is at least 
+            # 1 positive per anchor
+            embeddings = torch.cat((embedded_x.detach().cpu(), embedded_y.detach().cpu()), dim=0)
+            labels = torch.cat((anchor_target.detach().cpu(), positive_target.detach().cpu()), dim=0)
+            top1_acc, top5_acc = get_topk_acc(embeddings, labels.tolist(), cfg.LOSS.DIST_METRIC)
+
             # record loss and accuracy
             accs.update(acc.item(), batch_size)
+            top1_accs.update(top1_acc)
+            top5_accs.update(top5_acc)
             losses.update(loss.item(), batch_size)
+
+            batch_size_world = batch_size * world_size
+            if ((batch_idx + 1) * world_size) % log_interval == 0:
+                if (is_master_proc):
+                    print('Val Epoch: {} [{}/{} | {:.1f}%]\t'
+                          'Loss: {:.4f} ({:.4f}) \t'
+                          'Acc: {:.2f}% ({:.2f}%) \t'
+                          'Top1 Acc: {:.2f}% ({:.2f}%) \t'
+                          'Top5 Acc: {:.2f}% ({:.2f}%)'.format(
+                              epoch, (batch_idx + 1) * batch_size_world, 
+                              len(val_loader.dataset), 100. * ((batch_idx + 1) * batch_size_world / len(val_loader.dataset)), 
+                              losses.val, losses.avg, 100. * accs.val, 100. * accs.avg, 
+                              100. * top1_accs.val, 100. * top1_accs.avg, 100. * top5_accs.val, 100. * top5_accs.avg))
 
     if cfg.NUM_GPUS > 1:
         acc_sum = torch.tensor([accs.sum], dtype=torch.float32, device=device)
         acc_count = torch.tensor([accs.count], dtype=torch.float32, device=device)
 
+        top1_acc_sum = torch.tensor([top1_accs.sum], dtype=torch.float32, device=device)
+        top1_acc_count = torch.tensor([top1_accs.count], dtype=torch.float32, device=device)
+
+        top5_acc_sum = torch.tensor([top5_accs.sum], dtype=torch.float32, device=device)
+        top5_acc_count = torch.tensor([top5_accs.count], dtype=torch.float32, device=device)
+
         losses_sum = torch.tensor([losses.sum], dtype=torch.float32, device=device)
         losses_count = torch.tensor([losses.count], dtype=torch.float32, device=device)
 
-        acc_sum, losses_sum, acc_count, losses_count = du_helper.all_reduce([acc_sum, losses_sum, acc_count, losses_count], avg=False)
+        acc_sum, top1_acc_sum, top5_acc_sum, losses_sum, \
+            acc_count, top1_acc_count, top5_acc_count, losses_count = \
+            du_helper.all_reduce([acc_sum, top1_acc_sum, top5_acc_sum, losses_sum, acc_count, top1_acc_count, top5_acc_count, losses_count], avg=False)
 
         accs.avg = acc_sum.item() / acc_count.item()
+        top1_accs.avg = top1_acc_sum.item() / top1_acc_count.item()
+        top5_accs.avg = top5_acc_sum.item() / top5_acc_count.item()
         losses.avg = losses_sum.item() / losses_count.item()
 
+    # Log
     if (is_master_proc):
-        print('\nTest set: Average loss: {:.4f}, Accuracy: {:.2f}%\n'.format(
-            losses.avg, 100. * accs.avg))
+        print('\nTest set: Average loss: {:.4f}, Triplet Accuracy: {:.2f}%, Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%\n'.format(
+            losses.avg, 100. * accs.avg, 100. * top1_accs.avg, 100. * top5_accs.avg))
 
         with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
-            val_file.write('epoch:{} {:.4f} {:.2f}\n'.format(epoch, losses.avg, 100. * accs.avg))
+            val_file.write('epoch:{} {:.4f} {:.2f} {:.2f} {:.2f}\n'.format(epoch, losses.avg, 100. * accs.avg, 100. * top1_accs.avg, 100. * top5_accs.avg))
 
     return accs.avg
 
@@ -167,8 +227,8 @@ def train(args, cfg):
     start_epoch = 0
     cudnn.benchmark = True
 
-    global cuda; cuda = torch.cuda.is_available()
-    global device; device = torch.cuda.current_device()
+    cuda = torch.cuda.is_available()
+    device = torch.cuda.current_device()
 
     is_master_proc = du_helper.is_master_proc(cfg.NUM_GPUS)
 
@@ -221,8 +281,8 @@ def train(args, cfg):
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if(is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
-        train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, is_master_proc)
-        acc = validate(val_loader, tripletnet, criterion, epoch, cfg, is_master_proc)
+        train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        acc = validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_master_proc)
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)
         save_checkpoint({

@@ -192,7 +192,9 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True, negative_s
     else:
         target_type = cfg.DATASET.TARGET_TYPE_V
         cluster_path = None
-    print('==> target_type for {} split is set to:{}'.format(split, target_type))
+
+    if (is_master_proc):
+        print('==> target_type for {} split is set to:{}'.format(split, target_type))
 
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
@@ -211,6 +213,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True, negative_s
         print ('Batch size per gpu:', int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS))
 
     if split == 'train' or split == 'val':
+        # shuffle = True when GPU_num=1
         if req_train_shuffle is not None:
             shuffle = req_train_shuffle
         else:
@@ -222,16 +225,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True, negative_s
                                                   pin_memory=True,
                                                   sampler=sampler,
                                                   worker_init_fn=worker_init_fn)
-    elif split == 'val':
-        data_loader = torch.utils.data.DataLoader(data,
-                                                  batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS),
-                                                  shuffle=shuffle,
-                                                  num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
-                                                  pin_memory=True,
-                                                  sampler=sampler,
-                                                  worker_init_fn=worker_init_fn
-                                                  # collate_fn=collate_fn)
-                                                  )
+
     else: #test split
         data_loader = torch.utils.data.DataLoader(data,
                                                   batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS),
@@ -242,7 +236,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True, negative_s
                                                   worker_init_fn=worker_init_fn
                                                   # collate_fn=collate_fn)
                                                   )
-    return data_loader, data
+    return data_loader, (data, sampler)
 
 
 

@@ -144,7 +144,7 @@ def train(args, cfg):
         print('=> finished generating similarity network...')
 
     # ============================== Data Loaders ==============================
-    train_loader, _ = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+    train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
     val_loader, _ = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=True, negative_sampling=True)
 
     # # ======================== Loss and Optimizer Setup ========================
@@ -161,8 +161,10 @@ def train(args, cfg):
 
     # # ============================= Training loop ==============================
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
-        if(is_master_proc):
+        if (is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
+        if cfg.NUM_GPUS > 1:
+            train_sampler.set_epoch(epoch)
         train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
         acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
         is_best = acc > best_acc

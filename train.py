@@ -117,7 +117,7 @@ def get_topk_acc(embeddings, labels, dist_metric):
         top1_label = [labels[j] for j in top1_idx]
         top5_labels = [labels[j] for j in top5_idx]
         #print(i, 'cur', label, 'top1', top1_label, 'top5', top5_labels)
-        top1_sum += int(label in top1_label) 
+        top1_sum += int(label in top1_label)
         top5_sum += int(label in top5_labels)
 
     top1_acc = top1_sum / len(labels)
@@ -165,9 +165,12 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
             # measure accuracy
             acc = accuracy(dista.detach(), distb.detach())
 
-            # Top 1/5 Acc - use anchors and positives so there is at least 
+            # Top 1/5 Acc - use anchors and positives so there is at least
             # 1 positive per anchor
             embeddings = torch.cat((embedded_x.detach().cpu(), embedded_y.detach().cpu()), dim=0)
+            print(embeddings.size())
+            if embeddings.size()[0] < cfg.VAL.BATCH_SIZE*2: #would raise error in top5 acc
+                continue
             labels = torch.cat((anchor_target.detach().cpu(), positive_target.detach().cpu()), dim=0)
             top1_acc, top5_acc = get_topk_acc(embeddings, labels.tolist(), cfg.LOSS.DIST_METRIC)
 
@@ -185,9 +188,9 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
                           'Acc: {:.2f}% ({:.2f}%) \t'
                           'Top1 Acc: {:.2f}% ({:.2f}%) \t'
                           'Top5 Acc: {:.2f}% ({:.2f}%)'.format(
-                              epoch, (batch_idx + 1) * batch_size_world, 
-                              len(val_loader.dataset), 100. * ((batch_idx + 1) * batch_size_world / len(val_loader.dataset)), 
-                              losses.val, losses.avg, 100. * accs.val, 100. * accs.avg, 
+                              epoch, (batch_idx + 1) * batch_size_world,
+                              len(val_loader.dataset), 100. * ((batch_idx + 1) * batch_size_world / len(val_loader.dataset)),
+                              losses.val, losses.avg, 100. * accs.val, 100. * accs.avg,
                               100. * top1_accs.val, 100. * top1_accs.avg, 100. * top5_accs.val, 100. * top5_accs.avg))
 
     if cfg.NUM_GPUS > 1:

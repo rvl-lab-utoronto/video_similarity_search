@@ -218,8 +218,12 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True, negative_s
             shuffle = req_train_shuffle
         else:
             shuffle=(False if sampler else True)
+        if split == 'train':
+            batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS)
+        else:
+            batch_size = int(cfg.VAL.BATCH_SIZE)
         data_loader = torch.utils.data.DataLoader(data,
-                                                  batch_size=int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS),
+                                                  batch_size=batch_size,
                                                   shuffle=shuffle,
                                                   num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
                                                   pin_memory=True,

@@ -45,12 +45,17 @@ def parse_file(result_dir, f_type='train'):
     acc = []
     runtime = []
     assert f_type in ['train', 'val'], "f_type:{} is not recognized".format(f_type)
+    processed_epoch = []
 
     if f_type == 'train':
         with open (os.path.join(result_dir, train_progress_file), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
-                epoch.append(float(row[0].replace('epoch:', '').replace(',','')))
+                cur_epoch = float(row[0].replace('epoch:', '').replace(',',''))
+                epoch.append(cur_epoch)
+                if cur_epoch in processed_epoch:
+                    continue
+                processed_epoch.append(cur_epoch)
                 losses.append(float(row[2]))
                 # acc.append(float(row[3]))
                 runtime.append(float(row[1].replace('runtime:', '').replace(',','')))
@@ -58,6 +63,10 @@ def parse_file(result_dir, f_type='train'):
         with open (os.path.join(result_dir, val_progress_file), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
+                cur_epoch = float(row[0].replace('epoch:', '').replace(',',''))
+                if cur_epoch in processed_epoch:
+                    continue
+                processed_epoch.append(cur_epoch)
                 losses.append(float(row[1]))
                 acc.append(float(row[2]))
     return epoch, runtime, losses, acc

@@ -4,9 +4,18 @@ TRAIN:
 DATASET:
     VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
     ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
+
+    CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
+    TARGET_TYPE_T: 'cluster_label'
+    TARGET_TYPE_V: 'label'
+
     CHANNEL_EXTENSIONS: 'keypoint,salient'
     KEYPOINT_PATH: /media/diskstation/datasets/UCF101/alphapose
     SALIENT_PATH: /media/diskstation/datasets/UCF101/poolnet_new
+
+    NEGATIVE_SAMPLING_STRATEGY: 'random_semi_hard'
+    POSITIVE_SAMPLING_P: 0.8
+
 
 MODEL:
     ARCH: '3dresnet'

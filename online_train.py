@@ -152,8 +152,9 @@ def train(args, cfg):
     criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
     optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
 
-    print('\n==> using criterion:{} for training task'.format(criterion))
-    print('==> using criterion:{} for validation task'.format(val_criterion))
+    if(is_master_proc):
+        print('\n==> using criterion:{} for training task'.format(criterion))
+        print('==> using criterion:{} for validation task'.format(val_criterion))
 
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):

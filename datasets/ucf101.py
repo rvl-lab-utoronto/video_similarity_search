@@ -10,7 +10,7 @@ def kp_img_name_formatter(x):
 
 def salient_img_name_formatter(x):
     return f'image_{x:05d}_sal_fuse.png'
-    
+
 
 def get_class_labels(data):
     class_labels_map = {}
@@ -78,10 +78,11 @@ class UCF101():
                  ):
 
         self.split=split
+        self.is_master_proc = is_master_proc
         if split == 'train':
             subset = 'training'
         elif split == 'val':
-            if is_master_proc and val_sample is not None:
+            if self.is_master_proc and val_sample is not None:
                 print('Randomly sampling 1 clip from each group for the validation set')
             subset = 'validation'
 
@@ -113,7 +114,8 @@ class UCF101():
         with open(self.cluster_path, 'r') as f:
             cluster_labels = f.readlines()
         cluster_labels = [int(id.replace('\n', '')) for id in cluster_labels]
-        print('retrieved {} cluster id from file: {}'.format(len(cluster_labels), self.cluster_path))
+        if self.is_master_proc:
+            print('retrieved {} cluster id from file: {}'.format(len(cluster_labels), self.cluster_path))
         return cluster_labels
 
 

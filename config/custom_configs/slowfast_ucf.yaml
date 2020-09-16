@@ -7,9 +7,13 @@ DATASET:
     VID_PATH: /media/diskstation/datasets/UCF101/jpg
     ANNOTATION_PATH: /media/diskstation/datasets/UCF101/json/ucf101_01.json
     #KEYPOINT_PATH: /media/diskstation/datasets/UCF101/lw_pose
-    SALIENT_PATH: /media/diskstation/datasets/UCF101/poolnet_new
+    #SALIENT_PATH: /media/diskstation/datasets/UCF101/poolnet_new
     #CHANNEL_EXTENSIONS: 'keypoint,salient'
-    CHANNEL_EXTENSIONS: 'salient'
+    #CHANNEL_EXTENSIONS: 'salient'
+    CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
+    TARGET_TYPE_T: 'cluster_label'
+    TARGET_TYPE_V: 'label'
+    POSITIVE_SAMPLING_P: 0.8
 
 MODEL:
     ARCH: slowfast
@@ -17,8 +21,8 @@ MODEL:
 DATA:
     SAMPLE_DURATION: 32
     SAMPLE_SIZE: 128
-    #INPUT_CHANNEL_NUM: 3
-    INPUT_CHANNEL_NUM: 4
+    INPUT_CHANNEL_NUM: 3
+    #INPUT_CHANNEL_NUM: 4
     
 
 

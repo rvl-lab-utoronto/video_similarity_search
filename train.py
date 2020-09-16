@@ -116,7 +116,7 @@ def get_topk_acc(embeddings, labels, dist_metric):
         top5_idx = top5_indices[i]
         top1_label = [labels[j] for j in top1_idx]
         top5_labels = [labels[j] for j in top5_idx]
-        print(i, 'cur', label, 'top1', top1_label, 'top5', top5_labels)
+        #print(i, 'cur', label, 'top1', top1_label, 'top5', top5_labels)
         top1_sum += int(label in top1_label) 
         top5_sum += int(label in top5_labels)
 
@@ -130,8 +130,6 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
     accs = AverageMeter()
     top1_accs = AverageMeter()
     top5_accs = AverageMeter()
-    embeddings = []
-    labels = []
 
     world_size = du_helper.get_world_size()
 

@@ -65,7 +65,8 @@ class NegativeTripletSelector:
 
             # Get embeddings indices without current label
             negative_indices = torch.where(torch.logical_not(label_mask))[0] 
-            # TODO: CONTINUE IF NO NEGATIVE INDICES?
+            if negative_indices.shape[0] == 0:  # must have at least one negative
+                continue
 
             # Sample anchor/positive/negative triplet
             triplet_label_pairs = self.get_one_one_triplets(

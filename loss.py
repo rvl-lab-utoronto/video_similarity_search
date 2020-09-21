@@ -32,7 +32,11 @@ class OnlineTripleLoss(nn.Module):
             an_dists = 1 - F.cosine_similarity(embeddings[triplets[0], :], embeddings[triplets[2], :], dim=1)
 
         # Compute margin ranking loss
-        loss = F.relu(ap_dists - an_dists + self.margin)
+        if len(triplets[0]) == 0:
+            loss = torch.zeros(1)
+        else:
+            loss = F.relu(ap_dists - an_dists + self.margin)
+        
         return loss.mean(), len(triplets[0])
 
 
@@ -53,6 +57,9 @@ class NegativeTripletSelector:
         
         # Get tensor with unique labels (<= (batch_size * 2))
         unique_labels, counts = torch.unique(labels, return_counts=True)
+
+        # Assert that there is no -1 (noise) label
+        assert(-1 not in unique_labels)
 
         triplets_indices = [[] for i in range(3)]
         for i, label in enumerate(unique_labels):

@@ -51,6 +51,8 @@ _C.DATASET.CLUSTER_PATH = ''
 _C.DATASET.TARGET_TYPE_T = 'label'
 _C.DATASET.TARGET_TYPE_V = 'label'
 
+_C.DATASET.sampling_strategy = 'random_semi_hard'
+#_C.DATASET.sampling_strategy = 'random_negative'
 
 _C.DATASET.POSITIVE_SAMPLING_P = 0.8
 

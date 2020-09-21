@@ -30,7 +30,6 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
     accs = AverageMeter()
     running_n_triplets = AverageMeter()
     world_size = du_helper.get_world_size()
-    sampling_strategy = 'random_semi_hard'
 
     # switching to training mode
     model.train()
@@ -62,7 +61,7 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
             targets = targets.to(device)
 
         # Sample negatives from batch for each anchor/positive and compute loss
-        loss, n_triplets = criterion(outputs, targets, sampling_strategy=sampling_strategy)
+        loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.sampling_strategy)
 
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
@@ -71,8 +70,7 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
 
         # Average loss across all gpu processes
         if (cfg.NUM_GPUS > 1):
-            loss = du_helper.all_reduce([loss], avg=True)
-            loss = loss[0]
+            [loss] = du_helper.all_reduce([loss], avg=True)
 
         # Update running loss
         losses.update(loss.item(), batch_size_world)
@@ -224,6 +222,8 @@ if __name__ == '__main__':
         print("Using {} GPU(s) per node".format(cfg.NUM_GPUS))
 
     # Print training parameters
+    print('Triplet sampling strategy: {}'.format(cfg.DATASET.sampling_strategy))
+    print('Probability of sampling positive from same video: {}'.format(cfg.DATASET.POSITIVE_SAMPLING_P))
     print('OUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
     print('BATCH_SIZE is set to: {}'.format(cfg.TRAIN.BATCH_SIZE))
     print('NUM_WORKERS is set to: {}'.format(cfg.TRAIN.NUM_DATA_WORKERS))

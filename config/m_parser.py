@@ -92,6 +92,12 @@ def arg_parser():
         action='store_true',
         help='Run training with compute canada environment setup'
     )
+    parser.add_argument(
+        "--sampling_strategy",
+        default=None,
+        type=str,
+        help='Triplet sampling strategy'
+    )
     return parser
 
 
@@ -111,6 +117,9 @@ def overwrite_default_configs(cfg, args):
 
     if args.sample_size:
         cfg.DATA.SAMPLE_SIZE = args.sample_size
+
+    if args.sampling_strategy:
+        cfg.DATASET.sampling_strategy = args.sampling_strategy
 
     if args.n_classes:
         if cfg.MODEL.ARCH == '3dresnet':

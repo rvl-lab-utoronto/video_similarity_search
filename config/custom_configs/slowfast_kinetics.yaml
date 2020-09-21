@@ -6,16 +6,21 @@ TRAIN:
 DATASET:
     VID_PATH: /media/diskstation/datasets/kinetics400/frames_shortedge320px_25fps
     ANNOTATION_PATH: /media/diskstation/datasets/kinetics400/vid_paths_and_labels/frame_paths
-    SALIENT_PATH: /media/diskstation/datasets/kinetics400/POOLNET_RESULTS_SALAR/POOLNET_FULL
-    CHANNEL_EXTENSIONS: 'salient'
+    #SALIENT_PATH: /media/diskstation/datasets/kinetics400/POOLNET_RESULTS_SALAR/POOLNET_FULL
+    #CHANNEL_EXTENSIONS: 'salient'
+    CLUSTER_PATH: '/media/diskstation/datasets/kinetics400/cluster_output_kin_train/vid_clusters.txt'
+    TARGET_TYPE_T: 'cluster_label'
+    TARGET_TYPE_V: 'label'
+    POSITIVE_SAMPLING_P: 0.8
 
 MODEL:
     ARCH: slowfast
 
 DATA:
-    SAMPLE_DURATION: 32
+    SAMPLE_DURATION: 16
     SAMPLE_SIZE: 128
-    INPUT_CHANNEL_NUM: 4
+    INPUT_CHANNEL_NUM: 3
+    #INPUT_CHANNEL_NUM: 4
     
 
 

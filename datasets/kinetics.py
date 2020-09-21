@@ -65,6 +65,7 @@ class Kinetics():
                                        root_path / label / video_id)
                  ):
 
+        self.is_master_proc = is_master_proc
         self.channel_ext = channel_ext
         self.cluster_path = cluster_path
         self.cluster_labels = self.read_cluster_labels()

@@ -4,7 +4,6 @@ from itertools import combinations
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sklearn.metrics.pairwise import euclidean_distances, cosine_distances
 
 
 class OnlineTripleLoss(nn.Module):

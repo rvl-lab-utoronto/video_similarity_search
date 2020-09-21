@@ -96,7 +96,6 @@ def arg_parser():
 
 
 # Get default cfg and merge parameters from cfg file and opts in arguments
-
 def overwrite_default_configs(cfg, args):
     if args.batch_size:
         cfg.TRAIN.BATCH_SIZE = args.batch_size
@@ -119,6 +118,8 @@ def overwrite_default_configs(cfg, args):
         else:
             print('not implemented...')
 
+
+# Return cfg with parameters
 def load_config(args):
     cfg = get_cfg()
 
@@ -129,9 +130,4 @@ def load_config(args):
 
     overwrite_default_configs(cfg, args)
 
-    print('\nOUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
-    print('BATCH_SIZE is set to: {}'.format(cfg.TRAIN.BATCH_SIZE))
-    print('NUM_WORKERS is set to: {}'.format(cfg.TRAIN.NUM_DATA_WORKERS))
-    print('SAMPLE SIZE is set to: {}'.format(cfg.DATA.SAMPLE_SIZE))
-    print('N_CLASSES is set to: {}'.format(cfg.RESNET.N_CLASSES))
     return cfg

@@ -81,10 +81,6 @@ class TripletsData(data.Dataset):
             positive = anchor.copy()
 
         else: #sample positive from same a_target (of type target_type - 'label' or 'cluster_label')
-
-            # Do not permit by default to sample positive from same real label for training (supervised)
-            assert(self.split != 'train' or self.target_type != 'label'), \
-                   'May not sample positive from same real label for training, set cfg.DATASET.POSITIVE_SAMPLING_P to 1.0'
             p_idx = np.random.choice(self.label_to_indices[a_target]) 
 
             # Pick different video from anchor if there is more than 1 video with target a_target

@@ -208,6 +208,11 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
     # ============================= Build dataset ==============================
 
+    # Warning about sampling positives from same real label for training (supervised)
+    if is_master_proc and split == 'train' and target_type == 'label' and cfg.DATASET.POSITIVE_SAMPLING_P != 1.0:
+        print('NOTE: Will sample positives from same real label (SUPERVISED) for training with POSITIVE_SAMPLING_P =', 
+            cfg.DATASET.POSITIVE_SAMPLING_P)
+
     if (is_master_proc):
         print ('Loading', cfg.TRAIN.DATASET, split, 'split...')
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,

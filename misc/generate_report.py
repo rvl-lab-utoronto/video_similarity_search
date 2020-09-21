@@ -146,7 +146,7 @@ if __name__ == '__main__':
     if not args.result_dir:
         result_dir=input("Please specify the results directory: ")
 
-    #gs_report(result_dir, name)
+    gs_report(result_dir, name)
     if args.plot:
         gdrive_service = GoogleDriveUploader()
         plot_training_progress(result_dir, name, show_plot=True, service=gdrive_service)

@@ -8,6 +8,8 @@ from models.resnet import generate_model
 from models.slowfast.slowfast.models.video_model_builder import SlowFastRepresentation
 from models.slowfast.slowfast.config.defaults import get_cfg
 
+
+# Select the appropriate model with the specified cfg parameters
 def model_selector(cfg):
     assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast']
 
@@ -30,9 +32,13 @@ def model_selector(cfg):
         slowfast_cfg.DATA.CROP_SIZE = cfg.DATA.SAMPLE_SIZE
         slowfast_cfg.DATA.INPUT_CHANNEL_NUM = [cfg.DATA.INPUT_CHANNEL_NUM, cfg.DATA.INPUT_CHANNEL_NUM]
 
+        # Use a custom SlowFast with a head that doesn't include the FC
+        # layers after the global avg pooling and dropout
+        model = SlowFastRepresentation(slowfast_cfg)
+
+        # Unused Model with FC:
         #model = build_model(slowfast_cfg)
         #model = SlowFast(slowfast_cfg)
-        model = SlowFastRepresentation(slowfast_cfg)
 
     return model
 
@@ -49,21 +55,21 @@ def multipathway_input(frames, cfg):
     return frame_list
 
 
-
+# Load pretrained model from the specified checkpoint path
 def load_pretrained_model(model, pretrain_path, is_master_proc=True):
     if pretrain_path:
         if (is_master_proc):
-            print('loading pretrained model {}'.format(pretrain_path))
+            print('Loading pretrained model {}'.format(pretrain_path))
         pretrain = torch.load(pretrain_path, map_location='cpu')
         model.load_state_dict(pretrain['state_dict'])
     return model
 
 
+# Saved model checkpoint to the specified path (only do this for the master
+# process if in distributed training)
 def save_checkpoint(state, is_best, model_name, output_path, is_master_proc=True, filename='checkpoint.pth.tar'):
-    # Save checkpoints only from the master process
     if not is_master_proc:
         return
-
     """Saves checkpoint to disk"""
     directory = "tnet_checkpoints/%s/"%(model_name)
     directory = os.path.join(output_path, directory)
@@ -79,6 +85,7 @@ def save_checkpoint(state, is_best, model_name, output_path, is_master_proc=True
             print('=> best_model saved as:{}'.format(os.path.join(directory, 'model_best.pth.tar')))
 
 
+# Load model checkpoint from the specified path
 def load_checkpoint(model, checkpoint_path, is_master_proc=True):
     if os.path.isfile(checkpoint_path):
         if (is_master_proc):
@@ -92,38 +99,6 @@ def load_checkpoint(model, checkpoint_path, is_master_proc=True):
     else:
         if (is_master_proc):
             print("=> no checkpoint found at '{}'".format(checkpoint_path))
-
     return start_epoch, best_prec1
 
 
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
-
-
-def accuracy(dista, distb):
-    margin = 0
-    pred = (distb - dista - margin)
-    return (pred > 0).sum() * 1.0 / (dista.size()[0])
-
-
-def create_output_dirs(cfg):
-    if not os.path.exists(cfg.OUTPUT_PATH):
-        os.makedirs(cfg.OUTPUT_PATH)
-
-    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
-        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))

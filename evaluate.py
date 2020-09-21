@@ -110,7 +110,6 @@ def evaluate(model, test_loader, log_interval=5):
  
 
 def get_distance_matrix(embeddings, dist_metric):
-    embeddings = embeddings
     
     #print('Dist metric:', dist_metric)
     assert(dist_metric in ['cosine', 'euclidean'])

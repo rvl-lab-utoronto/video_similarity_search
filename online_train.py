@@ -19,7 +19,7 @@ from models.model_utils import (model_selector, multipathway_input,
                             load_pretrained_model, save_checkpoint, load_checkpoint)
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
-from datasets.loss import OnlineTripleLoss
+from loss import OnlineTripleLoss
 from train import validate, AverageMeter, accuracy, create_output_dirs
 
 log_interval = 5    # log interval for batch index

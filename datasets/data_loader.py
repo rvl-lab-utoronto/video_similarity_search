@@ -38,6 +38,7 @@ mean_dataset = 'kinetics'
 value_scale = 1
 
 
+# Worker init function passed to pytorch data loader
 def worker_init_fn(worker_id):
     torch_seed = torch.initial_seed()
 
@@ -48,17 +49,12 @@ def worker_init_fn(worker_id):
     np.random.seed(torch_seed + worker_id)
 
 
+# Return mean and std deviation used for normalization
 def get_mean_std(value_scale, dataset):
-    # assert dataset in ['activitynet', 'kinetics', '0.5']
-
-    if dataset == 'activitynet':
-        mean = [0.4477, 0.4209, 0.3906]
-        std = [0.2767, 0.2695, 0.2714]
-    elif dataset == 'kinetics':
+    if dataset == 'kinetics':
         mean = [0.4345, 0.4051, 0.3775]
         std = [0.2768, 0.2713, 0.2737]
     else:
-    # elif dataset == '0.5':
         mean = [0.5, 0.5, 0.5]
         std = [0.5, 0.5, 0.5]
 
@@ -68,6 +64,7 @@ def get_mean_std(value_scale, dataset):
     return mean, std
 
 
+# Return normalization function used per image in a video
 def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3, is_master_proc=True):
     if no_mean_norm:
         mean = [0, 0, 0]
@@ -82,6 +79,7 @@ def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3, i
     return Normalize(mean, std)
 
 
+# Return spatial transformations used per image in a video
 def build_spatial_transformation(cfg, split, is_master_proc=True):
     mean, std = get_mean_std(value_scale, dataset=cfg.TRAIN.DATASET)
     normalize = get_normalize_method(mean, std, no_mean_norm,
@@ -115,6 +113,7 @@ def build_spatial_transformation(cfg, split, is_master_proc=True):
     return spatial_transform, normalize
 
 
+# Return transformation transformations used per set of video frames
 def build_temporal_transformation(cfg, triplets=True):
     if triplets:
         TempTransform = {}
@@ -145,6 +144,8 @@ def build_temporal_transformation(cfg, triplets=True):
     return  TempTransform
 
 
+# Return dictionary of channel extension information, with each key containing
+# an array: [<mask root path>, VideoLoader object for loading the mask]
 def get_channel_extention(cfg):
     channel_ext = {}
 
@@ -168,49 +169,62 @@ def get_channel_extention(cfg):
     return channel_ext
 
 
-def build_data_loader(split, cfg, is_master_proc=True, triplets=True, negative_sampling=False, req_spatial_transform=None, req_train_shuffle=None):
+# Return a pytorch DataLoader
+def build_data_loader(split, cfg, is_master_proc=True, triplets=True, 
+                      negative_sampling=False, req_spatial_transform=None, 
+                      req_train_shuffle=None):
+    
+    # ==================== Transforms and parameter Setup ======================
+    
     assert split in ['train', 'val', 'test']
+    assert (cfg.TRAIN.BATCH_SIZE % cfg.NUM_GPUS == 0)
 
+    # Get spatial transforms and overwrite with req_spatial_transform if specified
     spatial_transform, normalize = build_spatial_transformation(cfg, split, is_master_proc=is_master_proc)
-
     if req_spatial_transform is not None:
         spatial_transform = req_spatial_transform
         if (is_master_proc):
             print('Using requested spatial transforms')
 
+    # Get temporal transforms
     TempTransform = build_temporal_transformation(cfg, triplets)
 
+    # Get input channel extension (e.g. salient object mask, keypoint channel)
+    # dictionary and assert that the specified input_channel_num is valid
     channel_ext = get_channel_extention(cfg)
+    assert (len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
     if (is_master_proc):
         print('Channel ext:', channel_ext)
 
-    assert (len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
-
+    # Set the target type and path to clustering information
     if split == 'train':
         target_type = cfg.DATASET.TARGET_TYPE_T
         cluster_path = cfg.DATASET.CLUSTER_PATH
     else:
         target_type = cfg.DATASET.TARGET_TYPE_V
         cluster_path = None
+    if (is_master_proc):
+        print('Target_type for {} split: {}'.format(split, target_type))
+
+    # ============================= Build dataset ==============================
 
     if (is_master_proc):
-        print('==> target_type for {} split is set to:{}'.format(split, target_type))
-
+        print ('Loading', cfg.TRAIN.DATASET, split, 'split...')
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, normalize=normalize,
                 channel_ext=channel_ext, cluster_path=cluster_path, target_type=target_type,
                 negative_sampling=negative_sampling, positive_sampling_p=cfg.DATASET.POSITIVE_SAMPLING_P,
                 is_master_proc=is_master_proc)
-
     if (is_master_proc):
         print ('Single video input size:', data[1][0][0].size())
 
-    assert (cfg.TRAIN.BATCH_SIZE % cfg.NUM_GPUS == 0)
+    # ============================ Build DataLoader ============================
+
+    # Use a DistributedSampler if using more than 1 GPU
     sampler = DistributedSampler(data) if cfg.NUM_GPUS > 1 else None
     if (sampler is not None and is_master_proc):
-        print ('Using distributed sampler')
-        print ('Batch size per gpu:', int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS))
+        print ('Using distributed sampler with batch size per gpu:', int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS))
 
     if split == 'train' or split == 'val':
         # shuffle = True when GPU_num=1
@@ -241,7 +255,6 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True, negative_s
                                                   # collate_fn=collate_fn)
                                                   )
     return data_loader, (data, sampler)
-
 
 
 if __name__ == '__main__':

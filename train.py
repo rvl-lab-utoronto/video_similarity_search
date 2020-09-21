@@ -17,8 +17,7 @@ import torch.backends.cudnn as cudnn
 from models.triplet_net import Tripletnet
 from datasets import data_loader
 from models.model_utils import (model_selector, multipathway_input,
-                            load_pretrained_model, save_checkpoint, load_checkpoint,
-                            AverageMeter, accuracy, create_output_dirs)
+                            load_pretrained_model, save_checkpoint, load_checkpoint)
 
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
@@ -26,6 +25,39 @@ import evaluate
 
 
 log_interval = 5 #log interval for batch number
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+
+def accuracy(dista, distb):
+    margin = 0
+    pred = (distb - dista - margin)
+    return (pred > 0).sum() * 1.0 / (dista.size()[0])
+
+
+def create_output_dirs(cfg):
+    if not os.path.exists(cfg.OUTPUT_PATH):
+        os.makedirs(cfg.OUTPUT_PATH)
+
+    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
+        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
+
 
 def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()

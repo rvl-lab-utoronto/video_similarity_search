@@ -176,6 +176,15 @@ def cluster_embeddings(data, clustering_obj):
     labels = clustering_obj.labels_
     cluster_to_data_idxs = {label: np.where(clustering_obj.labels_ == label)[0] for label in set(labels)}
 
+    # Put each data with cluster label -1 into its own new cluster
+    if -1 in cluster_to_data_idxs:
+        next_cluster_label = len(set(labels)) - 1
+        for data_idx in cluster_to_data_idxs[-1]:
+            cluster_to_data_idxs[next_cluster_label] = [data_idx]
+            labels[data_idx] = next_cluster_label
+            next_cluster_label += 1
+        del cluster_to_data_idxs[-1]
+
     for cluster in cluster_to_data_idxs:
         cur_cluster_vids = []
         for data_idx in cluster_to_data_idxs[cluster]:
@@ -183,6 +192,8 @@ def cluster_embeddings(data, clustering_obj):
             vid_label = vid_path.split(os.sep)[-2]
             cur_cluster_vids.append(vid_label)
         print(cluster, ':', cur_cluster_vids)
+    
+    return labels
 
 
 if __name__ == '__main__':
@@ -231,7 +242,7 @@ if __name__ == '__main__':
     ]
     spatial_transform = Compose(spatial_transform)
 
-    test_loader, data = data_loader.build_data_loader(split, cfg, triplets=False, req_spatial_transform=spatial_transform, req_train_shuffle=False)
+    test_loader, (data, _) = data_loader.build_data_loader(split, cfg, triplets=False, req_spatial_transform=spatial_transform, req_train_shuffle=False)
     print()
 
     # =============================== Embeddings ===============================
@@ -263,10 +274,10 @@ if __name__ == '__main__':
     trained_clustering_obj = fit_cluster(embeddings)
     print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
-    cluster_embeddings(data, trained_clustering_obj)
+    cluster_labels = cluster_embeddings(data, trained_clustering_obj)
 
     with open(os.path.join(args.output, 'vid_clusters.txt'), "a") as f:
-        for label in trained_clustering_obj.labels_:
+        for label in cluster_labels:
             f.write('{}\n'.format(label))
         print('Saved cluster labels to', os.path.join(args.output, 'vid_clusters.txt'))
 

@@ -117,7 +117,7 @@ def get_topk_acc(embeddings, labels, dist_metric):
         top1_label = [labels[j] for j in top1_idx]
         top5_labels = [labels[j] for j in top5_idx]
         #print(i, 'cur', label, 'top1', top1_label, 'top5', top5_labels)
-        top1_sum += int(label in top1_label) 
+        top1_sum += int(label in top1_label)
         top5_sum += int(label in top5_labels)
 
     top1_acc = top1_sum / len(labels)
@@ -128,6 +128,8 @@ def get_topk_acc(embeddings, labels, dist_metric):
 def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
+    embeddings = []
+    labels = []
     top1_accs = AverageMeter()
     top5_accs = AverageMeter()
 
@@ -165,60 +167,49 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
             # measure accuracy
             acc = accuracy(dista.detach(), distb.detach())
 
-            # Top 1/5 Acc - use anchors and positives so there is at least 
-            # 1 positive per anchor
-            embeddings = torch.cat((embedded_x.detach().cpu(), embedded_y.detach().cpu()), dim=0)
-            labels = torch.cat((anchor_target.detach().cpu(), positive_target.detach().cpu()), dim=0)
-            top1_acc, top5_acc = get_topk_acc(embeddings, labels.tolist(), cfg.LOSS.DIST_METRIC)
+            if cfg.NUM_GPUS > 1:
+                embedded_x, anchor_target = du_helper.all_gather([embedded_x, anchor_target])
+            embeddings.append(embedded_x.detach().cpu())
+            labels.append(anchor_target.detach().cpu())
 
             # record loss and accuracy
             accs.update(acc.item(), batch_size)
-            top1_accs.update(top1_acc)
-            top5_accs.update(top5_acc)
             losses.update(loss.item(), batch_size)
 
             batch_size_world = batch_size * world_size
             if ((batch_idx + 1) * world_size) % log_interval == 0:
                 if (is_master_proc):
-                    print('Val Epoch: {} [{}/{} | {:.1f}%]\t'
-                          'Loss: {:.4f} ({:.4f}) \t'
-                          'Acc: {:.2f}% ({:.2f}%) \t'
-                          'Top1 Acc: {:.2f}% ({:.2f}%) \t'
-                          'Top5 Acc: {:.2f}% ({:.2f}%)'.format(
-                              epoch, (batch_idx + 1) * batch_size_world, 
-                              len(val_loader.dataset), 100. * ((batch_idx + 1) * batch_size_world / len(val_loader.dataset)), 
-                              losses.val, losses.avg, 100. * accs.val, 100. * accs.avg, 
-                              100. * top1_accs.val, 100. * top1_accs.avg, 100. * top5_accs.val, 100. * top5_accs.avg))
+                    print('Val Epoch: {} [{}/{} | {:.1f}%]'.format(epoch,
+                        (batch_idx + 1) * batch_size_world,
+                        len(val_loader.dataset), 100. * ((batch_idx + 1) * batch_size_world / len(val_loader.dataset))))
 
     if cfg.NUM_GPUS > 1:
         acc_sum = torch.tensor([accs.sum], dtype=torch.float32, device=device)
         acc_count = torch.tensor([accs.count], dtype=torch.float32, device=device)
 
-        top1_acc_sum = torch.tensor([top1_accs.sum], dtype=torch.float32, device=device)
-        top1_acc_count = torch.tensor([top1_accs.count], dtype=torch.float32, device=device)
-
-        top5_acc_sum = torch.tensor([top5_accs.sum], dtype=torch.float32, device=device)
-        top5_acc_count = torch.tensor([top5_accs.count], dtype=torch.float32, device=device)
-
         losses_sum = torch.tensor([losses.sum], dtype=torch.float32, device=device)
         losses_count = torch.tensor([losses.count], dtype=torch.float32, device=device)
 
-        acc_sum, top1_acc_sum, top5_acc_sum, losses_sum, \
-            acc_count, top1_acc_count, top5_acc_count, losses_count = \
-            du_helper.all_reduce([acc_sum, top1_acc_sum, top5_acc_sum, losses_sum, acc_count, top1_acc_count, top5_acc_count, losses_count], avg=False)
+        acc_sum, losses_sum, acc_count, losses_count = du_helper.all_reduce([acc_sum, losses_sum, acc_count, losses_count], avg=False)
 
         accs.avg = acc_sum.item() / acc_count.item()
-        top1_accs.avg = top1_acc_sum.item() / top1_acc_count.item()
-        top5_accs.avg = top5_acc_sum.item() / top5_acc_count.item()
         losses.avg = losses_sum.item() / losses_count.item()
+
+    # Top 1/5 Acc
+    if (is_master_proc):
+        embeddings = torch.cat(embeddings, dim=0)
+        labels = torch.cat(labels, dim=0).tolist()
+        print('embeddings size', embeddings.size())
+        print('labels size', embeddings.size())
+        top1_acc, top5_acc = get_topk_acc(embeddings, labels, cfg.LOSS.DIST_METRIC)
 
     # Log
     if (is_master_proc):
         print('\nTest set: Average loss: {:.4f}, Triplet Accuracy: {:.2f}%, Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%\n'.format(
-            losses.avg, 100. * accs.avg, 100. * top1_accs.avg, 100. * top5_accs.avg))
+            losses.avg, 100. * accs.avg, 100. * top1_acc, 100. * top5_acc))
 
         with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
-            val_file.write('epoch:{} {:.4f} {:.2f} {:.2f} {:.2f}\n'.format(epoch, losses.avg, 100. * accs.avg, 100. * top1_accs.avg, 100. * top5_accs.avg))
+            val_file.write('epoch:{} {:.4f} {:.2f} {:.2f} {:.2f}\n'.format(epoch, losses.avg, 100. * accs.avg, 100. * top1_acc, 100. * top5_acc))
 
     return accs.avg
 

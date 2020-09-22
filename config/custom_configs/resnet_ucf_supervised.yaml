@@ -7,11 +7,11 @@ DATASET:
     VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
     ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
     CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
-    
+
     TARGET_TYPE_T: 'label'
     TARGET_TYPE_V: 'label'
 
-    NEGATIVE_SAMPLING_STRATEGY: 'random_semi_hard'
+    SAMPLING_STRATEGY: 'random_semi_hard'
     POSITIVE_SAMPLING_P: 0
 
 MODEL:

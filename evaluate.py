@@ -84,8 +84,6 @@ def evaluate(model, test_loader, log_interval=5):
     vid_info = []
     with torch.no_grad():
         for batch_idx, (input, targets, info) in enumerate(test_loader):
-            # if batch_idx > 1:
-            #     break
             batch_size = input.size(0)
 
             if cfg.MODEL.ARCH == 'slowfast':
@@ -107,10 +105,10 @@ def evaluate(model, test_loader, log_interval=5):
     embeddings = torch.cat(embedding, dim=0)
     print('embeddings size', embeddings.size())
     return embeddings
- 
+
 
 def get_distance_matrix(embeddings, dist_metric):
-    
+
     #print('Dist metric:', dist_metric)
     assert(dist_metric in ['cosine', 'euclidean'])
     if dist_metric == 'cosine':

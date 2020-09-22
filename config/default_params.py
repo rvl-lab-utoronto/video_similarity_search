@@ -51,7 +51,7 @@ _C.DATASET.CLUSTER_PATH = ''
 _C.DATASET.TARGET_TYPE_T = 'label' #[label, cluster_label], where label refer to the tru label
 _C.DATASET.TARGET_TYPE_V = 'label'
 
-_C.DATASET.sampling_strategy = 'random_semi_hard' #random_negative
+_C.DATASET.SAMPLING_STRATEGY = 'random_semi_hard' #random_negative
 _C.DATASET.POSITIVE_SAMPLING_P = 0.8
 
 _C.DATASET.CHANNEL_EXTENSIONS = ''

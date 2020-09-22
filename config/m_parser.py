@@ -119,7 +119,7 @@ def overwrite_default_configs(cfg, args):
         cfg.DATA.SAMPLE_SIZE = args.sample_size
 
     if args.sampling_strategy:
-        cfg.DATASET.sampling_strategy = args.sampling_strategy
+        cfg.DATASET.SAMPLING_STRATEGY = args.sampling_strategy
 
     if args.n_classes:
         if cfg.MODEL.ARCH == '3dresnet':

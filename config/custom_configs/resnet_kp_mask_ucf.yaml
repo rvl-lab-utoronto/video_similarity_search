@@ -13,7 +13,7 @@ DATASET:
     KEYPOINT_PATH: /media/diskstation/datasets/UCF101/alphapose
     SALIENT_PATH: /media/diskstation/datasets/UCF101/poolnet_new
 
-    NEGATIVE_SAMPLING_STRATEGY: 'random_semi_hard'
+    SAMPLING_STRATEGY: 'random_semi_hard'
     POSITIVE_SAMPLING_P: 0.8
 
 

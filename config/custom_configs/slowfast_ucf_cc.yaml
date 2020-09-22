@@ -6,13 +6,18 @@ TRAIN:
 DATASET:
     VID_PATH: ./jpg
     ANNOTATION_PATH: /home/salar77h/projects/def-florian7/datasets/UCF101/json/ucf101_01.json
+    CLUSTER_PATH: '/home/salar77h/projects/def-florian7/datasets/UCF101/vid_clusters.txt'
+    TARGET_TYPE_T: 'cluster_label'
+    TARGET_TYPE_V: 'label'
+    POSITIVE_SAMPLING_P: 0.8
 
 MODEL:
     ARCH: slowfast
 
 DATA:
-    SAMPLE_DURATION: 32
+    SAMPLE_DURATION: 16
     SAMPLE_SIZE: 128
+    INPUT_CHANNEL_NUM: 3
     
 SLOWFAST:
     CFG_PATH: /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/models/slowfast/configs/Kinetics/SLOWFAST_8x8_R50.yaml

@@ -92,11 +92,16 @@ def arg_parser():
         action='store_true',
         help='Run training with compute canada environment setup'
     )
+    parser.add_argument(
+        "--sampling_strategy",
+        default=None,
+        type=str,
+        help='Triplet sampling strategy'
+    )
     return parser
 
 
 # Get default cfg and merge parameters from cfg file and opts in arguments
-
 def overwrite_default_configs(cfg, args):
     if args.batch_size:
         cfg.TRAIN.BATCH_SIZE = args.batch_size
@@ -113,12 +118,17 @@ def overwrite_default_configs(cfg, args):
     if args.sample_size:
         cfg.DATA.SAMPLE_SIZE = args.sample_size
 
+    if args.sampling_strategy:
+        cfg.DATASET.sampling_strategy = args.sampling_strategy
+
     if args.n_classes:
         if cfg.MODEL.ARCH == '3dresnet':
             cfg.RESNET.N_CLASSES = args.n_classes
         else:
             print('not implemented...')
 
+
+# Return cfg with parameters
 def load_config(args):
     cfg = get_cfg()
 
@@ -129,9 +139,4 @@ def load_config(args):
 
     overwrite_default_configs(cfg, args)
 
-    print('\nOUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
-    print('BATCH_SIZE is set to: {}'.format(cfg.TRAIN.BATCH_SIZE))
-    print('NUM_WORKERS is set to: {}'.format(cfg.TRAIN.NUM_DATA_WORKERS))
-    print('SAMPLE SIZE is set to: {}'.format(cfg.DATA.SAMPLE_SIZE))
-    print('N_CLASSES is set to: {}'.format(cfg.RESNET.N_CLASSES))
     return cfg

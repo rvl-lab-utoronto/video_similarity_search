@@ -50,13 +50,12 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
     video_path_formatter = (lambda root_path, label, video_id: root_path + '/' +
                         label + '/' + video_id)
 
-    if (is_master_proc):
-        print ('\nLoading', dataset_name, split, 'split')
     if dataset_name == 'ucf101':
         Dataset = UCF101(video_path, annotation_path, split, sample_duration, channel_ext, cluster_path, is_master_proc, video_path_formatter)
 
     elif dataset_name == 'kinetics':
-        Dataset = Kinetics(video_path, annotation_path, split, sample_duration, channel_ext, is_master_proc, video_path_formatter)
+        Dataset = Kinetics(video_path, annotation_path, split, sample_duration,
+                channel_ext, cluster_path, is_master_proc, video_path_formatter)
 
     if get_image_backend() == 'accimage':
         from datasets.loader import ImageLoaderAccImage
@@ -71,7 +70,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
 
     if triplets:
         if (is_master_proc):
-            print('loading triplets...')
+            print('Using triplets dataset...')
 
         if target_type == 'cluster_label':
             cluster_labels = set(Dataset.get_cluster_labels())
@@ -93,7 +92,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                             positive_sampling_p = positive_sampling_p)
     else:
         if (is_master_proc):
-            print('loading single data')
+            print('Using single video dataset...')
         data = VideoDataset(data = Dataset.get_dataset(),
                             class_names = Dataset.get_idx_to_class_map(),
                             split=split,

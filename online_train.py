@@ -13,17 +13,15 @@ import torch
 from torch import nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
+from validation import validate
 from models.triplet_net import Tripletnet
 from datasets import data_loader
 from models.model_utils import (model_selector, multipathway_input,
-                            load_pretrained_model, save_checkpoint, load_checkpoint)
+                            load_pretrained_model, save_checkpoint, load_checkpoint,
+                            AverageMeter, accuracy, create_output_dirs)
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from loss import OnlineTripleLoss
-from train import validate, AverageMeter, accuracy, create_output_dirs
-
-log_interval = 5    # log interval for batch index
-
 
 def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
@@ -77,7 +75,7 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
         running_n_triplets.update(n_triplets)
 
         # Log
-        if is_master_proc and ((batch_idx + 1) * world_size) % log_interval == 0:
+        if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
             print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                   'Loss: {:.4f} ({:.4f}) \t'
                   'N_Triplets: {:.1f}'.format(epoch, (batch_idx + 1) * batch_size_world,

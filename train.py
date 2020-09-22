@@ -13,51 +13,16 @@ import torch
 from torch import nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
-
+from validation import validate
 from models.triplet_net import Tripletnet
 from datasets import data_loader
 from models.model_utils import (model_selector, multipathway_input,
-                            load_pretrained_model, save_checkpoint, load_checkpoint)
+                            load_pretrained_model, save_checkpoint, load_checkpoint,
+                            AverageMeter, accuracy, create_output_dirs)
 
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 import evaluate
-
-
-log_interval = 5 #log interval for batch number
-
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
-
-
-def accuracy(dista, distb):
-    margin = 0
-    pred = (distb - dista - margin)
-    return (pred > 0).sum() * 1.0 / (dista.size()[0])
-
-
-def create_output_dirs(cfg):
-    if not os.path.exists(cfg.OUTPUT_PATH):
-        os.makedirs(cfg.OUTPUT_PATH)
-
-    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
-        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
-
 
 def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
@@ -113,7 +78,7 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, cuda
 
         emb_norms.update(embedd_norm_sum.item()/3, batch_size_world)
 
-        if ((batch_idx + 1) * world_size) % log_interval == 0:
+        if ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
             if (is_master_proc):
                 print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                     'Loss: {:.4f} ({:.4f}) \t'
@@ -135,114 +100,6 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, cuda
             print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
-def get_topk_acc(embeddings, labels, dist_metric):
-    distance_matrix = evaluate.get_distance_matrix(embeddings, dist_metric)
-    top1_sum = 0
-    top5_sum = 0
-
-    top1_indices = evaluate.get_closest_data_mat(distance_matrix, top_k=1)  # dim: distance_matrix.shape[0] x top_k
-    top5_indices = evaluate.get_closest_data_mat(distance_matrix, top_k=5)  # dim: distance_matrix.shape[0] x top_k
-
-    for i, label in enumerate(labels):
-        top1_idx = top1_indices[i]
-        top5_idx = top5_indices[i]
-        top1_label = [labels[j] for j in top1_idx]
-        top5_labels = [labels[j] for j in top5_idx]
-        #print(i, 'cur', label, 'top1', top1_label, 'top5', top5_labels)
-        top1_sum += int(label in top1_label)
-        top5_sum += int(label in top5_labels)
-
-    top1_acc = top1_sum / len(labels)
-    top5_acc = top5_sum / len(labels)
-    return top1_acc, top5_acc
-
-
-def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_master_proc=True):
-    losses = AverageMeter()
-    accs = AverageMeter()
-    embeddings = []
-    labels = []
-    top1_accs = AverageMeter()
-    top5_accs = AverageMeter()
-
-    world_size = du_helper.get_world_size()
-
-    tripletnet.eval()
-    with torch.no_grad():
-        for batch_idx, (inputs, targets) in enumerate(val_loader):
-            (anchor, positive, negative) = inputs
-            (anchor_target, positive_target, negative_target) = targets
-
-            batch_size = anchor.size(0)
-
-            if cfg.MODEL.ARCH == 'slowfast':
-                anchor = multipathway_input(anchor, cfg)
-                positive = multipathway_input(positive, cfg)
-                negative = multipathway_input(negative, cfg)
-                if cuda:
-                    for i in range(len(anchor)):
-                        anchor[i], positive[i], negative[i] = anchor[i].to(device), positive[i].to(device), negative[i].to(device)
-            else:
-                if cuda:
-                    anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
-
-            dista, distb, embedded_x, embedded_y, embedded_z = tripletnet(anchor, positive, negative)
-
-            target = torch.FloatTensor(dista.size()).fill_(-1)
-            if cuda:
-                target = target.to(device)
-                anchor_target = anchor_target.to(device)
-
-            # Triplet loss
-            loss = criterion(dista, distb, target)
-            # measure accuracy
-            acc = accuracy(dista.detach(), distb.detach())
-
-            if cfg.NUM_GPUS > 1:
-                embedded_x, anchor_target = du_helper.all_gather([embedded_x, anchor_target])
-            embeddings.append(embedded_x.detach().cpu())
-            labels.append(anchor_target.detach().cpu())
-
-            # record loss and accuracy
-            accs.update(acc.item(), batch_size)
-            losses.update(loss.item(), batch_size)
-
-            batch_size_world = batch_size * world_size
-            if ((batch_idx + 1) * world_size) % log_interval == 0:
-                if (is_master_proc):
-                    print('Val Epoch: {} [{}/{} | {:.1f}%]'.format(epoch,
-                        (batch_idx + 1) * batch_size_world,
-                        len(val_loader.dataset), 100. * ((batch_idx + 1) * batch_size_world / len(val_loader.dataset))))
-
-    if cfg.NUM_GPUS > 1:
-        acc_sum = torch.tensor([accs.sum], dtype=torch.float32, device=device)
-        acc_count = torch.tensor([accs.count], dtype=torch.float32, device=device)
-
-        losses_sum = torch.tensor([losses.sum], dtype=torch.float32, device=device)
-        losses_count = torch.tensor([losses.count], dtype=torch.float32, device=device)
-
-        acc_sum, losses_sum, acc_count, losses_count = du_helper.all_reduce([acc_sum, losses_sum, acc_count, losses_count], avg=False)
-
-        accs.avg = acc_sum.item() / acc_count.item()
-        losses.avg = losses_sum.item() / losses_count.item()
-
-    # Top 1/5 Acc
-    if (is_master_proc):
-        embeddings = torch.cat(embeddings, dim=0)
-        labels = torch.cat(labels, dim=0).tolist()
-        print('embeddings size', embeddings.size())
-        print('labels size', embeddings.size())
-        top1_acc, top5_acc = get_topk_acc(embeddings, labels, cfg.LOSS.DIST_METRIC)
-
-    # Log
-    if (is_master_proc):
-        print('\nTest set: Average loss: {:.4f}, Triplet Accuracy: {:.2f}%, Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%\n'.format(
-            losses.avg, 100. * accs.avg, 100. * top1_acc, 100. * top5_acc))
-
-        with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
-            val_file.write('epoch:{} {:.4f} {:.2f} {:.2f} {:.2f}\n'.format(epoch, losses.avg, 100. * accs.avg, 100. * top1_acc, 100. * top5_acc))
-
-    return accs.avg
 
 def train(args, cfg):
     best_acc = 0

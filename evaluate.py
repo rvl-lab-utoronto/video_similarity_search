@@ -16,12 +16,11 @@ from datetime import datetime
 from sklearn.metrics.pairwise import euclidean_distances, cosine_distances
 from datasets import data_loader
 from models.triplet_net import Tripletnet
-from models.model_utils import model_selector, multipathway_input
+from models.model_utils import model_selector, multipathway_input, load_checkpoint
 from datasets.data_loader import build_spatial_transformation
 from datasets.temporal_transforms import TemporalCenterFrame, TemporalSpecificCrop
 from datasets.temporal_transforms import Compose as TemporalCompose
 from config.m_parser import load_config, arg_parser
-from train import load_checkpoint
 from misc.upload_gdrive import GoogleDriveUploader
 
 # num_exemplar = 10

@@ -14,14 +14,15 @@ _C.TRAIN.BATCH_SIZE = 16
 #_C.TRAIN.DATASET = "ucf101"
 _C.TRAIN.DATASET = "kinetics"
 _C.TRAIN.NUM_DATA_WORKERS = 4
-
+_C.TRAIN.LOG_INTERVAL = 5 #for print statements
 
 # -----------------------------------------------------------------------------
 # Testing options
 # -----------------------------------------------------------------------------
 _C.VAL = CfgNode()
-_C.VAL.BATCH_SIZE = 20
-
+_C.VAL.METRIC = 'global' #local_batch
+_C.VAL.BATCH_SIZE = 20 #only used if local_batch is selected
+_C.VAL.LOG_INTERVAL = 5
 
 # -----------------------------------------------------------------------------
 # Testing options

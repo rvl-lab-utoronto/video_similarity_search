@@ -16,12 +16,11 @@ from datetime import datetime
 from sklearn.metrics.pairwise import euclidean_distances, cosine_distances
 from datasets import data_loader
 from models.triplet_net import Tripletnet
-from models.model_utils import model_selector, multipathway_input
+from models.model_utils import model_selector, multipathway_input, load_checkpoint
 from datasets.data_loader import build_spatial_transformation
 from datasets.temporal_transforms import TemporalCenterFrame, TemporalSpecificCrop
 from datasets.temporal_transforms import Compose as TemporalCompose
 from config.m_parser import load_config, arg_parser
-from train import load_checkpoint
 from misc.upload_gdrive import GoogleDriveUploader
 
 # num_exemplar = 10
@@ -84,8 +83,6 @@ def evaluate(model, test_loader, log_interval=5):
     vid_info = []
     with torch.no_grad():
         for batch_idx, (input, targets, info) in enumerate(test_loader):
-            # if batch_idx > 1:
-            #     break
             batch_size = input.size(0)
 
             if cfg.MODEL.ARCH == 'slowfast':
@@ -107,10 +104,10 @@ def evaluate(model, test_loader, log_interval=5):
     embeddings = torch.cat(embedding, dim=0)
     print('embeddings size', embeddings.size())
     return embeddings
- 
+
 
 def get_distance_matrix(embeddings, dist_metric):
-    
+
     #print('Dist metric:', dist_metric)
     assert(dist_metric in ['cosine', 'euclidean'])
     if dist_metric == 'cosine':

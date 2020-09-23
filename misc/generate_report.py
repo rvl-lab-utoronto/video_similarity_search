@@ -47,12 +47,17 @@ def parse_file(result_dir, f_type='train'):
     top5_acc = []
     runtime = []
     assert f_type in ['train', 'val'], "f_type:{} is not recognized".format(f_type)
+    processed_epoch = []
 
     if f_type == 'train':
         with open (os.path.join(result_dir, train_progress_file), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
-                epoch.append(float(row[0].replace('epoch:', '').replace(',','')))
+                cur_epoch = float(row[0].replace('epoch:', '').replace(',',''))
+                epoch.append(cur_epoch)
+                if cur_epoch in processed_epoch:
+                    continue
+                processed_epoch.append(cur_epoch)
                 losses.append(float(row[2]))
                 # acc.append(float(row[3]))
                 runtime.append(float(row[1].replace('runtime:', '').replace(',','')))
@@ -60,6 +65,10 @@ def parse_file(result_dir, f_type='train'):
         with open (os.path.join(result_dir, val_progress_file), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
+                cur_epoch = float(row[0].replace('epoch:', '').replace(',',''))
+                if cur_epoch in processed_epoch:
+                    continue
+                processed_epoch.append(cur_epoch)
                 losses.append(float(row[1]))
                 acc.append(float(row[2]))
                 top1_acc.append(float(row[3]))
@@ -71,7 +80,7 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     _, _, train_losses, _, _, _ = parse_file(result_dir, 'train')
     _, _, val_losses, val_acc, top1_acc, top5_acc = parse_file(result_dir, 'val')
 
-    f = plt.figure(figsize=(9,4))
+    f = plt.figure(figsize=(18,5))
     ax1 =  plt.subplot(1, 3, 1)
     ax1.plot(np.arange(len(train_losses)), train_losses)
     ax1.plot(np.arange(len(val_losses)), val_losses)
@@ -106,8 +115,8 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
         plt.show()
 
 def write_to_google_sheet(result_dir, client, worksheet_name):
-    epoch, runtime, train_losses, train_acc = parse_file(result_dir, 'train')
-    _, _, val_losses, val_acc = parse_file(result_dir, 'val')
+    epoch, runtime, train_losses, _, _, _ = parse_file(result_dir, 'train')
+    _, _, val_losses, val_acc, top1_acc, top5_acc = parse_file(result_dir, 'val')
     sh = client.open('training_results')
 
     try:
@@ -123,6 +132,8 @@ def write_to_google_sheet(result_dir, client, worksheet_name):
     df['val_losses'] = val_losses
     df['val_acc'] = val_acc
     df['runtime'] = runtime
+    df['top1_acc'] = top1_acc
+    df['top5_acc'] = top5_acc
     worksheet.update([df.columns.values.tolist()] + df.values.tolist())
 
 def gs_report(result_dir, name):

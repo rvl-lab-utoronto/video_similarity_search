@@ -13,17 +13,15 @@ import torch
 from torch import nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
+from validation import validate
 from models.triplet_net import Tripletnet
 from datasets import data_loader
 from models.model_utils import (model_selector, multipathway_input,
-                            load_pretrained_model, save_checkpoint, load_checkpoint)
+                            load_pretrained_model, save_checkpoint, load_checkpoint,
+                            AverageMeter, accuracy, create_output_dirs)
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from loss import OnlineTripleLoss
-from train import validate, AverageMeter, accuracy, create_output_dirs
-
-log_interval = 5    # log interval for batch index
-
 
 def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
@@ -61,7 +59,7 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
             targets = targets.to(device)
 
         # Sample negatives from batch for each anchor/positive and compute loss
-        loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.sampling_strategy)
+        loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
 
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
@@ -77,11 +75,11 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
         running_n_triplets.update(n_triplets)
 
         # Log
-        if is_master_proc and ((batch_idx + 1) * world_size) % log_interval == 0:
+        if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
             print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                   'Loss: {:.4f} ({:.4f}) \t'
                   'N_Triplets: {:.1f}'.format(epoch, (batch_idx + 1) * batch_size_world,
-                    len(train_loader.dataset), 
+                    len(train_loader.dataset),
                     100. * ((batch_idx + 1) * batch_size_world / len(train_loader.dataset)),
                     losses.val, losses.avg, running_n_triplets.avg))
 
@@ -132,10 +130,10 @@ def train(args, cfg):
         if torch.cuda.device_count() > 1:
             #model = nn.DataParallel(model)
             if cfg.MODEL.ARCH == '3dresnet':
-                model = torch.nn.parallel.DistributedDataParallel(module=model, 
+                model = torch.nn.parallel.DistributedDataParallel(module=model,
                     device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
             else:
-                model = torch.nn.parallel.DistributedDataParallel(module=model, 
+                model = torch.nn.parallel.DistributedDataParallel(module=model,
                     device_ids=[device], broadcast_buffers=False)
 
     # Load similarity network checkpoint if path exists
@@ -150,13 +148,13 @@ def train(args, cfg):
         tripletnet = tripletnet.cuda(device=device)
         if torch.cuda.device_count() > 1:
             if cfg.MODEL.ARCH == '3dresnet':
-                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, 
+                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet,
                     device_ids=[device], find_unused_parameters=True)
             else:
                 tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
 
     # ======================== Loss and Optimizer Setup ========================
-    
+
     if(is_master_proc):
         print('\n==> Setting criterion...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
@@ -167,11 +165,11 @@ def train(args, cfg):
         print('Using criterion:{} for validation'.format(val_criterion))
 
     # ============================== Data Loaders ==============================
-    
+
     if(is_master_proc):
         print('\n==> Building training data loader...')
     train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
-    
+
     if(is_master_proc):
         print('\n==> Building validation data loader...')
     val_loader, _ = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=True, negative_sampling=True)
@@ -181,15 +179,15 @@ def train(args, cfg):
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if (is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
-        
+
         # Call set_epoch on the distributed sampler so the data is shuffled
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
-        
+
         # Train and validate
         train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
         acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
-        
+
         # Update best accuracy and save checkpoint
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)
@@ -222,7 +220,7 @@ if __name__ == '__main__':
         print("Using {} GPU(s) per node".format(cfg.NUM_GPUS))
 
     # Print training parameters
-    print('Triplet sampling strategy: {}'.format(cfg.DATASET.sampling_strategy))
+    print('Triplet sampling strategy: {}'.format(cfg.DATASET.SAMPLING_STRATEGY))
     print('Probability of sampling positive from same video: {}'.format(cfg.DATASET.POSITIVE_SAMPLING_P))
     print('OUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
     print('BATCH_SIZE is set to: {}'.format(cfg.TRAIN.BATCH_SIZE))
@@ -232,5 +230,5 @@ if __name__ == '__main__':
 
     # Launch processes for all gpus
     print('\n==> Launching gpu processes...')
-    du_helper.launch_processes(args, cfg, func=train, shard_id=shard_id, 
+    du_helper.launch_processes(args, cfg, func=train, shard_id=shard_id,
         NUM_SHARDS=args.num_shards, ip_address_port=args.ip_address_port)

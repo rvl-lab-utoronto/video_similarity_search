@@ -14,14 +14,15 @@ _C.TRAIN.BATCH_SIZE = 16
 #_C.TRAIN.DATASET = "ucf101"
 _C.TRAIN.DATASET = "kinetics"
 _C.TRAIN.NUM_DATA_WORKERS = 4
-
+_C.TRAIN.LOG_INTERVAL = 5 #for print statements
 
 # -----------------------------------------------------------------------------
 # Testing options
 # -----------------------------------------------------------------------------
 _C.VAL = CfgNode()
-_C.VAL.BATCH_SIZE = 20
-
+_C.VAL.METRIC = 'global' #local_batch
+_C.VAL.BATCH_SIZE = 20 #note that local_batch metric is sensitive to the batch_size
+_C.VAL.LOG_INTERVAL = 5
 
 # -----------------------------------------------------------------------------
 # Testing options
@@ -48,12 +49,10 @@ _C.DATASET.VID_PATH = '/media/diskstation/datasets/kinetics400/frames_shortedge3
 _C.DATASET.ANNOTATION_PATH = '/media/diskstation/datasets/kinetics400/vid_paths_and_labels/frame_paths'
 
 _C.DATASET.CLUSTER_PATH = ''
-_C.DATASET.TARGET_TYPE_T = 'label'
+_C.DATASET.TARGET_TYPE_T = 'label' #[label, cluster_label], where label refer to the true label
 _C.DATASET.TARGET_TYPE_V = 'label'
 
-_C.DATASET.sampling_strategy = 'random_semi_hard'
-#_C.DATASET.sampling_strategy = 'random_negative'
-
+_C.DATASET.SAMPLING_STRATEGY = 'random_semi_hard' #random_negative
 _C.DATASET.POSITIVE_SAMPLING_P = 0.8
 
 _C.DATASET.CHANNEL_EXTENSIONS = ''

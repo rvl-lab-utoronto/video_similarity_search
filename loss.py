@@ -163,7 +163,6 @@ def hardest_easy_sampling(an_dists):
     neg_idx = torch.argmin(an_dists).item()
     return neg_idx
 
-
 # Compute distance matrix between all vectors
 def pdist(vectors, eps, dist_metric):
     dist_mat = []

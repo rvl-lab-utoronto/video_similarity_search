@@ -8,6 +8,12 @@ from models.resnet import generate_model
 from models.slowfast.slowfast.models.video_model_builder import SlowFastRepresentation
 from models.slowfast.slowfast.config.defaults import get_cfg
 
+def create_output_dirs(cfg):
+    if not os.path.exists(cfg.OUTPUT_PATH):
+        os.makedirs(cfg.OUTPUT_PATH)
+
+    if not os.path.exists(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints')):
+        os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
 
 # Select the appropriate model with the specified cfg parameters
 def model_selector(cfg):
@@ -101,4 +107,25 @@ def load_checkpoint(model, checkpoint_path, is_master_proc=True):
             print("=> no checkpoint found at '{}'".format(checkpoint_path))
     return start_epoch, best_prec1
 
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
 
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+
+def accuracy(dista, distb):
+    margin = 0
+    pred = (distb - dista - margin)
+    return (pred > 0).sum() * 1.0 / (dista.size()[0])

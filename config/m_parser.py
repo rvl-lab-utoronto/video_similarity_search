@@ -98,6 +98,12 @@ def arg_parser():
         type=str,
         help='Triplet sampling strategy'
     )
+    parser.add_argument(
+        "--val_metric",
+        default=None,
+        type=str,
+        help='global, local_batch ...'
+    )
     return parser
 
 
@@ -119,8 +125,11 @@ def overwrite_default_configs(cfg, args):
         cfg.DATA.SAMPLE_SIZE = args.sample_size
 
     if args.sampling_strategy:
-        cfg.DATASET.sampling_strategy = args.sampling_strategy
+        cfg.DATASET.SAMPLING_STRATEGY = args.sampling_strategy
 
+    if args.val_metric:
+        cfg.VAL.METRIC = args.val_metric
+        
     if args.n_classes:
         if cfg.MODEL.ARCH == '3dresnet':
             cfg.RESNET.N_CLASSES = args.n_classes

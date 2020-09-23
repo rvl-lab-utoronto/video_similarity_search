@@ -8,7 +8,6 @@ def get_topk_acc(embeddings, labels, dist_metric):
     distance_matrix = get_distance_matrix(embeddings, dist_metric)
     top1_sum = 0
     top5_sum = 0
-
     top1_indices = get_closest_data_mat(distance_matrix, top_k=1)  # dim: distance_matrix.shape[0] x top_k
     top5_indices = get_closest_data_mat(distance_matrix, top_k=5)  # dim: distance_matrix.shape[0] x top_k
 
@@ -17,10 +16,10 @@ def get_topk_acc(embeddings, labels, dist_metric):
         top5_idx = top5_indices[i]
         top1_label = [labels[j] for j in top1_idx]
         top5_labels = [labels[j] for j in top5_idx]
-        #print(i, 'cur', label, 'top1', top1_label, 'top5', top5_labels)
+        # print(i, 'cur', label, 'top1_idx', top1_idx, 'top1', top1_label, 'top5_idx', top5_idx, 'top5', top5_labels)
         top1_sum += int(label in top1_label)
         top5_sum += int(label in top5_labels)
-
+    # print('top1_sum', top1_sum, 'top5_sum', top5_sum)
     top1_acc = top1_sum / len(labels)
     top5_acc = top5_sum / len(labels)
     return top1_acc, top5_acc
@@ -29,10 +28,7 @@ def get_topk_acc(embeddings, labels, dist_metric):
 def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_master_proc=True):
     metric = cfg.VAL.METRIC
     if is_master_proc:
-        if metric=='global':
-            print('=> validating with metric: {}'.format(metric))
-        elif metric == 'local_batch':
-            print('=> validating with metric: {} and batch_size: {}'.format(metric, cfg.VAL.BATCH_SIZE))
+        print('=> validating with metric: {} and batch_size: {}'.format(metric, cfg.VAL.BATCH_SIZE))
 
     losses = AverageMeter()
     accs = AverageMeter()
@@ -139,26 +135,26 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
             embeddings = torch.cat(embeddings, dim=0)
             labels = torch.cat(labels, dim=0).tolist()
             print('embeddings size', embeddings.size())
-            print('labels size', embeddings.size())
+            print('labels size', len(labels))
             top1_acc, top5_acc = get_topk_acc(embeddings, labels, cfg.LOSS.DIST_METRIC)
+            print('top1_acc', top1_acc, 'top5_acc', top5_acc)
             top1_accs.update(top1_acc)
             top5_accs.update(top5_acc)
+
+            top1_accs.avg = top1_accs.val
+            top5_accs.avg = top5_accs.val
 
     if (is_master_proc):
         # Log
         msg = '\nTest set: Average loss: {:.4f}, Triplet Accuracy: {:.2f}%'.format(losses.avg, accs.avg*100.)
         to_write = 'epoch:{} {:.4f} {:.2f}'.format(epoch, losses.avg, accs.avg*100.)
-        if metric == 'global':
-            msg += ', '
-            msg += 'Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%'.format(top1_acc*100., top5_acc*100.)
-            to_write += ' {:.2f} {:.2f}'.format(top1_acc*100., top5_acc*100.)
-
-        elif metric == 'local_batch':
+        if metric == 'global' or metric == 'local_batch':
             msg += ', '
             msg += 'Top1 Acc: {:.2f}% ({:.2f}%) \t'\
                    'Top5 Acc: {:.2f}% ({:.2f}%)'.format(100.*top1_accs.val, 100.*top1_accs.avg,
                                                         100.*top5_accs.val, 100.*top5_accs.avg)
             to_write += ' {:.2f} {:.2f}'.format(100.*top1_accs.avg, 100.*top5_accs.avg)
+
         to_write += '\n'
         print(msg)
         with open('{}/tnet_checkpoints/val_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:

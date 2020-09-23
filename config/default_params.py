@@ -21,7 +21,7 @@ _C.TRAIN.LOG_INTERVAL = 5 #for print statements
 # -----------------------------------------------------------------------------
 _C.VAL = CfgNode()
 _C.VAL.METRIC = 'global' #local_batch
-_C.VAL.BATCH_SIZE = 20 #only used if local_batch is selected
+_C.VAL.BATCH_SIZE = 20 #note that local_batch metric is sensitive to the batch_size
 _C.VAL.LOG_INTERVAL = 5
 
 # -----------------------------------------------------------------------------
@@ -49,7 +49,7 @@ _C.DATASET.VID_PATH = '/media/diskstation/datasets/kinetics400/frames_shortedge3
 _C.DATASET.ANNOTATION_PATH = '/media/diskstation/datasets/kinetics400/vid_paths_and_labels/frame_paths'
 
 _C.DATASET.CLUSTER_PATH = ''
-_C.DATASET.TARGET_TYPE_T = 'label' #[label, cluster_label], where label refer to the tru label
+_C.DATASET.TARGET_TYPE_T = 'label' #[label, cluster_label], where label refer to the true label
 _C.DATASET.TARGET_TYPE_V = 'label'
 
 _C.DATASET.SAMPLING_STRATEGY = 'random_semi_hard' #random_negative

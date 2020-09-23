@@ -12,7 +12,7 @@ DATASET:
     TARGET_TYPE_V: 'label'
 
     SAMPLING_STRATEGY: 'random_semi_hard'
-    POSITIVE_SAMPLING_P: 0
+    POSITIVE_SAMPLING_P: 0.0
 
 MODEL:
     ARCH: '3dresnet'

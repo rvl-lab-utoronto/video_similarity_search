@@ -106,6 +106,7 @@ def load_checkpoint(model, checkpoint_path, is_master_proc=True):
         if (is_master_proc):
             print("=> no checkpoint found at '{}'".format(checkpoint_path))
     return start_epoch, best_prec1
+    
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""

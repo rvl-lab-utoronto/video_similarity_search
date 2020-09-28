@@ -1,29 +1,13 @@
 import torch
 from models.model_utils import multipathway_input, AverageMeter, accuracy
 import misc.distributed_helper as du_helper
-from evaluate import get_distance_matrix, get_closest_data_mat
+from evaluate import get_distance_matrix, get_closest_data_mat, get_topk_acc
 
-
-def get_topk_acc(embeddings, labels, dist_metric):
-    distance_matrix = get_distance_matrix(embeddings, dist_metric)
-    top1_sum = 0
-    top5_sum = 0
-    top1_indices = get_closest_data_mat(distance_matrix, top_k=1)  # dim: distance_matrix.shape[0] x top_k
-    top5_indices = get_closest_data_mat(distance_matrix, top_k=5)  # dim: distance_matrix.shape[0] x top_k
-
-    for i, label in enumerate(labels):
-        top1_idx = top1_indices[i]
-        top5_idx = top5_indices[i]
-        top1_label = [labels[j] for j in top1_idx]
-        top5_labels = [labels[j] for j in top5_idx]
-        # print(i, 'cur', label, 'top1_idx', top1_idx, 'top1', top1_label, 'top5_idx', top5_idx, 'top5', top5_labels)
-        top1_sum += int(label in top1_label)
-        top5_sum += int(label in top5_labels)
-    # print('top1_sum', top1_sum, 'top5_sum', top5_sum)
-    top1_acc = top1_sum / len(labels)
-    top5_acc = top5_sum / len(labels)
-    return top1_acc, top5_acc
-
+#
+# def topk_retrieval_validation(train_loader, test_loader, model, train_data, val_data, cfg):
+#     top1_acc, top5_acc = k_nearest_embeddings(model, train_loader, test_loader, train_data, val_data, cfg, plot=False)
+#
+#
 
 def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_master_proc=True):
     metric = cfg.VAL.METRIC
@@ -80,7 +64,8 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
             elif metric == 'local_batch':
                 embeddings = torch.cat((embedded_x.detach().cpu(), embedded_y.detach().cpu()), dim=0)
                 labels = torch.cat((anchor_target.detach().cpu(), positive_target.detach().cpu()), dim=0)
-                top1_acc, top5_acc = get_topk_acc(embeddings, labels.tolist(), cfg.LOSS.DIST_METRIC)
+                distance_matrix = get_distance_matrix(embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
+                top1_acc, top5_acc = get_topk_acc(distance_matrix, labels.tolist())
                 top1_accs.update(top1_acc)
                 top5_accs.update(top5_acc)
 
@@ -136,7 +121,8 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
             labels = torch.cat(labels, dim=0).tolist()
             print('embeddings size', embeddings.size())
             print('labels size', len(labels))
-            top1_acc, top5_acc = get_topk_acc(embeddings, labels, cfg.LOSS.DIST_METRIC)
+            distance_matrix = get_distance_matrix(embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
+            top1_acc, top5_acc = get_topk_acc(distance_matrix, labels)
             print('top1_acc', top1_acc, 'top5_acc', top5_acc)
             top1_accs.update(top1_acc)
             top5_accs.update(top5_acc)

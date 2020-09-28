@@ -13,7 +13,7 @@ DATASET:
     CHANNEL_EXTENSIONS: 'salient'
     SALIENT_PATH: /media/diskstation/datasets/UCF101/poolnet_new
 
-    POSITIVE_SAMPLING_P: 0.8
+    POSITIVE_SAMPLING_P: 0.2
 
 MODEL:
     ARCH: '3dresnet'

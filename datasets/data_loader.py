@@ -170,12 +170,12 @@ def get_channel_extention(cfg):
 
 
 # Return a pytorch DataLoader
-def build_data_loader(split, cfg, is_master_proc=True, triplets=True, 
-                      negative_sampling=False, req_spatial_transform=None, 
-                      req_train_shuffle=None):
-    
+def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
+                      negative_sampling=False, req_spatial_transform=None,
+                      req_train_shuffle=None, val_sample=1):
+
     # ==================== Transforms and parameter Setup ======================
-    
+
     assert split in ['train', 'val', 'test']
     assert (cfg.TRAIN.BATCH_SIZE % cfg.NUM_GPUS == 0)
 
@@ -210,7 +210,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
     # Warning about sampling positives from same real label for training (supervised)
     if is_master_proc and split == 'train' and target_type == 'label' and cfg.DATASET.POSITIVE_SAMPLING_P != 1.0:
-        print('NOTE: Will sample positives from same real label (SUPERVISED) for training with POSITIVE_SAMPLING_P =', 
+        print('NOTE: Will sample positives from same real label (SUPERVISED) for training with POSITIVE_SAMPLING_P =',
             cfg.DATASET.POSITIVE_SAMPLING_P)
 
     if (is_master_proc):
@@ -218,7 +218,8 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, normalize=normalize,
-                channel_ext=channel_ext, cluster_path=cluster_path, target_type=target_type,
+                channel_ext=channel_ext, cluster_path=cluster_path,
+                target_type=target_type, val_sample=val_sample,
                 negative_sampling=negative_sampling, positive_sampling_p=cfg.DATASET.POSITIVE_SAMPLING_P,
                 is_master_proc=is_master_proc)
     if (is_master_proc):

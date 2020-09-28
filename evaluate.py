@@ -247,15 +247,15 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
     if (is_master_proc):
         distance_matrix = get_distance_matrix(val_embeddings, train_embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
         top1_acc, top5_acc = get_topk_acc(distance_matrix, val_labels, y_labels=train_labels)
+        if epoch is not None:
+            to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*top1_acc, 100.*top5_acc)
+            msg = 'Test Set: Top1 Acc: {:.2f}% \t'\
+                   'Top5 Acc: {:.2f}%'.format(100.*top1_acc, 100.*top5_acc)
 
-        to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*top1_acc, 100.*top5_acc)
-        msg = 'Test Set: Top1 Acc: {:.2f}% \t'\
-               'Top5 Acc: {:.2f}%'.format(100.*top1_acc, 100.*top5_acc)
-
-        to_write += '\n'
-        print(msg)
-        with open('{}/tnet_checkpoints/global_retrieval_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
-            val_file.write(to_write)
+            to_write += '\n'
+            print(msg)
+            with open('{}/tnet_checkpoints/global_retrieval_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
+                val_file.write(to_write)
 
         if plot:
             spatial_transform = build_spatial_transformation(cfg, 'val')
@@ -464,6 +464,7 @@ if __name__ == '__main__':
             print ('No exemplar and test indices provided')
             temporal_heat_map(model, data, cfg, evaluate_output)
     else:
-        k_nearest_embeddings(args, model, train_loader, test_loader, train_data, val_data, cfg, evaluate_output,
-                num_exemplar, service=GoogleDriveUploader())
+        k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
+                        train_data, val_data, cfg, evaluate_output=evaluate_output,
+                        num_exemplar=num_exemplar, service=GoogleDriveUploader())
         print('total runtime: {}s'.format(time.time()-start))

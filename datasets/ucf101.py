@@ -40,7 +40,7 @@ def get_database(data, subset, root_path, video_path_formatter, split='train', c
         if val_sample is not None:
             video_ids = []
             for name in video_groups:
-                video_ids.append(np.random.choice(video_groups[name]))
+                video_ids.extend(np.random.choice(video_groups[name], size=val_sample))
         else:
             video_ids = list(itertools.chain(*video_groups.values()))
 

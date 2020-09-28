@@ -73,6 +73,7 @@ def parse_file(result_dir, f_type='train'):
                 acc.append(float(row[2]))
                 top1_acc.append(float(row[3]))
                 top5_acc.append(float(row[4]))
+
     return epoch, runtime, losses, acc, top1_acc, top5_acc
 
 
@@ -117,6 +118,11 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
 def write_to_google_sheet(result_dir, client, worksheet_name):
     epoch, runtime, train_losses, _, _, _ = parse_file(result_dir, 'train')
     _, _, val_losses, val_acc, top1_acc, top5_acc = parse_file(result_dir, 'val')
+
+    best_idx = np.argmax(np.array(top1_acc))
+    print('best epoch:{}, triplet accuracy:{}, top1 accuracy:{}, top5 accuracy:{}'.format(epoch[best_idx],
+                        val_acc[best_idx], top1_acc[best_idx], top5_acc[best_idx]))
+
     sh = client.open('training_results')
 
     try:

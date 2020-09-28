@@ -14,6 +14,7 @@ from torch import nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from validation import validate
+from evaluate import k_nearest_embeddings
 from models.triplet_net import Tripletnet
 from datasets import data_loader
 from models.model_utils import (model_selector, multipathway_input,
@@ -28,7 +29,6 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
     accs = AverageMeter()
     running_n_triplets = AverageMeter()
     world_size = du_helper.get_world_size()
-
     # switching to training mode
     model.train()
 
@@ -169,10 +169,12 @@ def train(args, cfg):
     if(is_master_proc):
         print('\n==> Building training data loader...')
     train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+    eval_train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=False)
 
     if(is_master_proc):
         print('\n==> Building validation data loader...')
-    val_loader, _ = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=True, negative_sampling=True)
+    val_loader, (_, _) = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=True, negative_sampling=True)
+    eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=False, val_sample=None)
 
     # ============================= Training loop ==============================
 
@@ -187,6 +189,9 @@ def train(args, cfg):
         # Train and validate
         train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
         acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
+        if epoch%10==0:
+            top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg, plot=False,
+                                    load_from_pkl=False, epoch=epoch, is_master_proc=is_master_proc)
 
         # Update best accuracy and save checkpoint
         is_best = acc > best_acc

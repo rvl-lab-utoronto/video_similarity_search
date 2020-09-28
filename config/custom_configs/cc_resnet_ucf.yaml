@@ -25,7 +25,7 @@ DATA:
     INPUT_CHANNEL_NUM: 3
 
 LOSS:
-    MARGIN: 0.1
+    MARGIN: 0.2
 
 OPTIM:
     LR: 0.01

@@ -4,6 +4,7 @@ retrieve the most similar clips
 """
 import os
 import argparse
+import pickle as pkl
 import pprint
 import time
 import numpy as np
@@ -16,17 +17,17 @@ from datetime import datetime
 from sklearn.metrics.pairwise import euclidean_distances, cosine_distances
 from datasets import data_loader
 from models.triplet_net import Tripletnet
-from models.model_utils import model_selector, multipathway_input, load_checkpoint
+from models.model_utils import model_selector, multipathway_input, load_checkpoint, load_pretrained_model
 from datasets.data_loader import build_spatial_transformation
 from datasets.temporal_transforms import TemporalCenterFrame, TemporalSpecificCrop
 from datasets.temporal_transforms import Compose as TemporalCompose
+import misc.distributed_helper as du_helper
 from config.m_parser import load_config, arg_parser
 from misc.upload_gdrive import GoogleDriveUploader
 
 # num_exemplar = 10
 log_interval = 10
 top_k = 5
-split = 'val'
 exemplar_file = None
 #exemplar_file = '/home/sherry/output/u_exemplar.txt'
 # np.random.seed(1)
@@ -77,14 +78,15 @@ def m_arg_parser(parser):
     return parser
 
 
-def evaluate(model, test_loader, log_interval=5):
+def evaluate(cfg, model, cuda, device, data_loader, split='train', log_interval=5, is_master_proc=True):
     model.eval()
     embedding = []
-    vid_info = []
+    # vid_info = []
+    labels = []
+    world_size = du_helper.get_world_size()
     with torch.no_grad():
-        for batch_idx, (input, targets, info) in enumerate(test_loader):
+        for batch_idx, (input, targets, info) in enumerate(data_loader):
             batch_size = input.size(0)
-
             if cfg.MODEL.ARCH == 'slowfast':
                 input = multipathway_input(input, cfg)
                 if cuda:
@@ -93,31 +95,39 @@ def evaluate(model, test_loader, log_interval=5):
             else:
                 if cuda:
                     input= input.to(device)
+            if cuda:
+                targets = targets.to(device)
 
             embedd = model(input)
+            if cfg.NUM_GPUS > 1:
+                embedd, targets = du_helper.all_gather([embedd, targets])
             embedding.append(embedd.detach().cpu())
-            vid_info.extend(info)
+            labels.append(targets.detach().cpu())
+            # vid_info.extend(info)
             # print('embedd size', embedd.size())
-            if batch_idx % log_interval == 0:
-                print('val [{}/{}]'.format(batch_idx * batch_size, len(test_loader.dataset)))
+            if batch_idx % log_interval == 0 and is_master_proc:
+                print('{} [{}/{}]'.format(split, batch_idx * batch_size, len(data_loader.dataset)))
 
     embeddings = torch.cat(embedding, dim=0)
-    print('embeddings size', embeddings.size())
-    return embeddings
+    labels = torch.cat(labels, dim=0).tolist()
+    if is_master_proc: print('embeddings size', embeddings.size())
+    return embeddings, labels
 
 
-def get_distance_matrix(embeddings, dist_metric):
+def get_distance_matrix(x_embeddings, y_embeddings=None, dist_metric='cosine'):
 
     #print('Dist metric:', dist_metric)
     assert(dist_metric in ['cosine', 'euclidean'])
     if dist_metric == 'cosine':
-        distance_matrix = cosine_distances(embeddings)
+        distance_matrix = cosine_distances(x_embeddings, Y=y_embeddings)
     elif dist_metric == 'euclidean':
-        distance_matrix = euclidean_distances(embeddings)
-    #print('Distance matrix shape:', distance_matrix.shape)
+        distance_matrix = euclidean_distances(x_embeddings, Y=y_embeddings)
+    print('Distance matrix shape:', distance_matrix.shape)
 
-    np.fill_diagonal(distance_matrix, float('inf'))
+    if y_embeddings is None:
+        np.fill_diagonal(distance_matrix, float('inf'))
     return distance_matrix
+
 
 
 def get_closest_data_mat(distance_matrix, top_k):
@@ -135,9 +145,9 @@ def get_closest_data(distance_matrix, exemplar_idx, top_k):
     return top_k
 
 
-def plot_img(cfg, fig, data, num_exemplar, row, exemplar_idx, k_idx, spatial_transform=None, temporal_transform=None, output=None):
-    exemplar_frame = data._loading_img_path(exemplar_idx, temporal_transform)
-    test_frame = [data._loading_img_path(i, temporal_transform) for i in k_idx]
+def plot_img(cfg, fig, val_data, train_data, num_exemplar, row, exemplar_idx, k_idx, spatial_transform=None, temporal_transform=None, output=None):
+    exemplar_frame = val_data._loading_img_path(exemplar_idx, temporal_transform)
+    test_frame = [train_data._loading_img_path(i, temporal_transform) for i in k_idx]
 
     exemplar_title = '-'.join(exemplar_frame.split('/')[-3:-2])
 
@@ -145,7 +155,6 @@ def plot_img(cfg, fig, data, num_exemplar, row, exemplar_idx, k_idx, spatial_tra
     print('top k ids:', end=' ')
     for i in k_idx:
         print(i, end=' ')
-    print()
     pprint.pprint(test_frame)
 
     ax = fig.add_subplot(num_exemplar,len(test_frame)+1, row*(len(test_frame)+1)+1)
@@ -182,38 +191,92 @@ def load_exemplar(exemplar_file):
     return exemplar_idx
 
 
-def k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output, num_exemplar, service=None):
-    embeddings = evaluate(model, test_loader, log_interval=log_interval)
+def get_topk_acc(distance_matrix, x_labels, y_labels=None):
+    # distance_matrix = get_distance_matrix(embeddings, dist_metric=dist_metric)
+    top1_sum = 0
+    top5_sum = 0
+    top1_indices = get_closest_data_mat(distance_matrix, top_k=1)  # dim: distance_matrix.shape[0] x top_k
+    top5_indices = get_closest_data_mat(distance_matrix, top_k=5)  # dim: distance_matrix.shape[0] x top_k
+    if y_labels is None:
+        y_labels=x_labels
 
-    distance_matrix = get_distance_matrix(embeddings, cfg.LOSS.DIST_METRIC)
+    for i, x_label in enumerate(x_labels):
+        top1_idx = top1_indices[i]
+        top5_idx = top5_indices[i]
+        top1_label = [y_labels[j] for j in top1_idx]
+        top5_labels = [y_labels[j] for j in top5_idx]
+        # print(i, 'cur', label, 'top1_idx', top1_idx, 'top1', top1_label, 'top5_idx', top5_idx, 'top5', top5_labels)
+        top1_sum += int(x_label in top1_label)
+        top5_sum += int(x_label in top5_labels)
+    # print('top1_sum', top1_sum, 'top5_sum', top5_sum)
+    top1_acc = top1_sum / len(x_labels)
+    top5_acc = top5_sum / len(x_labels)
+    return top1_acc, top5_acc
 
-    spatial_transform = build_spatial_transformation(cfg, split)
-    temporal_transform = [TemporalCenterFrame()]
-    temporal_transform = TemporalCompose(temporal_transform)
 
-    if exemplar_file:
-        exemplar_indices = load_exemplar(exemplar_file)
-        num_exemplar = len(exemplar_indices)
-        print('exemplar_idx retrieved: {}'.format(exemplar_indices))
-        print('number of exemplars is: {}'.format(num_exemplar))
+def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split='val', load_from_pkl=False):
+    if split == 'train':
+        embeddings_pkl = os.path.join(args.output, 'train_embeddings.pkl')
+        labels_pkl = os.path.join(args.output, 'train_labels.pkl')
+    else:
+        embeddings_pkl = os.path.join(args.output, 'val_embeddings.pkl')
+        labels_pkl = os.path.join(args.output, 'val_labels.pkl')
 
-    fig = plt.figure()
-    for i in range(num_exemplar):
-        if not exemplar_file:
-            exemplar_idx = np.random.randint(0, distance_matrix.shape[0]-1)
-        else:
-            exemplar_idx = exemplar_indices[i]
+    if os.path.exists(embeddings_pkl) and os.path.exists(labels_pkl) and load_from_pkl:
+        with open(embeddings_pkl, 'rb') as handle:
+            embeddings = torch.load(handle)
+        with open(labels_pkl, 'rb') as handle:
+            labels = torch.load(handle)
+        print('retrieved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
+    else:
+        embeddings, labels = evaluate(cfg, model, cuda, device, data_loader, split=split, log_interval=log_interval)
+        with open(embeddings_pkl, 'wb') as handle:
+            torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
+        with open(labels_pkl, 'wb') as handle:
+            torch.save(labels, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
 
-        print('exemplar video id: {}'.format(exemplar_idx))
-        k_idx = get_closest_data(distance_matrix, exemplar_idx, top_k)
-        k_nearest_data = [data[i] for i in k_idx]
-        plot_img(cfg, fig, data, num_exemplar, i, exemplar_idx, k_idx, spatial_transform, temporal_transform, output=evaluate_output)
-    # plt.show()
-    png_file = os.path.join(evaluate_output, '{}_plot.png'.format(os.path.basename(evaluate_output)))
-    fig.tight_layout(pad=3.5)
-    plt.savefig(png_file, dpi=300)
-    service.upload_file_to_gdrive(png_file, 'evaluate')
-    print('figure saved to: {}, and uploaded to GoogleDrive'.format(png_file))
+    return embeddings, labels
+
+
+def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, train_data, val_data, cfg, plot=True,
+                        load_from_pkl=True, epoch=None, is_master_proc=True,
+                        evaluate_output=None, num_exemplar=None, service=None):
+    val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader, split='val')
+    train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader, split='train')
+    top1_acc, top5_acc = 0, 0
+    if (is_master_proc):
+        distance_matrix = get_distance_matrix(val_embeddings, train_embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
+        top1_acc, top5_acc = get_topk_acc(distance_matrix, val_labels, y_labels=train_labels)
+        if epoch is not None:
+            to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*top1_acc, 100.*top5_acc)
+            msg = 'Test Set: Top1 Acc: {:.2f}% \t'\
+                   'Top5 Acc: {:.2f}%'.format(100.*top1_acc, 100.*top5_acc)
+
+            to_write += '\n'
+            print(msg)
+            with open('{}/tnet_checkpoints/global_retrieval_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
+                val_file.write(to_write)
+
+        if plot:
+            spatial_transform = build_spatial_transformation(cfg, 'val')
+            temporal_transform = [TemporalCenterFrame()]
+            temporal_transform = TemporalCompose(temporal_transform)
+            fig = plt.figure()
+            for i in range(num_exemplar):
+                exemplar_idx = np.random.randint(0, distance_matrix.shape[0]-1)
+                print('exemplar video id: {}'.format(exemplar_idx))
+                k_idx = get_closest_data(distance_matrix, exemplar_idx, top_k)
+                print(k_idx, len(train_data))
+                k_nearest_data = [train_data[i] for i in k_idx]
+                plot_img(cfg, fig, val_data, train_data, num_exemplar, i, exemplar_idx, k_idx, spatial_transform, temporal_transform, output=evaluate_output)
+            # plt.show()
+            png_file = os.path.join(evaluate_output, '{}_plot.png'.format(os.path.basename(evaluate_output)))
+            fig.tight_layout(pad=3.5)
+            plt.savefig(png_file, dpi=300)
+            service.upload_file_to_gdrive(png_file, 'evaluate')
+            print('top1 accuracy: {}; top5 accuracy:{}'.format(top1_acc, top5_acc))
+            print('figure saved to: {}, and uploaded to GoogleDrive'.format(png_file))
+    return top1_acc, top5_acc
 
 
 def temporal_heat_map(model, data, cfg, evaluate_output, exemplar_idx=455,
@@ -318,6 +381,7 @@ if __name__ == '__main__':
 
     if not args.output:
         output = input('Please specify output directory: ')
+        args.output = output
     else:
         output = args.output
 
@@ -328,31 +392,69 @@ if __name__ == '__main__':
         os.makedirs(evaluate_output)
         print('made output dir:{}'.format(evaluate_output))
 
+
     # ============================== Model Setup ===============================
+    # Check if this is the master process (true if not distributed)
+    is_master_proc = du_helper.is_master_proc(cfg.NUM_GPUS)
 
+    # Select appropriate model
+    if(is_master_proc):
+        print('\n==> Generating {} backbone model...'.format(cfg.MODEL.ARCH))
     model=model_selector(cfg)
-    print('=> finished generating {} backbone model...'.format(cfg.MODEL.ARCH))
 
-    tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
+    n_parameters = sum([p.data.nelement() for p in model.parameters()])
+    if(is_master_proc):
+        print('Number of params: {}'.format(n_parameters))
+
+    # # Load pretrained backbone if path exists
+    # if args.pretrain_path is not None:
+    #     model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
+
+    # Transfer model to DDP
     if cuda:
-        cfg.NUM_GPUS = torch.cuda.device_count()
-        print("Using {} GPU(s)".format(cfg.NUM_GPUS))
-        if cfg.NUM_GPUS > 1 or force_data_parallel:
-            tripletnet = nn.DataParallel(tripletnet)
+        model = model.cuda(device=device)
+        # if torch.cuda.device_count() > 1:
+        #     #model = nn.DataParallel(model)
+        #     if cfg.MODEL.ARCH == '3dresnet':
+        #         model = torch.nn.parallel.DistributedDataParallel(module=model,
+        #             device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
+        #     else:
+        #         model = torch.nn.parallel.DistributedDataParallel(module=model,
+        #             device_ids=[device], broadcast_buffers=False)
 
+    if args.pretrain_path is not None:
+        model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
+
+    # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
-        start_epoch, best_acc = load_checkpoint(tripletnet, args.checkpoint_path)
+        if cfg.NUM_GPUS > 1:
+            start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
+        else:
+            print('loading checkpoint path...')
+            from collections import OrderedDict
+            new_state_dict = OrderedDict()
+            checkpoint = torch.load(args.checkpoint_path)
+            state_dict = checkpoint['state_dict']
+            for k, v in state_dict.items():
+                name = k[7:] # remove `module.`
+                new_state_dict[name] = v
+            model.load_state_dict(new_state_dict)
 
-    model = tripletnet.module.embeddingnet
-    if cuda:
-        model.to(device)
+    # tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
+    # if cuda:
+    #     cfg.NUM_GPUS = torch.cuda.device_count()
+    #     print("Using {} GPU(s)".format(cfg.NUM_GPUS))
+    #     if cfg.NUM_GPUS > 1 or force_data_parallel:
+    #         tripletnet = nn.DataParallel(tripletnet)
+    #
+    # model = tripletnet.module.embeddingnet
 
     print('=> finished generating similarity network...')
 
     # ============================== Data Loaders ==============================
 
-    test_loader, data = data_loader.build_data_loader(split, cfg, triplets=False)
-    print()
+    train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False)
+    test_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, triplets=False, val_sample=None)
 
     # ================================ Evaluate ================================
 
@@ -364,6 +466,7 @@ if __name__ == '__main__':
             print ('No exemplar and test indices provided')
             temporal_heat_map(model, data, cfg, evaluate_output)
     else:
-        k_nearest_embeddings(model, test_loader, data, cfg, evaluate_output,
-                num_exemplar, service=GoogleDriveUploader())
+        k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
+                        train_data, val_data, cfg, evaluate_output=evaluate_output,
+                        num_exemplar=num_exemplar, service=GoogleDriveUploader())
         print('total runtime: {}s'.format(time.time()-start))

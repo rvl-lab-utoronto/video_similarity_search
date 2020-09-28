@@ -427,16 +427,18 @@ if __name__ == '__main__':
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
-        # start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
-        print('loading checkpoint path...')
-        from collections import OrderedDict
-        new_state_dict = OrderedDict()
-        checkpoint = torch.load(args.checkpoint_path)
-        state_dict = checkpoint['state_dict']
-        for k, v in state_dict.items():
-            name = k[7:] # remove `module.`
-            new_state_dict[name] = v
-        model.load_state_dict(new_state_dict)
+        if cfg.NUM_GPUS > 1:
+            start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
+        else:
+            print('loading checkpoint path...')
+            from collections import OrderedDict
+            new_state_dict = OrderedDict()
+            checkpoint = torch.load(args.checkpoint_path)
+            state_dict = checkpoint['state_dict']
+            for k, v in state_dict.items():
+                name = k[7:] # remove `module.`
+                new_state_dict[name] = v
+            model.load_state_dict(new_state_dict)
 
     # tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
     # if cuda:
@@ -452,7 +454,7 @@ if __name__ == '__main__':
     # ============================== Data Loaders ==============================
 
     train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False)
-    test_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, triplets=False)
+    test_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, triplets=False, val_sample=None)
 
     # ================================ Evaluate ================================
 

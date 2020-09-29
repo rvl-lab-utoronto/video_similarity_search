@@ -84,7 +84,7 @@ def save_checkpoint(state, is_best, model_name, output_path, is_master_proc=True
     filename = directory + filename
     torch.save(state, filename)
     if (is_master_proc):
-        print('=> checkpoint:{} saved...'.format(filename))
+        print('\n=> checkpoint:{} saved...'.format(filename))
     if is_best:
         shutil.copyfile(filename,  os.path.join(directory, 'model_best.pth.tar'))
         if (is_master_proc):

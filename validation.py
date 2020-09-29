@@ -11,8 +11,6 @@ from evaluate import get_distance_matrix, get_closest_data_mat, get_topk_acc
 
 def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_master_proc=True):
     metric = cfg.VAL.METRIC
-    if is_master_proc:
-        print('=> validating with metric: {} and batch_size: {}'.format(metric, cfg.VAL.BATCH_SIZE))
 
     losses = AverageMeter()
     accs = AverageMeter()
@@ -119,16 +117,10 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
         if (is_master_proc):
             embeddings = torch.cat(embeddings, dim=0)
             labels = torch.cat(labels, dim=0).tolist()
-            print('embeddings size', embeddings.size())
-            print('labels size', len(labels))
             distance_matrix = get_distance_matrix(embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
             top1_acc, top5_acc = get_topk_acc(distance_matrix, labels)
-            print('top1_acc', top1_acc, 'top5_acc', top5_acc)
             top1_accs.update(top1_acc)
             top5_accs.update(top5_acc)
-
-            top1_accs.avg = top1_accs.val
-            top5_accs.avg = top5_accs.val
 
     if (is_master_proc):
         # Log

@@ -167,14 +167,23 @@ def train(args, cfg):
     # ============================== Data Loaders ==============================
 
     if(is_master_proc):
-        print('\n==> Building training data loader...')
+        print('\n==> Building training data loader (triplet)...')
     train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
-    eval_train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=False)
+    
+    if(is_master_proc):
+        print('\n==> Building validation data loader (triplet)...')
+    val_loader, (_, _) = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=True, negative_sampling=True)
+    
+    # Setting is_master_proc to false when loading single video data loaders 
+    # deliberately to not re-print data loader information
 
     if(is_master_proc):
-        print('\n==> Building validation data loader...')
-    val_loader, (_, _) = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=True, negative_sampling=True)
-    eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=False, val_sample=None)
+        print('\n==> Building training data loader (single video)...')
+    eval_train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, is_master_proc=False, triplets=False)
+
+    if(is_master_proc):
+        print('\n==> Building validation data loader (single video)...')
+    eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, is_master_proc=False, triplets=False, val_sample=None)
 
     # ============================= Training loop ==============================
 
@@ -186,10 +195,16 @@ def train(args, cfg):
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
-        # Train and validate
+        # Train 
         train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        
+        # Validate
+        if is_master_proc:
+            print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
         acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
-        if epoch%10==0:
+        if epoch % 10 == 0:
+            if is_master_proc:
+                print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
             top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg, plot=False,
                                     load_from_pkl=False, epoch=epoch, is_master_proc=is_master_proc)
 

@@ -78,7 +78,9 @@ def m_arg_parser(parser):
     return parser
 
 
-def evaluate(cfg, model, cuda, device, data_loader, split='train', log_interval=5, is_master_proc=True):
+def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_proc=True):
+    log_interval=len(data_loader.dataset)//50
+    
     model.eval()
     embedding = []
     # vid_info = []
@@ -105,12 +107,14 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', log_interval=
             labels.append(targets.detach().cpu())
             # vid_info.extend(info)
             # print('embedd size', embedd.size())
-            if batch_idx % log_interval == 0 and is_master_proc:
-                print('{} [{}/{}]'.format(split, batch_idx * batch_size, len(data_loader.dataset)))
+            batch_size_world = batch_size * world_size
+            if ((batch_idx + 1) * world_size) % log_interval == 0 and is_master_proc:
+                print('{} [{}/{} | {:.1f}%]'.format(split, (batch_idx+1)*batch_size_world, len(data_loader.dataset), 
+                    ((batch_idx+1)*100.*batch_size_world/len(data_loader.dataset))))
 
     embeddings = torch.cat(embedding, dim=0)
     labels = torch.cat(labels, dim=0).tolist()
-    if is_master_proc: print('embeddings size', embeddings.size())
+    #if is_master_proc: print('embeddings size', embeddings.size())
     return embeddings, labels
 
 
@@ -214,7 +218,7 @@ def get_topk_acc(distance_matrix, x_labels, y_labels=None):
     return top1_acc, top5_acc
 
 
-def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split='val', load_from_pkl=False):
+def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split='val', is_master_proc=True, load_from_pkl=False):
     if split == 'train':
         embeddings_pkl = os.path.join(args.output, 'train_embeddings.pkl')
         labels_pkl = os.path.join(args.output, 'train_labels.pkl')
@@ -229,7 +233,7 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split
             labels = torch.load(handle)
         print('retrieved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
     else:
-        embeddings, labels = evaluate(cfg, model, cuda, device, data_loader, split=split, log_interval=log_interval)
+        embeddings, labels = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
         with open(embeddings_pkl, 'wb') as handle:
             torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
         with open(labels_pkl, 'wb') as handle:
@@ -241,15 +245,18 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split
 def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, train_data, val_data, cfg, plot=True,
                         load_from_pkl=True, epoch=None, is_master_proc=True,
                         evaluate_output=None, num_exemplar=None, service=None):
-    val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader, split='val')
-    train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader, split='train')
+    print ('Getting embeddings...')
+    val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader, split='val', is_master_proc=is_master_proc)
+    train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader, split='train', is_master_proc=is_master_proc)
     top1_acc, top5_acc = 0, 0
+    
+    print ('Computing top1/5 Acc...')
     if (is_master_proc):
         distance_matrix = get_distance_matrix(val_embeddings, train_embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
         top1_acc, top5_acc = get_topk_acc(distance_matrix, val_labels, y_labels=train_labels)
         if epoch is not None:
             to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*top1_acc, 100.*top5_acc)
-            msg = 'Test Set: Top1 Acc: {:.2f}% \t'\
+            msg = '\nTest Set: Top1 Acc: {:.2f}% \t'\
                    'Top5 Acc: {:.2f}%'.format(100.*top1_acc, 100.*top5_acc)
 
             to_write += '\n'

@@ -57,6 +57,8 @@ def train_epoch(train_loader, tripletnet, criterion, optimizer, epoch, cfg, cuda
             target = target.to(device)
 
         loss = criterion(dista, distb, target)
+        if loss.size() == 1 and loss == 0:
+            continue
         embedd_norm_sum = embedded_x.norm(2) + embedded_y.norm(2) + embedded_z.norm(2)
 
         # compute gradient and do optimizer step

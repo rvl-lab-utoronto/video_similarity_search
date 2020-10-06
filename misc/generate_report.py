@@ -17,7 +17,7 @@ SOURCE_CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 train_progress_file = './tnet_checkpoints/train_loss_and_acc.txt'
 val_progress_file = './tnet_checkpoints/val_loss_and_acc.txt'
-
+global_retrieval_file = './tnet_checkpoints/global_retrieval_acc.txt'
 
 def parse():
     parser = argparse.ArgumentParser("Video Similarity Search Training Script")
@@ -46,7 +46,7 @@ def parse_file(result_dir, f_type='train'):
     top1_acc = []
     top5_acc = []
     runtime = []
-    assert f_type in ['train', 'val'], "f_type:{} is not recognized".format(f_type)
+    assert f_type in ['train', 'val', 'global_retrieval'], "f_type:{} is not recognized".format(f_type)
     processed_epoch = []
 
     if f_type == 'train':
@@ -54,14 +54,14 @@ def parse_file(result_dir, f_type='train'):
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
                 cur_epoch = float(row[0].replace('epoch:', '').replace(',',''))
-                epoch.append(cur_epoch)
                 if cur_epoch in processed_epoch:
                     continue
+                epoch.append(cur_epoch)
                 processed_epoch.append(cur_epoch)
                 losses.append(float(row[2]))
                 # acc.append(float(row[3]))
                 runtime.append(float(row[1].replace('runtime:', '').replace(',','')))
-    else:
+    elif f_type=='val':
         with open (os.path.join(result_dir, val_progress_file), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
@@ -73,6 +73,17 @@ def parse_file(result_dir, f_type='train'):
                 acc.append(float(row[2]))
                 top1_acc.append(float(row[3]))
                 top5_acc.append(float(row[4]))
+    else:
+        with open (os.path.join(result_dir, global_retrieval_file), newline='') as csvfile:
+            csv_reader = csv.reader(csvfile, delimiter=' ')
+            for row in csv_reader:
+                cur_epoch = float(row[0].replace('epoch:', '').replace(',',''))
+                if cur_epoch in processed_epoch:
+                    continue
+                epoch.append(cur_epoch)
+                processed_epoch.append(cur_epoch)
+                top1_acc.append(float(row[1]))
+                top5_acc.append(float(row[2]))
 
     return epoch, runtime, losses, acc, top1_acc, top5_acc
 
@@ -80,7 +91,8 @@ def parse_file(result_dir, f_type='train'):
 def plot_training_progress(result_dir, name, show_plot=False, service=None):
     _, _, train_losses, _, _, _ = parse_file(result_dir, 'train')
     _, _, val_losses, val_acc, top1_acc, top5_acc = parse_file(result_dir, 'val')
-
+    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc = parse_file(result_dir, 'global_retrieval')
+    print(top1_5_epoch)
     f = plt.figure(figsize=(18,5))
     ax1 =  plt.subplot(1, 3, 1)
     ax1.plot(np.arange(len(train_losses)), train_losses)
@@ -99,8 +111,10 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     #ax2.legend(['Training', 'Validation'])
 
     ax3 = plt.subplot(1, 3, 3)
-    ax3.plot(np.arange(len(top1_acc)), top1_acc)
-    ax3.plot(np.arange(len(top5_acc)), top5_acc)
+    # ax3.plot(np.arange(len(top1_acc)), top1_acc)
+    # ax3.plot(np.arange(len(top5_acc)), top5_acc)
+    ax3.plot(top1_5_epoch, global_top1_acc)
+    ax3.plot(top1_5_epoch, global_top5_acc)
     ax3.set_xlabel('Epoch')
     ax3.set_ylabel('Accuracy (%)')
     ax3.set_title('Validation Top 1/5 Retrieval Accuracy vs. Epoch')

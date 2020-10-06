@@ -6,6 +6,9 @@ import torchvision
 from inflate_src.i3res import I3ResNet
 from simclr_pytorch.resnet_wider import resnet50x1, resnet50x2, resnet50x4
 
+class Flatten(torch.nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), -1)
 
 def test():
     num_frames = 16
@@ -18,6 +21,8 @@ def test():
     print ('Finished loading simclr-pretrained resnet50 (2D)')
 
     i3resnet = I3ResNet(copy.deepcopy(resnet), num_frames)
+    # Discard FC (last kept is avg pool)
+    i3resnet = torch.nn.Sequential(*(list(i3resnet.children())[:-1]), Flatten())
     i3resnet = i3resnet.to(device)
     print ('Constructed inflated simclr-pretrained resnet50')
 

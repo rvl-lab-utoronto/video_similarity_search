@@ -54,10 +54,37 @@ def simclr_inflated(num_frames):
     return i3resnet
 
 
+def mocov2_inflated(num_frames):
+    model = torchvision.models.__dict__['resnet50']()
+
+    sd = 'models/baselines/mocov2_pytorch/moco_v2_200ep_pretrain.pth.tar'
+    checkpoint = torch.load(sd, map_location='cpu')
+    state_dict = checkpoint['state_dict']
+    for k in list(state_dict.keys()):
+        # return only encoder_q up to before the embedding layer
+        if k.startswith('module.encoder_q') and not k.startswith('module.encoder_q.fc'):
+            # remove prefix
+            state_dict[k[len("module.encoder_q."):]] = state_dict[k]
+        # delete renamed or unused k
+        del state_dict[k]
+    msg = model.load_state_dict(state_dict, strict=False)
+    assert set(msg.missing_keys) == {"fc.weight", "fc.bias"}
+
+    # Inflate with time dimensions of kernels initialized with copied weights /
+    # size_time_dim
+    i3resnet = I3ResNet(copy.deepcopy(model), num_frames)
+
+    # Discard FC (last kept is avg pool)
+    i3resnet = torch.nn.Sequential(*(list(i3resnet.children())[:-1]), Flatten())
+    return i3resnet
+
+
 # Select the appropriate model with the specified cfg parameters
 def model_selector(cfg):
     assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast',
-            'simclr_pretrained_inflated_res50', 'imagenet_pretrained_inflated_res50']
+            'simclr_pretrained_inflated_res50',
+            'imagenet_pretrained_inflated_res50',
+            'mocov2_pretrained_inflated_res50']
 
     if cfg.MODEL.ARCH == '3dresnet':
         model=generate_model(model_depth=cfg.RESNET.MODEL_DEPTH,
@@ -91,6 +118,9 @@ def model_selector(cfg):
 
     elif cfg.MODEL.ARCH == 'imagenet_pretrained_inflated_res50':
         model = imagenet_inflated(cfg.DATA.SAMPLE_DURATION)
+
+    elif cfg.MODEL.ARCH == 'mocov2_pretrained_inflated_res50':
+        model = mocov2_inflated(cfg.DATA.SAMPLE_DURATION)
 
     return model
 

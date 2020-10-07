@@ -85,8 +85,8 @@ def m_arg_parser(parser):
 
 
 def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_proc=True):
-    #log_interval=len(data_loader.dataset)//5
-    log_interval = 5
+    log_interval=len(data_loader.dataset)//5
+    #log_interval = 5
 
     model.eval()
     embedding = []

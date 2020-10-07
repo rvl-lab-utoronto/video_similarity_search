@@ -13,7 +13,8 @@ import inflate
 
 
 class I3ResNet(torch.nn.Module):
-    def __init__(self, resnet2d, frame_nb=16, class_nb=1000, conv_class=False):
+    def __init__(self, resnet2d, frame_nb=16, class_nb=1000, conv_class=False,
+            center=True):
         """
         Args:
             conv_class: Whether to use convolutional layer as classifier to
@@ -23,16 +24,16 @@ class I3ResNet(torch.nn.Module):
         self.conv_class = conv_class
 
         self.conv1 = inflate.inflate_conv(
-            resnet2d.conv1, time_dim=3, time_padding=1, center=True)
+            resnet2d.conv1, time_dim=3, time_padding=1, center=center)
         self.bn1 = inflate.inflate_batch_norm(resnet2d.bn1)
         self.relu = torch.nn.ReLU(inplace=True)
         self.maxpool = inflate.inflate_pool(
             resnet2d.maxpool, time_dim=3, time_padding=1, time_stride=2)
 
-        self.layer1 = inflate_reslayer(resnet2d.layer1)
-        self.layer2 = inflate_reslayer(resnet2d.layer2)
-        self.layer3 = inflate_reslayer(resnet2d.layer3)
-        self.layer4 = inflate_reslayer(resnet2d.layer4)
+        self.layer1 = inflate_reslayer(resnet2d.layer1, center)
+        self.layer2 = inflate_reslayer(resnet2d.layer2, center)
+        self.layer3 = inflate_reslayer(resnet2d.layer3, center)
+        self.layer4 = inflate_reslayer(resnet2d.layer4, center)
 
         if conv_class:
             self.avgpool = inflate.inflate_pool(resnet2d.avgpool, time_dim=1)
@@ -71,22 +72,22 @@ class I3ResNet(torch.nn.Module):
         return x
 
 
-def inflate_reslayer(reslayer2d):
+def inflate_reslayer(reslayer2d, center):
     reslayers3d = []
     for layer2d in reslayer2d:
-        layer3d = Bottleneck3d(layer2d)
+        layer3d = Bottleneck3d(layer2d, center)
         reslayers3d.append(layer3d)
     return torch.nn.Sequential(*reslayers3d)
 
 
 class Bottleneck3d(torch.nn.Module):
-    def __init__(self, bottleneck2d):
+    def __init__(self, bottleneck2d, center):
         super(Bottleneck3d, self).__init__()
 
         spatial_stride = bottleneck2d.conv2.stride[0]
 
         self.conv1 = inflate.inflate_conv(
-            bottleneck2d.conv1, time_dim=1, center=True)
+            bottleneck2d.conv1, time_dim=1, center=center)
         self.bn1 = inflate.inflate_batch_norm(bottleneck2d.bn1)
 
         self.conv2 = inflate.inflate_conv(
@@ -94,18 +95,18 @@ class Bottleneck3d(torch.nn.Module):
             time_dim=3,
             time_padding=1,
             time_stride=spatial_stride,
-            center=True)
+            center=center)
         self.bn2 = inflate.inflate_batch_norm(bottleneck2d.bn2)
 
         self.conv3 = inflate.inflate_conv(
-            bottleneck2d.conv3, time_dim=1, center=True)
+            bottleneck2d.conv3, time_dim=1, center=center)
         self.bn3 = inflate.inflate_batch_norm(bottleneck2d.bn3)
 
         self.relu = torch.nn.ReLU(inplace=True)
 
         if bottleneck2d.downsample is not None:
             self.downsample = inflate_downsample(
-                bottleneck2d.downsample, time_stride=spatial_stride)
+                bottleneck2d.downsample, center, time_stride=spatial_stride)
         else:
             self.downsample = None
 
@@ -132,9 +133,9 @@ class Bottleneck3d(torch.nn.Module):
         return out
 
 
-def inflate_downsample(downsample2d, time_stride=1):
+def inflate_downsample(downsample2d, center, time_stride=1):
     downsample3d = torch.nn.Sequential(
         inflate.inflate_conv(
-            downsample2d[0], time_dim=1, time_stride=time_stride, center=True),
+            downsample2d[0], time_dim=1, time_stride=time_stride, center=center),
         inflate.inflate_batch_norm(downsample2d[1]))
     return downsample3d

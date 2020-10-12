@@ -63,7 +63,7 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
 
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
-        if loss.size() == 1 and loss == 0:
+        if loss == 0:
             continue
         loss.backward()
         optimizer.step()
@@ -207,9 +207,9 @@ def train(args, cfg):
         if epoch % 10 == 0:
             if is_master_proc:
                 print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
-            top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg, plot=False,
+            topk_acc = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg, plot=False,
                                     load_from_pkl=False, epoch=epoch, is_master_proc=is_master_proc)
-
+            
         # Update best accuracy and save checkpoint
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)

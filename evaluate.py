@@ -195,30 +195,28 @@ def load_exemplar(exemplar_file):
     return exemplar_idx
 
 
-def get_topk_acc(distance_matrix, x_labels, y_labels=None):
-    # distance_matrix = get_distance_matrix(embeddings, dist_metric=dist_metric)
-    top1_sum = 0
-    top5_sum = 0
-    top1_indices = get_closest_data_mat(distance_matrix, top_k=1)  # dim: distance_matrix.shape[0] x top_k
-    top5_indices = get_closest_data_mat(distance_matrix, top_k=5)  # dim: distance_matrix.shape[0] x top_k
+def get_topk_acc(distance_matrix, x_labels, y_labels=None, top_ks = [1,5,10,20]):
+    top_k = top_ks[-1] 
+    topk_sum = 0
+    topk_indices = get_closest_data_mat(distance_matrix, top_k=top_k)
     if y_labels is None:
-        y_labels=x_labels
-
+        y_labels = x_labels
+    
+    acc = []
     for i, x_label in enumerate(x_labels):
-        top1_idx = top1_indices[i]
-        top5_idx = top5_indices[i]
-        top1_label = [y_labels[j] for j in top1_idx]
-        top5_labels = [y_labels[j] for j in top5_idx]
-        # print(i, 'cur', label, 'top1_idx', top1_idx, 'top1', top1_label, 'top5_idx', top5_idx, 'top5', top5_labels)
-        top1_sum += int(x_label in top1_label)
-        top5_sum += int(x_label in top5_labels)
-    # print('top1_sum', top1_sum, 'top5_sum', top5_sum)
-    top1_acc = top1_sum / len(x_labels)
-    top5_acc = top5_sum / len(x_labels)
-    return top1_acc, top5_acc
+        cur_acc = []
+        for k in top_ks:
+            topk_idx = topk_indices[:, :k]
+            cur_topk_idx = topk_idx[i]
+            topk_labels = [y_labels[j] for j in cur_topk_idx]
+            topk_sum = int(x_label in topk_labels)
+            cur_acc.append(topk_sum)
+        acc.append(cur_acc)
+    acc = np.mean(np.array(acc), axis=0)
+    return acc
 
 
-def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split='val', is_master_proc=True, load_from_pkl=False):
+def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split='val', is_master_proc=True, load_from_pkl=True):
     if split == 'train':
         embeddings_pkl = os.path.join(args.output, 'train_embeddings.pkl')
         labels_pkl = os.path.join(args.output, 'train_labels.pkl')
@@ -248,16 +246,15 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
     print ('Getting embeddings...')
     val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader, split='val', is_master_proc=is_master_proc)
     train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader, split='train', is_master_proc=is_master_proc)
-    top1_acc, top5_acc = 0, 0
+    acc = []
     
-    print ('Computing top1/5 Acc...')
+    print ('Computing top1/5/10/20 Acc...')
     if (is_master_proc):
         distance_matrix = get_distance_matrix(val_embeddings, train_embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
-        top1_acc, top5_acc = get_topk_acc(distance_matrix, val_labels, y_labels=train_labels)
+        acc = get_topk_acc(distance_matrix, val_labels, y_labels=train_labels)
         if epoch is not None:
-            to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*top1_acc, 100.*top5_acc)
-            msg = '\nTest Set: Top1 Acc: {:.2f}% \t'\
-                   'Top5 Acc: {:.2f}%'.format(100.*top1_acc, 100.*top5_acc)
+            to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
+            msg = '\nTest Set: Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%, Top10 Acc: {:.2f}%, Top20 Acc: {:.2f}%'.format(100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
 
             to_write += '\n'
             print(msg)
@@ -281,9 +278,10 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
             fig.tight_layout(pad=3.5)
             plt.savefig(png_file, dpi=300)
             service.upload_file_to_gdrive(png_file, 'evaluate')
-            print('top1 accuracy: {}; top5 accuracy:{}'.format(top1_acc, top5_acc))
             print('figure saved to: {}, and uploaded to GoogleDrive'.format(png_file))
-    return top1_acc, top5_acc
+        # print(acc)
+        print('Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%, Top10 Acc: {:.2f}%, Top20 Acc: {:.2f}%'.format(100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3]))
+    return acc
 
 
 def temporal_heat_map(model, data, cfg, evaluate_output, exemplar_idx=455,

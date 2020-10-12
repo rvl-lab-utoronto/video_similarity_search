@@ -11,6 +11,9 @@ def kp_img_name_formatter(x):
 def salient_img_name_formatter(x):
     return f'image_{x:05d}_sal_fuse.png'
 
+def optical_img_name_formatter(x): #frame000077.jpg
+    return f'frame{x:06d}.jpg'
+
 
 def get_class_labels(data):
     class_labels_map = {}
@@ -51,13 +54,20 @@ def get_database(data, subset, root_path, video_path_formatter, split='train', c
         video_paths.append(video_path_formatter(root_path, label, id))
 
     channel_paths = {}
+    optical_video_path_formatter = (lambda root_path, video_id: root_path + '/' + video_id)
     for key in channel_ext:
         channel_ext_path = channel_ext[key][0]
         if key not in channel_paths:
             channel_paths[key]=[]
         for id in video_ids:
             label = data['database'][id]['annotations']['label']
-            channel_paths[key].append(video_path_formatter(channel_ext_path, label, id))
+            if key == 'optical_u' or ket == 'optical_v':
+                vids = id.split('_')
+                if vids[1] == 'HandStandPushups':
+                    id = vids[0] + '_HandstandPushups_' + vids[2] + '_' + vids[3]
+                channel_paths[key].append(optical_video_path_formatter(channel_ext_path, id))
+            else:
+                channel_paths[key].append(video_path_formatter(channel_ext_path, label, id))
 
     return video_ids, video_paths, annotations, channel_paths
 
@@ -147,7 +157,7 @@ class UCF101():
             video_path = video_paths[i]
             segment = annotations[i]['segment']
 
-            num_frames = segment[1] - 1
+            num_frames = segment[1] - 1 #edit
             if num_frames == 0:
                 if (is_master_proc):
                     print ('empty folder', video_paths[i])

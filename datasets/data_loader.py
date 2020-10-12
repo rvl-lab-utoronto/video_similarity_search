@@ -154,6 +154,8 @@ def get_channel_extention(cfg):
     if cfg.TRAIN.DATASET == 'ucf101':
         kp_img_name_formatter = datasets.ucf101.kp_img_name_formatter
         salient_img_name_formatter = datasets.ucf101.salient_img_name_formatter
+        optical_img_name_formatter = datasets.ucf101.optical_img_name_formatter
+
     elif cfg.TRAIN.DATASET == 'kinetics':
         kp_img_name_formatter = datasets.kinetics.kp_img_name_formatter
         salient_img_name_formatter = datasets.kinetics.salient_img_name_formatter
@@ -165,6 +167,9 @@ def get_channel_extention(cfg):
         elif channel_extension == 'salient':
             channel_ext['salient'] = [cfg.DATASET.SALIENT_PATH,
                                            VideoLoader(salient_img_name_formatter, image_loader=BinaryImageLoaderPIL)]
+        elif channel_extension == 'optical_u':
+            channel_ext['optical_u'] = [cfg.DATASET.OPTICAL_U_PATH,
+                                           VideoLoader(optical_img_name_formatter, image_loader=BinaryImageLoaderPIL)]
 
     return channel_ext
 

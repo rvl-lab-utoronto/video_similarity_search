@@ -58,7 +58,8 @@ _C.DATASET.POSITIVE_SAMPLING_P = 0.8
 _C.DATASET.CHANNEL_EXTENSIONS = ''
 _C.DATASET.KEYPOINT_PATH = ''
 _C.DATASET.SALIENT_PATH = ''
-
+_C.DATASET.OPTICAL_U_PATH = ''
+_C.DATASET.OPTICAL_V_PATH = ''
 
 # -----------------------------------------------------------------------------
 # Slowfast options

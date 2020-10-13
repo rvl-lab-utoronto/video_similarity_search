@@ -79,8 +79,9 @@ def m_arg_parser(parser):
 
 
 def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_proc=True):
-    log_interval=len(data_loader.dataset)//50
-    
+    log_interval=len(data_loader.dataset)//5
+    #log_interval = 2
+
     model.eval()
     embedding = []
     # vid_info = []
@@ -215,8 +216,9 @@ def get_topk_acc(distance_matrix, x_labels, y_labels=None, top_ks = [1,5,10,20])
     acc = np.mean(np.array(acc), axis=0)
     return acc
 
-
-def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split='val', is_master_proc=True, load_from_pkl=True):
+def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
+        split='val', is_master_proc=True, load_pkl=False,
+        save_pkl=False):
     if split == 'train':
         embeddings_pkl = os.path.join(args.output, 'train_embeddings.pkl')
         labels_pkl = os.path.join(args.output, 'train_labels.pkl')
@@ -224,7 +226,7 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split
         embeddings_pkl = os.path.join(args.output, 'val_embeddings.pkl')
         labels_pkl = os.path.join(args.output, 'val_labels.pkl')
 
-    if os.path.exists(embeddings_pkl) and os.path.exists(labels_pkl) and load_from_pkl:
+    if os.path.exists(embeddings_pkl) and os.path.exists(labels_pkl) and load_pkl:
         with open(embeddings_pkl, 'rb') as handle:
             embeddings = torch.load(handle)
         with open(labels_pkl, 'rb') as handle:
@@ -232,17 +234,18 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split
         print('retrieved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
     else:
         embeddings, labels = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
-        with open(embeddings_pkl, 'wb') as handle:
-            torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
-        with open(labels_pkl, 'wb') as handle:
-            torch.save(labels, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
+        if save_pkl:
+            with open(embeddings_pkl, 'wb') as handle:
+                torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
+            with open(labels_pkl, 'wb') as handle:
+                torch.save(labels, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
 
     return embeddings, labels
 
 
 def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, train_data, val_data, cfg, plot=True,
-                        load_from_pkl=True, epoch=None, is_master_proc=True,
-                        evaluate_output=None, num_exemplar=None, service=None):
+                        epoch=None, is_master_proc=True,
+                        evaluate_output=None, num_exemplar=None, service=None, load_pkl=True):
     print ('Getting embeddings...')
     val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader, split='val', is_master_proc=is_master_proc)
     train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader, split='train', is_master_proc=is_master_proc)
@@ -255,9 +258,7 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
         if epoch is not None:
             to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
             msg = '\nTest Set: Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%, Top10 Acc: {:.2f}%, Top20 Acc: {:.2f}%'.format(100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
-
             to_write += '\n'
-            print(msg)
             with open('{}/tnet_checkpoints/global_retrieval_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
                 val_file.write(to_write)
 
@@ -369,6 +370,9 @@ if __name__ == '__main__':
     args = m_arg_parser(arg_parser()).parse_args()
     cfg = load_config(args)
 
+    print("Train batch size:", cfg.TRAIN.BATCH_SIZE)
+    print("Val batch size:", cfg.VAL.BATCH_SIZE)
+
     np.random.seed(args.seed)
 
     force_data_parallel = True
@@ -417,7 +421,11 @@ if __name__ == '__main__':
 
     # Transfer model to DDP
     if cuda:
+        if torch.cuda.device_count() > 1:
+            print("Using DataParallel with {} gpus".format(torch.cuda.device_count()))
+            model = nn.DataParallel(model)
         model = model.cuda(device=device)
+
         # if torch.cuda.device_count() > 1:
         #     #model = nn.DataParallel(model)
         #     if cfg.MODEL.ARCH == '3dresnet':
@@ -432,7 +440,7 @@ if __name__ == '__main__':
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
-        if cfg.NUM_GPUS > 1:
+        if torch.cuda.device_count() > 1:
             start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
         else:
             print('loading checkpoint path...')
@@ -473,5 +481,5 @@ if __name__ == '__main__':
     else:
         k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
                         train_data, val_data, cfg, evaluate_output=evaluate_output,
-                        num_exemplar=num_exemplar, service=GoogleDriveUploader())
+                        num_exemplar=num_exemplar, service=GoogleDriveUploader(), load_pkl=True)
         print('total runtime: {}s'.format(time.time()-start))

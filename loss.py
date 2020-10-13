@@ -32,7 +32,7 @@ class OnlineTripleLoss(nn.Module):
 
         # Compute margin ranking loss
         if len(triplets[0]) == 0:
-            loss = torch.zeros(1)
+            loss = torch.zeros(1, requires_grad=True)
         else:
             loss = F.relu(ap_dists - an_dists + self.margin)
         

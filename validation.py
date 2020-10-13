@@ -63,9 +63,9 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
                 embeddings = torch.cat((embedded_x.detach().cpu(), embedded_y.detach().cpu()), dim=0)
                 labels = torch.cat((anchor_target.detach().cpu(), positive_target.detach().cpu()), dim=0)
                 distance_matrix = get_distance_matrix(embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
-                top1_acc, top5_acc = get_topk_acc(distance_matrix, labels.tolist())
-                top1_accs.update(top1_acc)
-                top5_accs.update(top5_acc)
+                topk_acc = get_topk_acc(distance_matrix, labels.tolist())
+                top1_accs.update(topk_acc[0])
+                top5_accs.update(topk_acc[1])
 
             else:
                 print('Metric type:{} is not implemented'.format(metric))
@@ -118,9 +118,9 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
             embeddings = torch.cat(embeddings, dim=0)
             labels = torch.cat(labels, dim=0).tolist()
             distance_matrix = get_distance_matrix(embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
-            top1_acc, top5_acc = get_topk_acc(distance_matrix, labels)
-            top1_accs.update(top1_acc)
-            top5_accs.update(top5_acc)
+            topk_acc = get_topk_acc(distance_matrix, labels)
+            top1_accs.update(topk_acc[0])
+            top5_accs.update(topk_acc[1])
 
     if (is_master_proc):
         # Log

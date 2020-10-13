@@ -75,6 +75,11 @@ def m_arg_parser(parser):
         type=int,
         help='seed for np.random'
     )
+    parser.add_argument(
+        "--load_pkl",
+        action='store_true',
+        help='load computed embeddings from the pickle file'
+    )
     return parser
 
 
@@ -199,12 +204,14 @@ def get_topk_acc(distance_matrix, x_labels, y_labels=None, top_ks = [1,5,10,20])
     top_k = top_ks[-1] 
     topk_sum = 0
     topk_indices = get_closest_data_mat(distance_matrix, top_k=top_k)
+    # print('topk_indices', topk_indices.size())
     if y_labels is None:
         y_labels = x_labels
     
     acc = []
     for i, x_label in enumerate(x_labels):
         cur_acc = []
+        # print('x_label', x_label)
         for k in top_ks:
             topk_idx = topk_indices[:, :k]
             cur_topk_idx = topk_idx[i]
@@ -212,11 +219,12 @@ def get_topk_acc(distance_matrix, x_labels, y_labels=None, top_ks = [1,5,10,20])
             topk_sum = int(x_label in topk_labels)
             cur_acc.append(topk_sum)
         acc.append(cur_acc)
+    # print(acc.size())
     acc = np.mean(np.array(acc), axis=0)
     return acc
 
 
-def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split='val', is_master_proc=True, load_from_pkl=True):
+def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split='val', is_master_proc=True, load_pkl=False):
     if split == 'train':
         embeddings_pkl = os.path.join(args.output, 'train_embeddings.pkl')
         labels_pkl = os.path.join(args.output, 'train_labels.pkl')
@@ -224,7 +232,7 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split
         embeddings_pkl = os.path.join(args.output, 'val_embeddings.pkl')
         labels_pkl = os.path.join(args.output, 'val_labels.pkl')
 
-    if os.path.exists(embeddings_pkl) and os.path.exists(labels_pkl) and load_from_pkl:
+    if os.path.exists(embeddings_pkl) and os.path.exists(labels_pkl) and load_pkl:
         with open(embeddings_pkl, 'rb') as handle:
             embeddings = torch.load(handle)
         with open(labels_pkl, 'rb') as handle:
@@ -241,11 +249,13 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split
 
 
 def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, train_data, val_data, cfg, plot=True,
-                        load_from_pkl=True, epoch=None, is_master_proc=True,
-                        evaluate_output=None, num_exemplar=None, service=None):
+                        epoch=None, is_master_proc=True,
+                        evaluate_output=None, num_exemplar=None, service=None, load_pkl=False):
     print ('Getting embeddings...')
-    val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader, split='val', is_master_proc=is_master_proc)
-    train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader, split='train', is_master_proc=is_master_proc)
+    val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader, 
+                                                        split='val', is_master_proc=is_master_proc, load_pkl=load_pkl)
+    train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader, 
+                                                        split='train', is_master_proc=is_master_proc, load_pkl=load_pkl)
     acc = []
     
     print ('Computing top1/5/10/20 Acc...')
@@ -405,7 +415,7 @@ if __name__ == '__main__':
     # Select appropriate model
     if(is_master_proc):
         print('\n==> Generating {} backbone model...'.format(cfg.MODEL.ARCH))
-    model=model_selector(cfg)
+    model=model_selector(cfg, projection_head=False)
 
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
@@ -473,5 +483,5 @@ if __name__ == '__main__':
     else:
         k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
                         train_data, val_data, cfg, evaluate_output=evaluate_output,
-                        num_exemplar=num_exemplar, service=GoogleDriveUploader())
+                        num_exemplar=num_exemplar, service=GoogleDriveUploader(), load_pkl=args.load_pkl)
         print('total runtime: {}s'.format(time.time()-start))

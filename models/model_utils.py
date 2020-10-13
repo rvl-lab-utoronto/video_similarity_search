@@ -16,7 +16,7 @@ def create_output_dirs(cfg):
         os.makedirs(os.path.join(cfg.OUTPUT_PATH, 'tnet_checkpoints'))
 
 # Select the appropriate model with the specified cfg parameters
-def model_selector(cfg):
+def model_selector(cfg, projection_head=True):
     assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast']
 
     if cfg.MODEL.ARCH == '3dresnet':
@@ -27,7 +27,8 @@ def model_selector(cfg):
                         conv1_t_size=cfg.RESNET.CONV1_T_SIZE,
                         conv1_t_stride=cfg.RESNET.CONV1_T_STRIDE,
                         no_max_pool=cfg.RESNET.NO_MAX_POOl,
-                        widen_factor=cfg.RESNET.WIDEN_FACTOR)
+                        widen_factor=cfg.RESNET.WIDEN_FACTOR,
+                        projection_head=projection_head)
 
     elif cfg.MODEL.ARCH == 'slowfast':
         slowfast_cfg = get_cfg()

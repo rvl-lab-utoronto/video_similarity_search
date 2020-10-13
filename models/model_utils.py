@@ -27,19 +27,19 @@ class Flatten(torch.nn.Module):
         return input.view(input.size(0), -1)
 
 
-def imagenet_inflated(num_frames):
+def imagenet_inflated(num_frames, center_init=False):
     resnet = torchvision.models.resnet50(pretrained=True)
 
     # Inflate with time dimensions of kernels initialized with copied weights /
     # size_time_dim
-    i3resnet = I3ResNet(copy.deepcopy(resnet), num_frames, center=False)
+    i3resnet = I3ResNet(copy.deepcopy(resnet), num_frames, center=center_init)
 
     # Discard FC (last kept is avg pool)
     i3resnet = torch.nn.Sequential(*(list(i3resnet.children())[:-1]), Flatten())
     return i3resnet
 
 
-def simclr_inflated(num_frames):
+def simclr_inflated(num_frames, center_init=False):
     sd = 'models/baselines/simclr_pytorch/resnet50-1x.pth'
     resnet = resnet50x1()
     sd = torch.load(sd, map_location='cpu')
@@ -47,14 +47,14 @@ def simclr_inflated(num_frames):
 
     # Inflate with time dimensions of kernels initialized with copied weights /
     # size_time_dim
-    i3resnet = I3ResNet(copy.deepcopy(resnet), num_frames, center=False)
+    i3resnet = I3ResNet(copy.deepcopy(resnet), num_frames, center=center_init)
 
     # Discard FC (last kept is avg pool)
     i3resnet = torch.nn.Sequential(*(list(i3resnet.children())[:-1]), Flatten())
     return i3resnet
 
 
-def mocov2_inflated(num_frames):
+def mocov2_inflated(num_frames, center_init=True):
     model = torchvision.models.__dict__['resnet50']()
 
     sd = 'models/baselines/mocov2_pytorch/moco_v2_200ep_pretrain.pth.tar'
@@ -72,7 +72,7 @@ def mocov2_inflated(num_frames):
 
     # Inflate with time dimensions of kernels initialized with copied weights /
     # size_time_dim
-    i3resnet = I3ResNet(copy.deepcopy(model), num_frames)
+    i3resnet = I3ResNet(copy.deepcopy(model), num_frames, center=center_init)
 
     # Discard FC (last kept is avg pool)
     i3resnet = torch.nn.Sequential(*(list(i3resnet.children())[:-1]), Flatten())

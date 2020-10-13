@@ -229,8 +229,11 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
     # Use a DistributedSampler if using more than 1 GPU
     sampler = DistributedSampler(data) if cfg.NUM_GPUS > 1 else None
-    if (sampler is not None and is_master_proc):
-        print ('Using distributed sampler with batch size per gpu:', int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS))
+    if is_master_proc:
+        if sampler is not None:
+            print ('Using distributed sampler')
+        else:
+            print ('Not using distributed sampler')
 
     if split == 'train' or split == 'val':
         # shuffle = True when GPU_num=1
@@ -238,10 +241,13 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
             shuffle = req_train_shuffle
         else:
             shuffle=(False if sampler else True)
+
         if split == 'train':
             batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS)
         else:
             batch_size = int(cfg.VAL.BATCH_SIZE)
+        if is_master_proc:
+            print (split, 'batch size for this process:', batch_size)
         data_loader = torch.utils.data.DataLoader(data,
                                                   batch_size=batch_size,
                                                   shuffle=shuffle,

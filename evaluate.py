@@ -79,8 +79,9 @@ def m_arg_parser(parser):
 
 
 def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_proc=True):
-    log_interval=len(data_loader.dataset)//50
-    
+    log_interval=len(data_loader.dataset)//5
+    #log_interval = 2
+
     model.eval()
     embedding = []
     # vid_info = []
@@ -218,7 +219,9 @@ def get_topk_acc(distance_matrix, x_labels, y_labels=None):
     return top1_acc, top5_acc
 
 
-def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split='val', is_master_proc=True, load_from_pkl=False):
+def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
+        split='val', is_master_proc=True, load_from_pkl=False,
+        save_to_pkl=False):
     if split == 'train':
         embeddings_pkl = os.path.join(args.output, 'train_embeddings.pkl')
         labels_pkl = os.path.join(args.output, 'train_labels.pkl')
@@ -234,10 +237,11 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader, split
         print('retrieved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
     else:
         embeddings, labels = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
-        with open(embeddings_pkl, 'wb') as handle:
-            torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
-        with open(labels_pkl, 'wb') as handle:
-            torch.save(labels, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
+        if save_to_pkl:
+            with open(embeddings_pkl, 'wb') as handle:
+                torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
+            with open(labels_pkl, 'wb') as handle:
+                torch.save(labels, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
 
     return embeddings, labels
 
@@ -249,18 +253,17 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
     val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader, split='val', is_master_proc=is_master_proc)
     train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader, split='train', is_master_proc=is_master_proc)
     top1_acc, top5_acc = 0, 0
-    
+
     print ('Computing top1/5 Acc...')
     if (is_master_proc):
         distance_matrix = get_distance_matrix(val_embeddings, train_embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
         top1_acc, top5_acc = get_topk_acc(distance_matrix, val_labels, y_labels=train_labels)
+        msg = '\nTest Set: Top1 Acc: {:.2f}% \t'\
+               'Top5 Acc: {:.2f}%\n'.format(100.*top1_acc, 100.*top5_acc)
+        print(msg)
         if epoch is not None:
             to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*top1_acc, 100.*top5_acc)
-            msg = '\nTest Set: Top1 Acc: {:.2f}% \t'\
-                   'Top5 Acc: {:.2f}%'.format(100.*top1_acc, 100.*top5_acc)
-
             to_write += '\n'
-            print(msg)
             with open('{}/tnet_checkpoints/global_retrieval_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
                 val_file.write(to_write)
 
@@ -371,6 +374,9 @@ if __name__ == '__main__':
     args = m_arg_parser(arg_parser()).parse_args()
     cfg = load_config(args)
 
+    print("Train batch size:", cfg.TRAIN.BATCH_SIZE)
+    print("Val batch size:", cfg.VAL.BATCH_SIZE)
+
     np.random.seed(args.seed)
 
     force_data_parallel = True
@@ -419,7 +425,11 @@ if __name__ == '__main__':
 
     # Transfer model to DDP
     if cuda:
+        if torch.cuda.device_count() > 1:
+            print("Using DataParallel with {} gpus".format(torch.cuda.device_count()))
+            model = nn.DataParallel(model)
         model = model.cuda(device=device)
+
         # if torch.cuda.device_count() > 1:
         #     #model = nn.DataParallel(model)
         #     if cfg.MODEL.ARCH == '3dresnet':
@@ -434,7 +444,7 @@ if __name__ == '__main__':
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
-        if cfg.NUM_GPUS > 1:
+        if torch.cuda.device_count() > 1:
             start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
         else:
             print('loading checkpoint path...')

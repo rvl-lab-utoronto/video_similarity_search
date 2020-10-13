@@ -80,7 +80,7 @@ def mocov2_inflated(num_frames, center_init=True):
 
 
 # Select the appropriate model with the specified cfg parameters
-def model_selector(cfg):
+def model_selector(cfg, projection_head=True):
     assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast',
             'simclr_pretrained_inflated_res50',
             'imagenet_pretrained_inflated_res50',

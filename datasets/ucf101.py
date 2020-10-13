@@ -156,8 +156,7 @@ class UCF101():
 
             video_path = video_paths[i]
             segment = annotations[i]['segment']
-
-            num_frames = segment[1] - 1 #edit
+            num_frames = segment[1] - 2 #edit
             if num_frames == 0:
                 if (is_master_proc):
                     print ('empty folder', video_paths[i])

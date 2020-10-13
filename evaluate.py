@@ -225,7 +225,7 @@ def get_topk_acc(distance_matrix, x_labels, y_labels=None, top_ks = [1,5,10,20])
     return acc
 
 def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
-        split='val', is_master_proc=True, load_pkl=False, save_pkl=False):
+        split='val', is_master_proc=True, load_pkl=False, save_pkl=True):
 
     if split == 'train':
         embeddings_pkl = os.path.join(args.output, 'train_embeddings.pkl')

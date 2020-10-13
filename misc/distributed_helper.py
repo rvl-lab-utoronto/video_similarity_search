@@ -9,6 +9,9 @@ def run_process(local_rank_proc, NUM_PROC_PER_SHARD, func, shard_id, NUM_SHARDS,
     WORLD_SIZE = NUM_PROC_PER_SHARD * NUM_SHARDS
     rank_proc = shard_id * NUM_PROC_PER_SHARD + local_rank_proc
 
+    # Operate on a single GPU in current process
+    torch.cuda.set_device(local_rank_proc)
+
     try:
         torch.distributed.init_process_group(backend=dist_backend,
                                              init_method=proc_init_method,
@@ -19,9 +22,6 @@ def run_process(local_rank_proc, NUM_PROC_PER_SHARD, func, shard_id, NUM_SHARDS,
     except Exception as e:
         print('Failed due to:{}'.format(e))
         raise e
-
-    # Operate on a single GPU in current process
-    torch.cuda.set_device(local_rank_proc)
 
     func(cmd_args, cfg)
 

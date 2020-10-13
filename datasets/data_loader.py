@@ -248,13 +248,21 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
             batch_size = int(cfg.VAL.BATCH_SIZE)
         if is_master_proc:
             print (split, 'batch size for this process:', batch_size)
+
+        # Drop the last non-full batch of each workers dataset replica.
+        # Note: this hides a bug with all_gather in validation which
+        # would occur when the last batch had different sizes across
+        # different gpu processes.
+        drop_last = True
+
         data_loader = torch.utils.data.DataLoader(data,
                                                   batch_size=batch_size,
                                                   shuffle=shuffle,
                                                   num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
                                                   pin_memory=True,
                                                   sampler=sampler,
-                                                  worker_init_fn=worker_init_fn)
+                                                  worker_init_fn=worker_init_fn,
+                                                  drop_last=drop_last)
 
     else: #test split
         data_loader = torch.utils.data.DataLoader(data,

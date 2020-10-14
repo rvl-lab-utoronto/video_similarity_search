@@ -63,8 +63,6 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
 
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
-        if loss == 0:
-            continue
         loss.backward()
         optimizer.step()
 

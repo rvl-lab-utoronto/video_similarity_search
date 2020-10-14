@@ -34,31 +34,33 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
 
     # Training loop
     start = time.time()
-    for batch_idx, (inputs, targets) in enumerate(train_loader):
-        anchor, positive = inputs
-        a_target, p_target = targets
-        batch_size = torch.tensor(anchor.size(0)).to(device)
-        targets = torch.cat((a_target, p_target), 0)
+    for batch_idx, (inputs, index) in enumerate(train_loader):
+        view1, view2 = inputs
+        batch_size = torch.tensor(view1.size(0)).to(device)
 
         # Prepare input and send to gpu
         if cfg.MODEL.ARCH == 'slowfast':
-            anchor = multipathway_input(anchor, cfg)
-            positive = multipathway_input(positive, cfg)
+            view1 = multipathway_input(view1, cfg)
+            view2 = multipathway_input(view2, cfg)
             if cuda:
-                for i in range(len(anchor)):
-                    anchor[i], positive[i]= anchor[i].to(device), positive[i].to(device)
+                for i in range(len(view1)):
+                    view1[i], view2[i]= view1[i].to(device), view2[i].to(device)
         elif cuda:
-            anchor, positive = anchor.to(device), positive.to(device)
+            view1, view2 = view1.to(device), view2.to(device)
 
-        # Get embeddings of anchors and positives
-        anchor_outputs = model(anchor)
-        positive_outputs = model(positive)
-        outputs = torch.cat((anchor_outputs, positive_outputs), 0)  # dim: [(batch_size * 2), dim_embedding]
-        if cuda:
-            targets = targets.to(device)
+        # Get embeddings of view1s and view2s
+        feat_1 = model(view1)
+        feat_2 = model(view2)
 
-        # Sample negatives from batch for each anchor/positive and compute loss
-        loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+        out_1, out_2 = contrast(feat_1, feat_2, index)
+
+        view1_loss = criterion(out_1)
+        view2_loss = criterion(out_2)
+
+        view1_prob = out_1[:,0].mean()
+        view2_prob = out_2[:,0].mean()
+
+        loss = view1_loss + view2_loss
 
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
@@ -245,7 +247,7 @@ if __name__ == '__main__':
 
     # Print training parameters
     print('Triplet sampling strategy: {}'.format(cfg.DATASET.SAMPLING_STRATEGY))
-    print('Probability of sampling positive from same video: {}'.format(cfg.DATASET.POSITIVE_SAMPLING_P))
+    print('Probability of sampling view2 from same video: {}'.format(cfg.DATASET.POSITIVE_SAMPLING_P))
     print('OUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
     print('BATCH_SIZE is set to: {}'.format(cfg.TRAIN.BATCH_SIZE))
     print('NUM_WORKERS is set to: {}'.format(cfg.TRAIN.NUM_DATA_WORKERS))

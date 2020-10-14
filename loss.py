@@ -16,27 +16,52 @@ class OnlineTripleLoss(nn.Module):
     # embeddings: tensor containing concatenated embeddings of anchors and positives with dim: [(batch_size * 2), dim_embedding]
     # labels: tensor containing concatenated labels of anchors and positives with dim: [(batch_size * 2)]
     def forward(self, embeddings, labels, sampling_strategy="random_negative"):
-        
-        # Get list of (anchor idx, postitive idx, negative idx) triplets
-        self.triplet_selector = NegativeTripletSelector(self.margin, sampling_strategy, self.dist_metric)
-        triplets = self.triplet_selector.get_triplets(embeddings, labels)  # list of dim: [3, batch_size]
 
-        # Compute anchor/positive and anchor/negative distances. ap_dists and
-        # an_dists are tensors with dim: [batch_size]
-        if self.dist_metric == 'euclidean':
-            ap_dists = F.pairwise_distance(embeddings[triplets[0], :], embeddings[triplets[1], :])
-            an_dists = F.pairwise_distance(embeddings[triplets[0], :], embeddings[triplets[2], :])
-        elif self.dist_metric == 'cosine':
-            ap_dists = 1 - F.cosine_similarity(embeddings[triplets[0], :], embeddings[triplets[1], :], dim=1)
-            an_dists = 1 - F.cosine_similarity(embeddings[triplets[0], :], embeddings[triplets[2], :], dim=1)
+        if sampling_strategy == 'noise_contrastive':
+            # Compute temperature-scaled similarity matrix 
+            temperature = 0.5
+            sim_matrix = 1 - pdist(embeddings, eps=0, dist_metric=self.dist_metric)
+            sim_matrix.masked_fill_(torch.eye(sim_matrix.size(0), dtype=bool).cuda(), 0)
+            sim_matrix = sim_matrix / temperature
+            #print(sim_matrix)
 
-        # Compute margin ranking loss
-        if len(triplets[0]) == 0:
-            loss = torch.zeros(1, requires_grad=True)
+            # Construct targets (i.e. list containing idx of positive for each
+            # anchor)
+            pos_idx_targets = torch.empty(embeddings.size(0), dtype=torch.long)
+            num_anchors = embeddings.size(0)//2
+            for i in range (0, embeddings.size(0)):
+                pos_idx_targets[i] = (num_anchors + i) % embeddings.size(0)
+            pos_idx_targets = pos_idx_targets.cuda()
+            #print(pos_idx_targets)
+
+            # Compute normalized temperature-scaled cross entropy loss (InfoNCE)
+            loss = F.cross_entropy(sim_matrix, pos_idx_targets)
+
+            return loss, 0
+
         else:
-            loss = F.relu(ap_dists - an_dists + self.margin)
-        
-        return loss.mean(), len(triplets[0])
+            # Get list of (anchor idx, postitive idx, negative idx) triplets
+            self.triplet_selector = NegativeTripletSelector(self.margin, sampling_strategy, self.dist_metric)
+            triplets = self.triplet_selector.get_triplets(embeddings, labels)  # list of dim: [3, batch_size]
+
+            # Compute anchor/positive and anchor/negative distances. ap_dists and
+            # an_dists are tensors with dim: [batch_size]
+            if self.dist_metric == 'euclidean':
+                ap_dists = F.pairwise_distance(embeddings[triplets[0], :], embeddings[triplets[1], :])
+                an_dists = F.pairwise_distance(embeddings[triplets[0], :], embeddings[triplets[2], :])
+            elif self.dist_metric == 'cosine':
+                ap_dists = 1 - F.cosine_similarity(embeddings[triplets[0], :], embeddings[triplets[1], :], dim=1)
+                an_dists = 1 - F.cosine_similarity(embeddings[triplets[0], :], embeddings[triplets[2], :], dim=1)
+
+            # Compute margin ranking loss
+            if len(triplets[0]) == 0:
+                loss = torch.zeros(1, requires_grad=True)
+            else:
+                loss = F.relu(ap_dists - an_dists + self.margin)
+
+            print()
+
+            return loss.mean(), len(triplets[0])
 
 
 class NegativeTripletSelector:
@@ -53,7 +78,7 @@ class NegativeTripletSelector:
         # Calculate distances between all embeddings to get distance_matrix
         # tensor with dim: [(batch_size * 2), (batch_size * 2)]
         distance_matrix = pdist(embeddings, eps=0, dist_metric=self.dist_metric)
-        
+
         # Get tensor with unique labels (<= (batch_size * 2))
         unique_labels, counts = torch.unique(labels, return_counts=True)
 
@@ -62,7 +87,7 @@ class NegativeTripletSelector:
 
         triplets_indices = [[] for i in range(3)]
         for i, label in enumerate(unique_labels):
-            
+
             # Get embeddings indices with current label
             label_mask = labels == label
             label_indices = torch.where(label_mask)[0]
@@ -88,7 +113,7 @@ class NegativeTripletSelector:
     # neg_indices: tensor containing indices of embeddings with label != X
     def get_one_one_triplets(self, pos_indices, negative_indices, dist_mat):
         triplets_indices = [[] for i in range(3)]
-        
+
         # Get combinations of possible anchor/positive pairs
         # TODO: If there's > 2 pos_indices, what if 2 embeddings are from the same video?
         anchor_positives = list(combinations(pos_indices, 2))

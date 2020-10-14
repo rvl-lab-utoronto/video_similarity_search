@@ -37,8 +37,7 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
     for batch_idx, (inputs, targets) in enumerate(train_loader):
         anchor, positive = inputs
         a_target, p_target = targets
-        batch_size = anchor.size(0)
-        batch_size_world = batch_size * world_size
+        batch_size = torch.tensor(anchor.size(0)).to(device)
         targets = torch.cat((a_target, p_target), 0)
 
         # Prepare input and send to gpu
@@ -69,8 +68,13 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
         optimizer.step()
 
         # Average loss across all gpu processes
-        if (cfg.NUM_GPUS > 1):
+        if cfg.NUM_GPUS > 1:
             [loss] = du_helper.all_reduce([loss], avg=True)
+            [batch_size_world] = du_helper.all_reduce([batch_size], avg=False)
+        else:
+            batch_size_world = batch_size
+
+        batch_size_world = batch_size_world.item()
 
         # Update running loss
         losses.update(loss.item(), batch_size_world)
@@ -80,9 +84,9 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
         if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
             print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                   'Loss: {:.4f} ({:.4f}) \t'
-                  'N_Triplets: {:.1f}'.format(epoch, (batch_idx + 1) * batch_size_world,
+                  'N_Triplets: {:.1f}'.format(epoch, losses.count,
                     len(train_loader.dataset),
-                    100. * ((batch_idx + 1) * batch_size_world / len(train_loader.dataset)),
+                    100. * (losses.count / len(train_loader.dataset)),
                     losses.val, losses.avg, running_n_triplets.avg))
 
     if (is_master_proc):
@@ -171,11 +175,11 @@ def train(args, cfg):
     if(is_master_proc):
         print('\n==> Building training data loader (triplet)...')
     train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
-    
+
     if(is_master_proc):
         print('\n==> Building validation data loader (triplet)...')
     val_loader, (_, _) = data_loader.build_data_loader('val', cfg, is_master_proc, triplets=True, negative_sampling=True)
-    
+
     # Setting is_master_proc to false when loading single video data loaders 
     # deliberately to not re-print data loader information
 
@@ -199,7 +203,7 @@ def train(args, cfg):
 
         # Train 
         train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
-        
+
         # Validate
         if is_master_proc:
             print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
@@ -249,6 +253,7 @@ if __name__ == '__main__':
     print('NUM_WORKERS is set to: {}'.format(cfg.TRAIN.NUM_DATA_WORKERS))
     print('SAMPLE SIZE is set to: {}'.format(cfg.DATA.SAMPLE_SIZE))
     print('N_CLASSES is set to: {}'.format(cfg.RESNET.N_CLASSES))
+    print('Learning rate is set to {}'.format(cfg.OPTIM.LR))
 
     # Launch processes for all gpus
     print('\n==> Launching gpu processes...')

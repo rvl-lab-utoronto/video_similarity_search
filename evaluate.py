@@ -75,6 +75,11 @@ def m_arg_parser(parser):
         type=int,
         help='seed for np.random'
     )
+    parser.add_argument(
+        "--load_pkl",
+        action='store_true',
+        help='load computed embeddings from the pickle file'
+    )
     return parser
 
 
@@ -196,32 +201,32 @@ def load_exemplar(exemplar_file):
     return exemplar_idx
 
 
-def get_topk_acc(distance_matrix, x_labels, y_labels=None):
-    # distance_matrix = get_distance_matrix(embeddings, dist_metric=dist_metric)
-    top1_sum = 0
-    top5_sum = 0
-    top1_indices = get_closest_data_mat(distance_matrix, top_k=1)  # dim: distance_matrix.shape[0] x top_k
-    top5_indices = get_closest_data_mat(distance_matrix, top_k=5)  # dim: distance_matrix.shape[0] x top_k
+def get_topk_acc(distance_matrix, x_labels, y_labels=None, top_ks = [1,5,10,20]):
+    top_k = top_ks[-1] 
+    topk_sum = 0
+    topk_indices = get_closest_data_mat(distance_matrix, top_k=top_k)
+    # print('topk_indices', topk_indices.size())
     if y_labels is None:
-        y_labels=x_labels
-
+        y_labels = x_labels
+    
+    acc = []
     for i, x_label in enumerate(x_labels):
-        top1_idx = top1_indices[i]
-        top5_idx = top5_indices[i]
-        top1_label = [y_labels[j] for j in top1_idx]
-        top5_labels = [y_labels[j] for j in top5_idx]
-        # print(i, 'cur', label, 'top1_idx', top1_idx, 'top1', top1_label, 'top5_idx', top5_idx, 'top5', top5_labels)
-        top1_sum += int(x_label in top1_label)
-        top5_sum += int(x_label in top5_labels)
-    # print('top1_sum', top1_sum, 'top5_sum', top5_sum)
-    top1_acc = top1_sum / len(x_labels)
-    top5_acc = top5_sum / len(x_labels)
-    return top1_acc, top5_acc
-
+        cur_acc = []
+        # print('x_label', x_label)
+        for k in top_ks:
+            topk_idx = topk_indices[:, :k]
+            cur_topk_idx = topk_idx[i]
+            topk_labels = [y_labels[j] for j in cur_topk_idx]
+            topk_sum = int(x_label in topk_labels)
+            cur_acc.append(topk_sum)
+        acc.append(cur_acc)
+    # print(acc.size())
+    acc = np.mean(np.array(acc), axis=0)
+    return acc
 
 def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
-        split='val', is_master_proc=True, load_from_pkl=False,
-        save_to_pkl=False):
+        split='val', is_master_proc=True, load_pkl=False, save_pkl=True):
+
     if split == 'train':
         embeddings_pkl = os.path.join(args.output, 'train_embeddings.pkl')
         labels_pkl = os.path.join(args.output, 'train_labels.pkl')
@@ -229,7 +234,7 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
         embeddings_pkl = os.path.join(args.output, 'val_embeddings.pkl')
         labels_pkl = os.path.join(args.output, 'val_labels.pkl')
 
-    if os.path.exists(embeddings_pkl) and os.path.exists(labels_pkl) and load_from_pkl:
+    if os.path.exists(embeddings_pkl) and os.path.exists(labels_pkl) and load_pkl:
         with open(embeddings_pkl, 'rb') as handle:
             embeddings = torch.load(handle)
         with open(labels_pkl, 'rb') as handle:
@@ -237,7 +242,7 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
         print('retrieved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
     else:
         embeddings, labels = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
-        if save_to_pkl:
+        if save_pkl:
             with open(embeddings_pkl, 'wb') as handle:
                 torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
             with open(labels_pkl, 'wb') as handle:
@@ -247,22 +252,22 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
 
 
 def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, train_data, val_data, cfg, plot=True,
-                        load_from_pkl=True, epoch=None, is_master_proc=True,
-                        evaluate_output=None, num_exemplar=None, service=None):
+                        epoch=None, is_master_proc=True,
+                        evaluate_output=None, num_exemplar=None, service=None, load_pkl=False):
     print ('Getting embeddings...')
-    val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader, split='val', is_master_proc=is_master_proc)
-    train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader, split='train', is_master_proc=is_master_proc)
-    top1_acc, top5_acc = 0, 0
-
-    print ('Computing top1/5 Acc...')
+    val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader, 
+                                                        split='val', is_master_proc=is_master_proc, load_pkl=load_pkl)
+    train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader, 
+                                                        split='train', is_master_proc=is_master_proc, load_pkl=load_pkl)
+    acc = []
+    
+    print ('Computing top1/5/10/20 Acc...')
     if (is_master_proc):
         distance_matrix = get_distance_matrix(val_embeddings, train_embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
-        top1_acc, top5_acc = get_topk_acc(distance_matrix, val_labels, y_labels=train_labels)
-        msg = '\nTest Set: Top1 Acc: {:.2f}% \t'\
-               'Top5 Acc: {:.2f}%\n'.format(100.*top1_acc, 100.*top5_acc)
-        print(msg)
+        acc = get_topk_acc(distance_matrix, val_labels, y_labels=train_labels)
         if epoch is not None:
-            to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*top1_acc, 100.*top5_acc)
+            to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
+            msg = '\nTest Set: Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%, Top10 Acc: {:.2f}%, Top20 Acc: {:.2f}%'.format(100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
             to_write += '\n'
             with open('{}/tnet_checkpoints/global_retrieval_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
                 val_file.write(to_write)
@@ -284,9 +289,10 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
             fig.tight_layout(pad=3.5)
             plt.savefig(png_file, dpi=300)
             service.upload_file_to_gdrive(png_file, 'evaluate')
-            print('top1 accuracy: {}; top5 accuracy:{}'.format(top1_acc, top5_acc))
             print('figure saved to: {}, and uploaded to GoogleDrive'.format(png_file))
-    return top1_acc, top5_acc
+        # print(acc)
+        print('Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%, Top10 Acc: {:.2f}%, Top20 Acc: {:.2f}%'.format(100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3]))
+    return acc
 
 
 def temporal_heat_map(model, data, cfg, evaluate_output, exemplar_idx=455,
@@ -413,7 +419,7 @@ if __name__ == '__main__':
     # Select appropriate model
     if(is_master_proc):
         print('\n==> Generating {} backbone model...'.format(cfg.MODEL.ARCH))
-    model=model_selector(cfg)
+    model=model_selector(cfg, projection_head=False)
 
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
@@ -485,5 +491,5 @@ if __name__ == '__main__':
     else:
         k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
                         train_data, val_data, cfg, evaluate_output=evaluate_output,
-                        num_exemplar=num_exemplar, service=GoogleDriveUploader())
+                        num_exemplar=num_exemplar, service=GoogleDriveUploader(), load_pkl=args.load_pkl)
         print('total runtime: {}s'.format(time.time()-start))

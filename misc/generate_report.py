@@ -92,7 +92,7 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     _, _, train_losses, _, _, _ = parse_file(result_dir, 'train')
     _, _, val_losses, val_acc, top1_acc, top5_acc = parse_file(result_dir, 'val')
     top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc = parse_file(result_dir, 'global_retrieval')
-    print(top1_5_epoch)
+    # print(top1_5_epoch)
     f = plt.figure(figsize=(18,5))
     ax1 =  plt.subplot(1, 3, 1)
     ax1.plot(np.arange(len(train_losses)), train_losses)
@@ -132,10 +132,15 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
 def write_to_google_sheet(result_dir, client, worksheet_name):
     epoch, runtime, train_losses, _, _, _ = parse_file(result_dir, 'train')
     _, _, val_losses, val_acc, top1_acc, top5_acc = parse_file(result_dir, 'val')
+    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc = parse_file(result_dir, 'global_retrieval')
+
 
     best_idx = np.argmax(np.array(top1_acc))
-    print('best epoch:{}, triplet accuracy:{}, top1 accuracy:{}, top5 accuracy:{}'.format(epoch[best_idx],
+    print('best epoch:{}, triplet accuracy:{}, val_top1 accuracy:{}, val_top5 accuracy:{}'.format(epoch[best_idx],
                         val_acc[best_idx], top1_acc[best_idx], top5_acc[best_idx]))
+
+    best_idx = np.argmax(np.array(global_top1_acc))
+    print('best epoch:{}, global top1 acc:{}, global top5 acc:{}'.format(top1_5_epoch[best_idx], global_top1_acc[best_idx], global_top5_acc[best_idx]))
 
     sh = client.open('training_results')
 

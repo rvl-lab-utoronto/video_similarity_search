@@ -80,7 +80,7 @@ def mocov2_inflated(num_frames, center_init=True):
 
 
 # Select the appropriate model with the specified cfg parameters
-def model_selector(cfg, projection_head=True):
+def model_selector(cfg, projection_head=True, is_master_proc=True):
     assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast',
             'simclr_pretrained_inflated_res50',
             'imagenet_pretrained_inflated_res50',
@@ -104,11 +104,20 @@ def model_selector(cfg, projection_head=True):
         slowfast_cfg.NUM_GPUS = cfg.NUM_GPUS
         slowfast_cfg.DATA.NUM_FRAMES = cfg.DATA.SAMPLE_DURATION
         slowfast_cfg.DATA.CROP_SIZE = cfg.DATA.SAMPLE_SIZE
-        slowfast_cfg.DATA.INPUT_CHANNEL_NUM = [cfg.DATA.INPUT_CHANNEL_NUM, cfg.DATA.INPUT_CHANNEL_NUM]
+
+        if cfg.SLOWFAST.FAST_MASK:
+            if is_master_proc:
+                print ("Fast pathway of SlowFast will use mask input")
+            # 4th input channel will be sent to the fast pathway while RGB is
+            # sent to slow pathway
+            assert (cfg.DATA.INPUT_CHANNEL_NUM == 4)
+            slowfast_cfg.DATA.INPUT_CHANNEL_NUM = [3, 3]
+        else:
+            slowfast_cfg.DATA.INPUT_CHANNEL_NUM = [cfg.DATA.INPUT_CHANNEL_NUM, cfg.DATA.INPUT_CHANNEL_NUM]
 
         # Use a custom SlowFast with a head that doesn't include the FC
         # layers after the global avg pooling and dropout
-        model = SlowFastRepresentation(slowfast_cfg)
+        model = SlowFastRepresentation(slowfast_cfg, projection_head=True)
 
         # Unused Model with FC:
         #model = build_model(slowfast_cfg)
@@ -133,6 +142,13 @@ def multipathway_input(frames, cfg):
     fast_pathway = frames
     slow_pathway = torch.index_select(frames, frame_idx, torch.linspace(0,
         frames.shape[frame_idx] - 1, frames.shape[frame_idx] // cfg.SLOWFAST.ALPHA).long(),)
+
+    if cfg.SLOWFAST.FAST_MASK:
+        # Use salient obj channel only for fast path
+        slow_pathway = slow_pathway[:,:3,:,:,:]
+        fast_pathway = fast_pathway[:,3,:,:,:]
+        fast_pathway = torch.stack((fast_pathway, fast_pathway, fast_pathway), dim=1)
+
     frame_list = [slow_pathway, fast_pathway]
 
     return frame_list

@@ -118,7 +118,7 @@ def train(args, cfg):
     # Select appropriate model
     if(is_master_proc):
         print('\n==> Generating {} backbone model...'.format(cfg.MODEL.ARCH))
-    model=model_selector(cfg)
+    model=model_selector(cfg, is_master_proc=is_master_proc)
 
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):

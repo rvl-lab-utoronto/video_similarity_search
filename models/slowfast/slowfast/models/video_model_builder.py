@@ -604,7 +604,7 @@ class SlowFastRepresentation(nn.Module):
     https://arxiv.org/pdf/1812.03982.pdf
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, projection1_out=2048, projection2_out=128, projection_head=True):
         """
         The `__init__` method of any subclass should also contain these
             arguments.
@@ -616,12 +616,13 @@ class SlowFastRepresentation(nn.Module):
         self.norm_module = get_norm(cfg)
         self.enable_detection = cfg.DETECTION.ENABLE
         self.num_pathways = 2
-        self._construct_network(cfg)
+        self.projection_head = projection_head
+        self._construct_network(cfg, projection1_out, projection2_out)
         init_helper.init_weights(
             self, cfg.MODEL.FC_INIT_STD, cfg.RESNET.ZERO_INIT_FINAL_BN
         )
 
-    def _construct_network(self, cfg):
+    def _construct_network(self, cfg, projection1_out, projection2_out):
         """
         Builds a SlowFast model. The first pathway is the Slow pathway and the
             second pathway is the Fast pathway.
@@ -847,6 +848,12 @@ class SlowFastRepresentation(nn.Module):
             #act_func=cfg.MODEL.HEAD_ACT,
         )
 
+        if self.projection_head:
+           self.fc1 = nn.Linear(width_per_group*32 + width_per_group*32//cfg.SLOWFAST.BETA_INV, projection1_out)
+           self.relu = nn.ReLU(inplace=True)
+           self.fc2 = nn.Linear(projection1_out, projection2_out)
+
+
     def forward(self, x, bboxes=None):
         x = self.s1(x)
         x = self.s1_fuse(x)
@@ -865,7 +872,16 @@ class SlowFastRepresentation(nn.Module):
         #if self.enable_detection:
         #    x = self.head(x, bboxes)
         #else:
+
+        #Avg pooling
         x = self.head(x)
+
+        # Projection head
+        if self.projection_head:
+            x = self.fc1(x)
+            x = self.relu(x)
+            x = self.fc2(x)
+
         return x
 
     #def forward_no_head(self, x, bboxes=None):

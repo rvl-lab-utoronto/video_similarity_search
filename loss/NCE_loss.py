@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import math
 
+eps = 1e-7
 
 class NCEAverage(nn.Module):
 
@@ -24,7 +25,6 @@ class NCEAverage(nn.Module):
         T = self.params[1].item()
         Z_l = self.params[2].item()
         Z_ab = self.params[3].item()
-
         momentum = self.params[4].item()
         batchSize = l.size(0)
         outputSize = self.memory_l.size(0)
@@ -42,28 +42,36 @@ class NCEAverage(nn.Module):
         weight_ab = torch.index_select(self.memory_ab, 0, idx.view(-1)).detach()
         weight_ab = weight_ab.view(batchSize, K + 1, inputSize)
         out_l = torch.bmm(weight_ab, l.view(batchSize, inputSize, 1))
-
+        print('l', torch.max(l), torch.max(weight_ab))
+        print('max', torch.max(out_l))
         if self.use_softmax:
             out_ab = torch.div(out_ab, T)
             out_l = torch.div(out_l, T)
             out_l = out_l.contiguous()
             out_ab = out_ab.contiguous()
         else:
-            out_ab = torch.exp(torch.div(out_ab, T))
-            out_l = torch.exp(torch.div(out_l, T))
+            tmp = torch.div(out_l, T) #EDIT            
+            out_ab = torch.exp(torch.div(torch.div(out_ab, out_ab.mean()*outputSize), T))
+            out_l = torch.exp(torch.div(torch.div(out_l, out_ab.mean()*outputSize), T))
+            print('divide T', torch.max(tmp))
+            print('after', torch.max(out_l))
+
             # set Z_0 if haven't been set yet,
             # Z_0 is used as a constant approximation of Z, to scale the probs
-            if Z_l < 0:
-                self.params[2] = out_l.mean() * outputSize
-                Z_l = self.params[2].clone().detach().item()
-                print("normalization constant Z_l is set to {:.1f}".format(Z_l))
-            if Z_ab < 0:
-                self.params[3] = out_ab.mean() * outputSize
-                Z_ab = self.params[3].clone().detach().item()
-                print("normalization constant Z_ab is set to {:.1f}".format(Z_ab))
+            # if Z_l < 0:
+            self.params[2] = out_l.mean() * outputSize
+            Z_l = self.params[2].clone().detach().item()
+            print("normalization constant Z_l is set to {:.1f}".format(Z_l))
+            
+            # if Z_ab < 0:
+            self.params[3] = out_ab.mean() * outputSize
+            Z_ab = self.params[3].clone().detach().item()
+            print("normalization constant Z_ab is set to {:.1f}".format(Z_ab))
             # compute out_l, out_ab
-            out_l = torch.div(out_l, Z_l).contiguous()
-            out_ab = torch.div(out_ab, Z_ab).contiguous()
+            print(torch.max(out_l), Z_l)
+            # out_l = torch.div(out_l, Z_l).contiguous()
+            # out_ab = torch.div(out_ab, Z_ab).contiguous()
+            # print('after norm', torch.max(out_l))
 
         # # update memory
         with torch.no_grad():
@@ -72,6 +80,7 @@ class NCEAverage(nn.Module):
             l_pos.add_(torch.mul(l, 1 - momentum))
             l_norm = l_pos.pow(2).sum(1, keepdim=True).pow(0.5)
             updated_l = l_pos.div(l_norm)
+            print('updated_l', torch.max(updated_l))
             self.memory_l.index_copy_(0, y, updated_l)
 
             ab_pos = torch.index_select(self.memory_ab, 0, y.view(-1))
@@ -168,10 +177,9 @@ class NCECriterion(nn.Module):
         P_pos = x.select(1, 0)
         log_D1 = torch.div(P_pos, P_pos.add(m * Pn + eps)).log_()
 
-        # # loss for K Intra-negative pair
-        # P_neg = x.narrow(1, 1, m)
-        # log_D0 = torch.div(P_neg.clone().fill_(m * Pn), P_neg.add(m * Pn + eps)).log_()
+        # loss for K negative pair
+        P_neg = x.narrow(1, 1, m)
+        log_D0 = torch.div(P_neg.clone().fill_(m * Pn), P_neg.add(m * Pn + eps)).log_()
 
-        # loss = - (log_D1.sum(0) + log_D0.view(-1, 1).sum(0)) / bsz
-
+        loss = - (log_D1.sum(0) + log_D0.view(-1, 1).sum(0)) / bsz
         return loss

@@ -61,7 +61,7 @@ def get_database(data, subset, root_path, video_path_formatter, split='train', c
             channel_paths[key]=[]
         for id in video_ids:
             label = data['database'][id]['annotations']['label']
-            if key == 'optical_u' or ket == 'optical_v':
+            if key == 'optical_u' or key == 'optical_v':
                 vids = id.split('_')
                 if vids[1] == 'HandStandPushups':
                     id = vids[0] + '_HandstandPushups_' + vids[2] + '_' + vids[3]

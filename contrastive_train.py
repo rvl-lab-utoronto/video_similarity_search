@@ -23,21 +23,20 @@ from models.model_utils import (model_selector, multipathway_input,
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from loss.triplet_loss import OnlineTripleLoss
+from loss.NCE_loss import NCEAverage, NCECriterion
 
-def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
+def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
-    running_n_triplets = AverageMeter()
     world_size = du_helper.get_world_size()
     # switching to training mode
     model.train()
-
+    contrast.train()
     # Training loop
     start = time.time()
     for batch_idx, (inputs, index) in enumerate(train_loader):
         view1, view2 = inputs
         batch_size = torch.tensor(view1.size(0)).to(device)
-
         # Prepare input and send to gpu
         if cfg.MODEL.ARCH == 'slowfast':
             view1 = multipathway_input(view1, cfg)
@@ -48,20 +47,23 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
         elif cuda:
             view1, view2 = view1.to(device), view2.to(device)
 
+        if cuda:
+            index = index[0].to(device)
+
         # Get embeddings of view1s and view2s
         feat_1 = model(view1)
         feat_2 = model(view2)
+        print('\nfeat', torch.max(feat_1), torch.max(feat_2))
 
         out_1, out_2 = contrast(feat_1, feat_2, index)
-
-        view1_loss = criterion(out_1)
-        view2_loss = criterion(out_2)
+        view1_loss = criterion_1(out_1)
+        view2_loss = criterion_2(out_2)
 
         view1_prob = out_1[:,0].mean()
         view2_prob = out_2[:,0].mean()
 
         loss = view1_loss + view2_loss
-
+        print(loss)
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
         loss.backward()
@@ -78,16 +80,14 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
 
         # Update running loss
         losses.update(loss.item(), batch_size_world)
-        running_n_triplets.update(n_triplets)
 
         # Log
         if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
             print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
-                  'Loss: {:.4f} ({:.4f}) \t'
-                  'N_Triplets: {:.1f}'.format(epoch, losses.count,
+                  'Loss: {:.4f} ({:.4f})'.format(epoch, losses.count,
                     len(train_loader.dataset),
                     100. * (losses.count / len(train_loader.dataset)),
-                    losses.val, losses.avg, running_n_triplets.avg))
+                    losses.val, losses.avg))
 
     if (is_master_proc):
         print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
@@ -145,30 +145,22 @@ def train(args, cfg):
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
         start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
+    
+   
+    # # Setup tripletnet used for validation
+    # if(is_master_proc):
+    #     print('\n==> Generating triplet network...')
+    # tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
+    # if cuda:
+    #     tripletnet = tripletnet.cuda(device=device)
+    #     if torch.cuda.device_count() > 1:
+    #         if cfg.MODEL.ARCH == '3dresnet':
+    #             tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet,
+    #                 device_ids=[device], find_unused_parameters=True)
+    #         else:
+    #             tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
 
-    # Setup tripletnet used for validation
-    if(is_master_proc):
-        print('\n==> Generating triplet network...')
-    tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
-    if cuda:
-        tripletnet = tripletnet.cuda(device=device)
-        if torch.cuda.device_count() > 1:
-            if cfg.MODEL.ARCH == '3dresnet':
-                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet,
-                    device_ids=[device], find_unused_parameters=True)
-            else:
-                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
 
-    # ======================== Loss and Optimizer Setup ========================
-
-    if(is_master_proc):
-        print('\n==> Setting criterion...')
-    val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-    criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
-    optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
-    if(is_master_proc):
-        print('Using criterion:{} for training'.format(criterion))
-        print('Using criterion:{} for validation'.format(val_criterion))
 
     # ============================== Data Loaders ==============================
 
@@ -191,6 +183,24 @@ def train(args, cfg):
         print('\n==> Building validation data loader (single video)...')
     eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, is_master_proc=False, triplets=False, val_sample=None)
 
+
+    # ======================== Loss and Optimizer Setup ========================
+
+    if(is_master_proc):
+        print('\n==> Setting criterion & contrastive...')
+    val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
+    # criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
+    n_data = len(train_loader.dataset)
+    contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
+    criterion_1 = NCECriterion(n_data).to(device)
+    criterion_2 = NCECriterion(n_data).to(device)
+
+    optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+    if(is_master_proc):
+        print('Using criterion:{} for training'.format(criterion_1, criterion_2))
+        print('Using criterion:{} for validation'.format(val_criterion))
+    
+
     # ============================= Training loop ==============================
 
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
@@ -201,8 +211,7 @@ def train(args, cfg):
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
-        # Train 
-        train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
 
         # Validate
         if is_master_proc:

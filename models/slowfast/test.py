@@ -31,7 +31,7 @@ def test():
     cfg.NUM_GPUS = 1
 
     #model = SlowFast(cfg)
-    model = SlowFastRepresentation(cfg)
+    model = SlowFastRepresentation(cfg, projection_head=True)
     print(model)
     #model = build_model(cfg)
     

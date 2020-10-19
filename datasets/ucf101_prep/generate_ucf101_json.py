@@ -12,7 +12,7 @@ Pulled from https://github.com/kenshohara/3D-ResNets-PyTorch
 def get_n_frames(video_path):
     return len([
         x for x in video_path.iterdir()
-        if 'image' in x.name and x.name[0] != '.'
+        if ('image' in x.name or 'frame' in x.name) and x.name[0] != '.'
     ])
 
 def convert_csv_to_dict(csv_path, subset):
@@ -48,7 +48,7 @@ def load_labels(label_csv_path):
 
 
 def convert_ucf101_csv_to_json(label_csv_path, train_csv_path, val_csv_path,
-                               video_dir_path, dst_json_path):
+                               video_dir_path, dst_json_path, optical=True):
     labels = load_labels(label_csv_path)
     train_database = convert_csv_to_dict(train_csv_path, 'training')
     val_database = convert_csv_to_dict(val_csv_path, 'validation')
@@ -64,8 +64,12 @@ def convert_ucf101_csv_to_json(label_csv_path, train_csv_path, val_csv_path,
             label = v['annotations']['label']
         else:
             label = 'test'
-
-        video_path = video_dir_path / label / k
+        if optical:
+            if 'HandStandPushups' in k:
+                k = k.replace('HandStandPushups', 'HandstandPushups')
+            video_path = video_dir_path / k
+        else:
+            video_path = video_dir_path / label / k
         n_frames = get_n_frames(video_path)
         v['annotations']['segment'] = (1, n_frames + 1)
         print(k, v)

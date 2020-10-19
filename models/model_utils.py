@@ -80,7 +80,7 @@ def mocov2_inflated(num_frames, center_init=True):
 
 
 # Select the appropriate model with the specified cfg parameters
-def model_selector(cfg):
+def model_selector(cfg, projection_head=True):
     assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast',
             'simclr_pretrained_inflated_res50',
             'imagenet_pretrained_inflated_res50',
@@ -94,7 +94,8 @@ def model_selector(cfg):
                         conv1_t_size=cfg.RESNET.CONV1_T_SIZE,
                         conv1_t_stride=cfg.RESNET.CONV1_T_STRIDE,
                         no_max_pool=cfg.RESNET.NO_MAX_POOl,
-                        widen_factor=cfg.RESNET.WIDEN_FACTOR)
+                        widen_factor=cfg.RESNET.WIDEN_FACTOR,
+                        projection_head=projection_head)
 
     elif cfg.MODEL.ARCH == 'slowfast':
         slowfast_cfg = get_cfg()

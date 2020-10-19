@@ -104,6 +104,12 @@ def arg_parser():
         type=str,
         help='global, local_batch ...'
     )
+    parser.add_argument(
+        '--val_batch_size',
+        default=None,
+        type=str,
+        help='validation batch size'
+    )
     return parser
 
 
@@ -129,7 +135,8 @@ def overwrite_default_configs(cfg, args):
 
     if args.val_metric:
         cfg.VAL.METRIC = args.val_metric
-        
+    if args.val_batch_size:
+        cfg.VAL.BATCH_SIZE = int(args.val_batch_size)
     if args.n_classes:
         if cfg.MODEL.ARCH == '3dresnet':
             cfg.RESNET.N_CLASSES = args.n_classes

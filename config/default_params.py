@@ -21,7 +21,7 @@ _C.TRAIN.LOG_INTERVAL = 5 #for print statements
 # -----------------------------------------------------------------------------
 _C.VAL = CfgNode()
 _C.VAL.METRIC = 'global' #local_batch
-_C.VAL.BATCH_SIZE = 20 #note that local_batch metric is sensitive to the batch_size
+_C.VAL.BATCH_SIZE = 70 #note that local_batch metric is sensitive to the batch_size
 _C.VAL.LOG_INTERVAL = 5
 
 # -----------------------------------------------------------------------------
@@ -58,7 +58,8 @@ _C.DATASET.POSITIVE_SAMPLING_P = 0.8
 _C.DATASET.CHANNEL_EXTENSIONS = ''
 _C.DATASET.KEYPOINT_PATH = ''
 _C.DATASET.SALIENT_PATH = ''
-
+_C.DATASET.OPTICAL_U_PATH = ''
+_C.DATASET.OPTICAL_V_PATH = ''
 
 # -----------------------------------------------------------------------------
 # Slowfast options

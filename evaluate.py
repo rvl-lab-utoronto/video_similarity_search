@@ -248,7 +248,8 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
 
 def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, train_data, val_data, cfg, plot=True,
                         load_from_pkl=True, epoch=None, is_master_proc=True,
-                        evaluate_output=None, num_exemplar=None, service=None):
+                        evaluate_output=None, num_exemplar=None, service=None,
+                        out_filename='global_retrieval_acc'):
     print ('Getting embeddings...')
     val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader, split='val', is_master_proc=is_master_proc)
     train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader, split='train', is_master_proc=is_master_proc)
@@ -264,7 +265,7 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
         if epoch is not None:
             to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*top1_acc, 100.*top5_acc)
             to_write += '\n'
-            with open('{}/tnet_checkpoints/global_retrieval_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
+            with open('{}/tnet_checkpoints/{}.txt'.format(cfg.OUTPUT_PATH, out_filename), "a") as val_file:
                 val_file.write(to_write)
 
         if plot:

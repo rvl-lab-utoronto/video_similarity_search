@@ -211,6 +211,10 @@ def train(args, cfg):
                 print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
             top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg, plot=False,
                                     load_from_pkl=False, epoch=epoch, is_master_proc=is_master_proc)
+            #if is_master_proc:
+            #    print('\n=> Validating with global top1/5 retrieval from train set with queries from train set')
+            #top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_train_loader, train_data, train_data, cfg, plot=False,
+            #                        load_from_pkl=False, epoch=epoch, is_master_proc=is_master_proc, out_filename='train_retrieval_acc')
 
         # Update best accuracy and save checkpoint
         is_best = acc > best_acc

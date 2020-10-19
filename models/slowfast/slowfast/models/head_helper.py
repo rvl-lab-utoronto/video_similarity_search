@@ -255,8 +255,8 @@ class ResNetBasicHeadNoClassify(nn.Module):
                 avg_pool = nn.AvgPool3d(pool_size[pathway], stride=1)
             self.add_module("pathway{}_avgpool".format(pathway), avg_pool)
 
-        if dropout_rate > 0.0:
-            self.dropout = nn.Dropout(dropout_rate)
+        #if dropout_rate > 0.0:
+        #    self.dropout = nn.Dropout(dropout_rate)
         ## Perform FC in a fully convolutional manner. The FC layer will be
         ## initialized with a different std comparing to convolutional layers.
         #self.projection = nn.Linear(sum(dim_in), num_classes, bias=True)
@@ -282,10 +282,10 @@ class ResNetBasicHeadNoClassify(nn.Module):
             pool_out.append(m(inputs[pathway]))
         x = torch.cat(pool_out, 1)
         # (N, C, T, H, W) -> (N, T, H, W, C).
-        x = x.permute((0, 2, 3, 4, 1))
+        #x = x.permute((0, 2, 3, 4, 1))
         # Perform dropout.
-        if hasattr(self, "dropout"):
-            x = self.dropout(x)
+        #if hasattr(self, "dropout"):
+        #    x = self.dropout(x)
         #x = self.projection(x)
 
         ## Performs fully convlutional inference.

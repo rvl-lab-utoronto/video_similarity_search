@@ -789,13 +789,13 @@ class SlowFastRepresentation(nn.Module):
             norm_module=self.norm_module,
         )
 
-        self.s5_fuse = FuseFastToSlow(
-            width_per_group * 32 // cfg.SLOWFAST.BETA_INV,
-            cfg.SLOWFAST.FUSION_CONV_CHANNEL_RATIO,
-            cfg.SLOWFAST.FUSION_KERNEL_SZ,
-            cfg.SLOWFAST.ALPHA,
-            norm_module=self.norm_module,
-        )
+        #self.s5_fuse = FuseFastToSlow(
+        #    width_per_group * 32 // cfg.SLOWFAST.BETA_INV,
+        #    cfg.SLOWFAST.FUSION_CONV_CHANNEL_RATIO,
+        #    cfg.SLOWFAST.FUSION_KERNEL_SZ,
+        #    cfg.SLOWFAST.ALPHA,
+        #    norm_module=self.norm_module,
+        #)
 
         #if cfg.DETECTION.ENABLE:
         #    self.head = head_helper.ResNetRoIHead(
@@ -823,11 +823,11 @@ class SlowFastRepresentation(nn.Module):
         #else:
         self.head = head_helper.ResNetBasicHeadNoClassify(
             dim_in=[
-                width_per_group * 32#,
-                #width_per_group * 32 // cfg.SLOWFAST.BETA_INV,
+                width_per_group * 32,
+                width_per_group * 32 // cfg.SLOWFAST.BETA_INV,
             ],
             #num_classes=cfg.MODEL.NUM_CLASSES,
-            pool_size=[None]#, None]
+            pool_size=[None, None]
             if cfg.MULTIGRID.SHORT_CYCLE
             else [
                 [
@@ -836,12 +836,12 @@ class SlowFastRepresentation(nn.Module):
                     // pool_size[0][0],
                     cfg.DATA.CROP_SIZE // 32 // pool_size[0][1],
                     cfg.DATA.CROP_SIZE // 32 // pool_size[0][2],
-                ]#,
-                #[
-                #    cfg.DATA.NUM_FRAMES // pool_size[1][0],
-                #    cfg.DATA.CROP_SIZE // 32 // pool_size[1][1],
-                #    cfg.DATA.CROP_SIZE // 32 // pool_size[1][2],
-                #],
+                ],
+                [
+                    cfg.DATA.NUM_FRAMES // pool_size[1][0],
+                    cfg.DATA.CROP_SIZE // 32 // pool_size[1][1],
+                    cfg.DATA.CROP_SIZE // 32 // pool_size[1][2],
+                ],
             ],  # None for AdaptiveAvgPool3d((1, 1, 1))
             dropout_rate=cfg.MODEL.DROPOUT_RATE,
             #act_func=cfg.MODEL.HEAD_ACT,
@@ -860,27 +860,27 @@ class SlowFastRepresentation(nn.Module):
         x = self.s4(x)
         x = self.s4_fuse(x)
         x = self.s5(x)
-        x = self.s5_fuse(x)
-        x = [x[0]] #only take fast-fused slow path
+        #x = self.s5_fuse(x)
+        #x = [x[0]] #only take fast-fused slow path
         #if self.enable_detection:
         #    x = self.head(x, bboxes)
         #else:
         x = self.head(x)
         return x
 
-    def forward_no_head(self, x, bboxes=None):
-        x = self.s1(x)
-        x = self.s1_fuse(x)
-        x = self.s2(x)
-        x = self.s2_fuse(x)
-        for pathway in range(self.num_pathways):
-            pool = getattr(self, "pathway{}_pool".format(pathway))
-            x[pathway] = pool(x[pathway])
-        x = self.s3(x)
-        x = self.s3_fuse(x)
-        x = self.s4(x)
-        x = self.s4_fuse(x)
-        x = self.s5(x)
-        x = self.s5_fuse(x)
-        x = x[0] #only take fast-fused slow path
-        return x
+    #def forward_no_head(self, x, bboxes=None):
+    #    x = self.s1(x)
+    #    x = self.s1_fuse(x)
+    #    x = self.s2(x)
+    #    x = self.s2_fuse(x)
+    #    for pathway in range(self.num_pathways):
+    #        pool = getattr(self, "pathway{}_pool".format(pathway))
+    #        x[pathway] = pool(x[pathway])
+    #    x = self.s3(x)
+    #    x = self.s3_fuse(x)
+    #    x = self.s4(x)
+    #    x = self.s4_fuse(x)
+    #    x = self.s5(x)
+    #    x = self.s5_fuse(x)
+    #    x = x[0] #only take fast-fused slow path
+    #    return x

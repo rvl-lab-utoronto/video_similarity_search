@@ -59,8 +59,6 @@ class OnlineTripleLoss(nn.Module):
             else:
                 loss = F.relu(ap_dists - an_dists + self.margin)
 
-            print()
-
             return loss.mean(), len(triplets[0])
 
 

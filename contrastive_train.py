@@ -23,15 +23,22 @@ from models.model_utils import (model_selector, multipathway_input,
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from loss.triplet_loss import OnlineTripleLoss
-from loss.NCE_loss import NCEAverage, NCECriterion
+from loss.NCE_loss import NCEAverage, NCECriterion, NCESoftmaxLoss
 
 def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
+    view1_loss_meter = AverageMeter()
+    view2_loss_meter = AverageMeter()
+    view1_prob_meter = AverageMeter()
+    view2_prob_meter = AverageMeter()
+
     world_size = du_helper.get_world_size()
+    
     # switching to training mode
     model.train()
     contrast.train()
+    
     # Training loop
     start = time.time()
     for batch_idx, (inputs, index) in enumerate(train_loader):
@@ -53,9 +60,13 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
         # Get embeddings of view1s and view2s
         feat_1 = model(view1)
         feat_2 = model(view2)
-        print('\nfeat', torch.max(feat_1), torch.max(feat_2))
 
+        # feat_1_norm = feat_1.pow(2).sum(1, keepdim=True).pow(0.5)
+        # print('feat_1_norm', feat_1_norm)
         out_1, out_2 = contrast(feat_1, feat_2, index)
+        # out_1_norm = out_1.pow(2).sum(1, keepdim=True).pow(0.5)
+        # print('out_1', out_1)
+
         view1_loss = criterion_1(out_1)
         view2_loss = criterion_2(out_2)
 
@@ -63,7 +74,7 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
         view2_prob = out_2[:,0].mean()
 
         loss = view1_loss + view2_loss
-        print(loss)
+        # print(loss)
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
         loss.backward()
@@ -80,7 +91,10 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
 
         # Update running loss
         losses.update(loss.item(), batch_size_world)
-
+        view1_loss_meter.update(view1_loss.item(), batch_size_world)
+        view1_prob_meter.update(view1_prob.item(), batch_size_world)
+        view2_loss_meter.update(view1_loss.item(), batch_size_world)
+        view2_prob_meter.update(view2_prob.item(), batch_size_world)
         # Log
         if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
             print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
@@ -147,18 +161,18 @@ def train(args, cfg):
         start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
     
    
-    # # Setup tripletnet used for validation
-    # if(is_master_proc):
-    #     print('\n==> Generating triplet network...')
-    # tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
-    # if cuda:
-    #     tripletnet = tripletnet.cuda(device=device)
-    #     if torch.cuda.device_count() > 1:
-    #         if cfg.MODEL.ARCH == '3dresnet':
-    #             tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet,
-    #                 device_ids=[device], find_unused_parameters=True)
-    #         else:
-    #             tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
+    # Setup tripletnet used for validation
+    if(is_master_proc):
+        print('\n==> Generating triplet network...')
+    tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
+    if cuda:
+        tripletnet = tripletnet.cuda(device=device)
+        if torch.cuda.device_count() > 1:
+            if cfg.MODEL.ARCH == '3dresnet':
+                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet,
+                    device_ids=[device], find_unused_parameters=True)
+            else:
+                tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
 
 
 
@@ -192,8 +206,8 @@ def train(args, cfg):
     # criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
     n_data = len(train_loader.dataset)
     contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
-    criterion_1 = NCECriterion(n_data).to(device)
-    criterion_2 = NCECriterion(n_data).to(device)
+    criterion_1 = NCESoftmaxLoss()
+    criterion_2 = NCESoftmaxLoss()
 
     optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
     if(is_master_proc):

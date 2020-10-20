@@ -108,7 +108,7 @@ def build_spatial_transformation(cfg, split, is_master_proc=True):
         spatial_transform.extend([ScaleValue(value_scale)])#, normalize])
 
     spatial_transform = Compose(spatial_transform)
-    normalize = Compose([normalize])
+    # normalize = Compose([normalize])
 
     return spatial_transform, normalize
 

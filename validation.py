@@ -60,8 +60,8 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
                 labels = torch.cat((anchor_target.detach().cpu(), positive_target.detach().cpu()), dim=0)
                 distance_matrix = get_distance_matrix(embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
                 topk_acc = get_topk_acc(distance_matrix, labels.tolist())
-                top1_accs.update(topk_acc[0])
-                top5_accs.update(topk_acc[1])
+                top1_acc = torch.tensor(topk_acc[0]).to(device)
+                top5_acc = torch.tensor(topk_acc[1]).to(device)
 
             else:
                 print('Metric type:{} is not implemented'.format(metric))

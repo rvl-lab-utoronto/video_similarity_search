@@ -67,6 +67,7 @@ _C.DATASET.OPTICAL_V_PATH = ''
 _C.SLOWFAST = CfgNode()
 _C.SLOWFAST.CFG_PATH = 'models/slowfast/configs/Kinetics/SLOWFAST_8x8_R50.yaml'
 _C.SLOWFAST.ALPHA = 4
+_C.SLOWFAST.FAST_MASK = False
 
 
 # -----------------------------------------------------------------------------

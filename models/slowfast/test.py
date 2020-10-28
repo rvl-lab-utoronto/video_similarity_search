@@ -31,7 +31,8 @@ def test():
     cfg.NUM_GPUS = 1
 
     #model = SlowFast(cfg)
-    model = SlowFastRepresentation(cfg)
+    model = SlowFastRepresentation(cfg, projection_head=True)
+    print(model)
     #model = build_model(cfg)
     
     #cur_device = torch.cuda.current_device()
@@ -41,9 +42,9 @@ def test():
     y1 = model(frame_list)
     print('Network output size:    ', y1.size(), '\n')
 
-    frame_list = rand_input(cfg, 2,3,32,224,224)
-    y = model.forward_no_head(frame_list)
-    print('Network output size without pooling:', y.size(), '\n')
+    #frame_list = rand_input(cfg, 2,3,32,224,224)
+    #y = model.forward_no_head(frame_list)
+    #print('Network output size without pooling:', y.size(), '\n')
 
     #frame_list = rand_input(cfg, 3,128,224,224)
     #y_long = model.forward_no_head(frame_list)

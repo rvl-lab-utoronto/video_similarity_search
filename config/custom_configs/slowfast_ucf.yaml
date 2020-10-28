@@ -23,6 +23,9 @@ DATA:
     SAMPLE_SIZE: 128
     INPUT_CHANNEL_NUM: 3
     #INPUT_CHANNEL_NUM: 4
+
+OPTIM:
+    LR: 0.01
     
 
 

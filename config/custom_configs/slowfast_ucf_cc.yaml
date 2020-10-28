@@ -23,3 +23,6 @@ SLOWFAST:
     CFG_PATH: /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search/models/slowfast/configs/Kinetics/SLOWFAST_8x8_R50.yaml
 
 OUTPUT_PATH: /home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_search 
+
+OPTIM:
+    LR: 0.01

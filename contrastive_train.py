@@ -214,7 +214,7 @@ def train(args, cfg):
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
-        # train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
 
         # Validate
         if is_master_proc:

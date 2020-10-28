@@ -34,7 +34,7 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
 
     # Training loop
     start = time.time()
-    for batch_idx, (inputs, targets) in enumerate(train_loader):
+    for batch_idx, (inputs, targets, idx) in enumerate(train_loader):
         anchor, positive = inputs
         a_target, p_target = targets
         batch_size = torch.tensor(anchor.size(0)).to(device)

@@ -41,7 +41,7 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
     
     # Training loop
     start = time.time()
-    for batch_idx, (inputs, index) in enumerate(train_loader):
+    for batch_idx, (inputs, labels, index) in enumerate(train_loader):
         view1, view2 = inputs
         batch_size = torch.tensor(view1.size(0)).to(device)
         # Prepare input and send to gpu
@@ -55,18 +55,13 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
             view1, view2 = view1.to(device), view2.to(device)
 
         if cuda:
-            index = index[0].to(device)
+            index = index.to(device)
 
         # Get embeddings of view1s and view2s
         feat_1 = model(view1)
         feat_2 = model(view2)
 
-        # feat_1_norm = feat_1.pow(2).sum(1, keepdim=True).pow(0.5)
-        # print('feat_1_norm', feat_1_norm)
         out_1, out_2 = contrast(feat_1, feat_2, index)
-        # out_1_norm = out_1.pow(2).sum(1, keepdim=True).pow(0.5)
-        # print('out_1', out_1)
-
         view1_loss = criterion_1(out_1)
         view2_loss = criterion_2(out_2)
 
@@ -74,7 +69,7 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
         view2_prob = out_2[:,0].mean()
 
         loss = view1_loss + view2_loss
-        # print(loss)
+
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
         loss.backward()
@@ -203,7 +198,6 @@ def train(args, cfg):
     if(is_master_proc):
         print('\n==> Setting criterion & contrastive...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-    # criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
     n_data = len(train_loader.dataset)
     contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
     criterion_1 = NCESoftmaxLoss()
@@ -225,7 +219,7 @@ def train(args, cfg):
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
-        train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        # train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
 
         # Validate
         if is_master_proc:

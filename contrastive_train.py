@@ -1,8 +1,3 @@
-"""
-Created by Sherry Chen on Jul 3, 2020
-Build and Train Triplet network. Supports saving and loading checkpoints,
-"""
-
 import sys, os
 #import gc
 import numpy as np

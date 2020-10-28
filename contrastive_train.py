@@ -18,7 +18,7 @@ from models.model_utils import (model_selector, multipathway_input,
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from loss.triplet_loss import OnlineTripleLoss
-from loss.NCE_loss import NCEAverage, NCECriterion, NCESoftmaxLoss
+from loss.NCE_loss import NCEAverage, NCESoftmaxLoss
 
 def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()

@@ -1,3 +1,6 @@
+'''
+modified form CMC repo: https://github.com/HobbitLong/CMC
+'''
 import torch
 from torch import nn
 import math
@@ -5,7 +8,7 @@ import math
 eps = 1e-7
 
 class NCEAverage(nn.Module):
-
+    #outputSize = ndata, inputSize = num of features
     def __init__(self, inputSize, outputSize, K, T=0.07, momentum=0.5, use_softmax=True):
         super(NCEAverage, self).__init__()
         self.nLem = outputSize
@@ -20,7 +23,7 @@ class NCEAverage(nn.Module):
         self.register_buffer('memory_l', torch.rand(outputSize, inputSize).mul_(2 * stdv).add_(-stdv))
         self.register_buffer('memory_ab', torch.rand(outputSize, inputSize).mul_(2 * stdv).add_(-stdv))
 
-    def forward(self, l, ab, y, idx=None):
+    def forward(self, l, ab, y, idx=None): #index = y=label
         K = int(self.params[0].item())
         T = self.params[1].item()
         Z_l = self.params[2].item()
@@ -48,7 +51,7 @@ class NCEAverage(nn.Module):
             out_l = torch.div(out_l, T)
             out_l = out_l.contiguous()
             out_ab = out_ab.contiguous()
-            
+
         else:
             if Z_l < 0:
                 self.params[2] = out_l.mean() * outputSize
@@ -58,7 +61,7 @@ class NCEAverage(nn.Module):
                 self.params[3] = out_ab.mean() * outputSize
                 Z_ab = self.params[3].clone().detach().item()
                 print("normalization constant Z_ab is set to {:.1f}".format(Z_ab))
-            
+
             out_l = torch.div(out_l, T)
             out_l = torch.exp(torch.div(out_l, Z_l))
 
@@ -167,7 +170,7 @@ class NCECriterion(nn.Module):
         P_pos = x.select(1, 0)
         log_D1 = torch.div(P_pos, P_pos.add(m * Pn + eps)).log_()
 
-        # loss for K negative pair
+           # loss for K negative pair
         P_neg = x.narrow(1, 1, m)
         log_D0 = torch.div(P_neg.clone().fill_(m * Pn), P_neg.add(m * Pn + eps)).log_()
         loss = - (log_D1.sum(0) + log_D0.view(-1, 1).sum(0)) / bsz

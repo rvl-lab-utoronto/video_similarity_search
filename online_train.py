@@ -118,7 +118,7 @@ def train(args, cfg):
     # Select appropriate model
     if(is_master_proc):
         print('\n==> Generating {} backbone model...'.format(cfg.MODEL.ARCH))
-    model=model_selector(cfg)
+    model=model_selector(cfg, is_master_proc=is_master_proc)
 
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
@@ -209,9 +209,13 @@ def train(args, cfg):
         if epoch % 10 == 0:
             if is_master_proc:
                 print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
-            topk_acc = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg, 
+            topk_acc = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg,
                                         plot=False, epoch=epoch, is_master_proc=is_master_proc)
-            
+            #if is_master_proc:
+            #    print('\n=> Validating with global top1/5 retrieval from train set with queries from train set')
+            #top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_train_loader, train_data, train_data, cfg, plot=False,
+            #                        epoch=epoch, is_master_proc=is_master_proc, out_filename='train_retrieval_acc')
+
         # Update best accuracy and save checkpoint
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)

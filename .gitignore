@@ -5,3 +5,4 @@ misc/token.pickle
 .vscode/ftp-sync.json
 __pycache__/
 nohup.out
+build

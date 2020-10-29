@@ -50,13 +50,13 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
             view1, view2 = view1.to(device), view2.to(device)
 
         if cuda:
-            index = index.to(device)
+            labels = labels[0].to(device)
 
         # Get embeddings of view1s and view2s
         feat_1 = model(view1)
         feat_2 = model(view2)
 
-        out_1, out_2 = contrast(feat_1, feat_2, index)
+        out_1, out_2 = contrast(feat_1, feat_2, labels)
         view1_loss = criterion_1(out_1)
         view2_loss = criterion_2(out_2)
 

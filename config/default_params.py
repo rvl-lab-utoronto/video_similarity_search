@@ -106,7 +106,7 @@ _C.LOSS.DIST_METRIC = 'cosine'
 #_C.LOSS.DIST_METRIC = 'euclidean'
 
 # NCE loss params
-_C.LOSS.K = 1024 #num of negatives
+_C.LOSS.K = 1024 #1024 #num of negatives
 _C.LOSS.T = 0.07
 _C.LOSS.M = 0.5
 _C.LOSS.FEAT_DIM = 64

@@ -4,12 +4,13 @@ modified form CMC repo: https://github.com/HobbitLong/CMC
 import torch
 from torch import nn
 import math
+import numpy as np
 
 eps = 1e-7
 
 class NCEAverage(nn.Module):
     #outputSize = ndata, inputSize = num of features
-    def __init__(self, inputSize, outputSize, K, T=0.07, momentum=0.5, use_softmax=True):
+    def __init__(self, inputSize, outputSize, K, T=0.07, momentum=0.5, cluster_labels=None, use_softmax=True):
         super(NCEAverage, self).__init__()
         self.nLem = outputSize
         self.unigrams = torch.ones(self.nLem)
@@ -22,8 +23,9 @@ class NCEAverage(nn.Module):
         stdv = 1. / math.sqrt(inputSize / 3)
         self.register_buffer('memory_l', torch.rand(outputSize, inputSize).mul_(2 * stdv).add_(-stdv))
         self.register_buffer('memory_ab', torch.rand(outputSize, inputSize).mul_(2 * stdv).add_(-stdv))
+        self.register_buffer('memory_label', torch.tensor(cluster_labels))
 
-    def forward(self, l, ab, y, idx=None): #index = y=label
+    def forward(self, l, ab, y, idx=None, labels=None): #y=index, not labels
         K = int(self.params[0].item())
         T = self.params[1].item()
         Z_l = self.params[2].item()
@@ -37,6 +39,22 @@ class NCEAverage(nn.Module):
         if idx is None:
             idx = self.multinomial.draw(batchSize * (self.K + 1)).view(batchSize, -1)
             idx.select(1, 0).copy_(y.data)
+        
+        #naiive approach, if positive idx exists, replace with a new one
+        label_mat = self.memory_label[idx]
+        for i in range(label_mat.size(0)):
+            label_row = label_mat[i]
+            idx_row = idx[i]
+
+            while label_row[0] in label_row[1:]:                
+                dup_idx = torch.nonzero((label_row==label_row[0]), as_tuple=False)[1:].squeeze(1)
+                replace_idx = self.multinomial.draw(len(dup_idx))
+                idx_row[dup_idx] = replace_idx.cuda()
+                label_row[dup_idx] = self.memory_label[replace_idx].cuda()
+
+
+                
+
         # sample
         weight_l = torch.index_select(self.memory_l, 0, idx.view(-1)).detach()
         weight_l = weight_l.view(batchSize, K + 1, inputSize)
@@ -84,7 +102,6 @@ class NCEAverage(nn.Module):
             ab_norm = ab_pos.pow(2).sum(1, keepdim=True).pow(0.5)
             updated_ab = ab_pos.div(ab_norm)
             self.memory_ab.index_copy_(0, y, updated_ab)
-
         return out_l, out_ab
 
 
@@ -148,7 +165,6 @@ class AliasMethod(object):
         b = torch.bernoulli(prob)
         oq = kk.mul(b.long())
         oj = alias.mul((1-b).long())
-
         return oq + oj
 
 

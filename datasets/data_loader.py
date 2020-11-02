@@ -220,13 +220,14 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
     if (is_master_proc):
         print ('Loading', cfg.TRAIN.DATASET, split, 'split...')
-    data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
+    data, cluster_labels = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, normalize=normalize,
                 channel_ext=channel_ext, cluster_path=cluster_path,
                 target_type=target_type, val_sample=val_sample,
                 negative_sampling=negative_sampling, positive_sampling_p=cfg.DATASET.POSITIVE_SAMPLING_P,
                 is_master_proc=is_master_proc)
+
     if (is_master_proc):
         print ('Single video input size:', data[1][0][0].size())
 
@@ -276,10 +277,9 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                                                   num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
                                                   pin_memory=True,
                                                   sampler=sampler,
-                                                  worker_init_fn=worker_init_fn
-                                                  # collate_fn=collate_fn)
-                                                  )
-    return data_loader, (data, sampler)
+                                                  worker_init_fn=worker_init_fn)
+                                                  
+    return data_loader, (cluster_labels, sampler)
 
 
 if __name__ == '__main__':

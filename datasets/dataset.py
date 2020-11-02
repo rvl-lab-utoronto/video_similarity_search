@@ -109,4 +109,4 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
     if (is_master_proc):
         print('{}_data: {}'.format(split, len(data)))
 
-    return data, ret_collate_fn
+    return data, Dataset.cluster_labels

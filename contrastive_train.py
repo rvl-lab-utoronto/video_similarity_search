@@ -51,12 +51,13 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
 
         if cuda:
             labels = labels[0].to(device)
+            index = index.to(device)
 
         # Get embeddings of view1s and view2s
         feat_1 = model(view1)
         feat_2 = model(view2)
 
-        out_1, out_2 = contrast(feat_1, feat_2, labels)
+        out_1, out_2 = contrast(feat_1, feat_2, index, labels=labels)
         view1_loss = criterion_1(out_1)
         view2_loss = criterion_2(out_2)
 
@@ -170,7 +171,7 @@ def train(args, cfg):
 
     if(is_master_proc):
         print('\n==> Building training data loader (triplet)...')
-    train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+    train_loader, (cluster_labels, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
     if(is_master_proc):
         print('\n==> Building validation data loader (triplet)...')
@@ -194,7 +195,7 @@ def train(args, cfg):
         print('\n==> Setting criterion & contrastive...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
     n_data = len(train_loader.dataset)
-    contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
+    contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M, cluster_labels).to(device)
     criterion_1 = NCESoftmaxLoss()
     criterion_2 = NCESoftmaxLoss()
 

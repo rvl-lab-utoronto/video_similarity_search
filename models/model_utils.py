@@ -9,6 +9,7 @@ from models.resnet import generate_model
 from models.slowfast.slowfast.models.video_model_builder import SlowFastRepresentation
 from models.slowfast.slowfast.config.defaults import get_cfg
 from models.s3d.select_backbone import select_backbone
+from models.r3d.r3d import R3DNet
 
 import copy
 import torchvision
@@ -83,7 +84,7 @@ def mocov2_inflated(num_frames, center_init=True):
 
 # Select the appropriate model with the specified cfg parameters
 def model_selector(cfg, projection_head=True, is_master_proc=True):
-    assert cfg.MODEL.ARCH in ['3dresnet', 's3d', 'slowfast',
+    assert cfg.MODEL.ARCH in ['3dresnet', 's3d', 'r3d', 'slowfast',
             'simclr_pretrained_inflated_res50',
             'imagenet_pretrained_inflated_res50',
             'mocov2_pretrained_inflated_res50']
@@ -110,6 +111,14 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
                               nn.Conv3d(feature_size, dim, kernel_size=1, bias=True),
                               Flatten())
 
+    elif cfg.MODEL.ARCH == 'r3d':
+        dim=128
+        feature_size = 512
+        backbone = R3DNet(layer_sizes=(1,1,1,1), with_classifier=False)
+        model = nn.Sequential(backbone,
+                              nn.Linear(feature_size, feature_size),
+                              nn.ReLU(),
+                              nn.Linear(feature_size, dim))
 
     elif cfg.MODEL.ARCH == 'slowfast':
         slowfast_cfg = get_cfg()

@@ -228,11 +228,11 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
         split='val', is_master_proc=True, load_pkl=False, save_pkl=True):
 
     if split == 'train':
-        embeddings_pkl = os.path.join(args.output, 'train_embeddings.pkl')
-        labels_pkl = os.path.join(args.output, 'train_labels.pkl')
+        embeddings_pkl = os.path.join(cfg.OUTPUT_PATH, 'train_embeddings.pkl')
+        labels_pkl = os.path.join(cfg.OUTPUT_PATH, 'train_labels.pkl')
     else:
-        embeddings_pkl = os.path.join(args.output, 'val_embeddings.pkl')
-        labels_pkl = os.path.join(args.output, 'val_labels.pkl')
+        embeddings_pkl = os.path.join(cfg.OUTPUT_PATH, 'val_embeddings.pkl')
+        labels_pkl = os.path.join(cfg.OUTPUT_PATH, 'val_labels.pkl')
 
     if os.path.exists(embeddings_pkl) and os.path.exists(labels_pkl) and load_pkl:
         with open(embeddings_pkl, 'rb') as handle:
@@ -399,11 +399,11 @@ if __name__ == '__main__':
     if not num_exemplar:
         num_exemplar = int(input('Please specify number of exemplar videos: '))
 
-    if not args.output:
+    if not cfg.OUTPUT_PATH:
         output = input('Please specify output directory: ')
-        args.output = output
+        cfg.OUTPUT_PATH = output
     else:
-        output = args.output
+        output = cfg.OUTPUT_PATH
 
     start = time.time()
     now = datetime.now()

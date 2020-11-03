@@ -23,7 +23,7 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
 
     tripletnet.eval()
     with torch.no_grad():
-        for batch_idx, (inputs, targets) in enumerate(val_loader):
+        for batch_idx, (inputs, targets, idx) in enumerate(val_loader):
             (anchor, positive, negative) = inputs
             (anchor_target, positive_target, negative_target) = targets
             batch_size = torch.tensor(anchor.size(0)).to(device)

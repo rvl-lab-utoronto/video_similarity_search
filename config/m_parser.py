@@ -123,7 +123,7 @@ def overwrite_default_configs(cfg, args):
 
     if args.output:
         cfg.OUTPUT_PATH = args.output
-
+        
     if args.num_data_workers:
         cfg.TRAIN.NUM_DATA_WORKERS = args.num_data_workers
 

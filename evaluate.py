@@ -132,7 +132,7 @@ def get_distance_matrix(x_embeddings, y_embeddings=None, dist_metric='cosine'):
         distance_matrix = cosine_distances(x_embeddings, Y=y_embeddings)
     elif dist_metric == 'euclidean':
         distance_matrix = euclidean_distances(x_embeddings, Y=y_embeddings)
-    print('Distance matrix shape:', distance_matrix.shape)
+    #print('Distance matrix shape:', distance_matrix.shape)
 
     if y_embeddings is None:
         np.fill_diagonal(distance_matrix, float('inf'))

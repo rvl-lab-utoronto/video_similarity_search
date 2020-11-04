@@ -110,7 +110,7 @@ class ResNet(nn.Module):
                  shortcut_type='B',
                  widen_factor=1.0,
                  n_classes=512,
-                 out_dim = 64, #128
+                 out_dim = 128, #64
                  projection_head=False):
         super().__init__()
 

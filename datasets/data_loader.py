@@ -204,7 +204,12 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     # Set the target type and path to clustering information
     if split == 'train':
         target_type = cfg.DATASET.TARGET_TYPE_T
-        cluster_path = cfg.DATASET.CLUSTER_PATH
+
+        # Only need cluster labels if sampling triplets
+        if triplets:
+            cluster_path = cfg.DATASET.CLUSTER_PATH
+        else:
+            cluster_path = None
     else:
         target_type = cfg.DATASET.TARGET_TYPE_V
         cluster_path = None

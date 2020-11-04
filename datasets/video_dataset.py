@@ -23,8 +23,7 @@ class VideoDataset(data.Dataset):
                  target_transform=None,
                  normalize=None,
                  video_loader=None,
-                 image_name_formatter=lambda x: f'image_{x:05d}.jpg',
-                 target_type='label'):
+                 image_name_formatter=lambda x: f'image_{x:05d}.jpg'):
 
         self.data = data
         self.class_names = class_names
@@ -41,7 +40,7 @@ class VideoDataset(data.Dataset):
         else:
             self.loader = video_loader
 
-        self.target_type = target_type
+        self.target_type = 'label'
         self.total_labels = []
         self.get_all_labels()
 

@@ -28,7 +28,7 @@ def m_arg_parser(parser):
     parser.add_argument(
         '--visualize',
         action='store_true',
-        help='Visalize salient masks only'
+        help='Visualize salient masks only'
     )
     parser.add_argument(
         '--embedding_dir',
@@ -170,7 +170,7 @@ def fit_cluster(embeddings, method='Agglomerative'):
                                      metric='cosine',
                                      n_jobs=-1).fit(embeddings)
     elif method == 'kmeans':
-        n_clusters = 2000 #2000 for ucf train
+        n_clusters = 1000 #1000 for ucf train
         trained_cluster_obj = KMeans(n_clusters=n_clusters,
                                      n_init=10,
                                      n_jobs=-1).fit(embeddings)

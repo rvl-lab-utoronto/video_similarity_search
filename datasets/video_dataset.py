@@ -45,6 +45,9 @@ class VideoDataset(data.Dataset):
         self.total_labels = []
         self.get_all_labels()
 
+    def get_total_labels(self):
+        return self.total_labels
+
     def get_all_labels(self):
         for d in self.data:
             self.total_labels.append(d['label'])

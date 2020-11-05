@@ -18,6 +18,7 @@ SOURCE_CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 train_progress_file = './tnet_checkpoints/train_loss_and_acc.txt'
 val_progress_file = './tnet_checkpoints/val_loss_and_acc.txt'
 global_retrieval_file = './tnet_checkpoints/global_retrieval_acc.txt'
+nmi_progress_file = './tnet_checkpoints/NMIs.txt'
 
 def parse():
     parser = argparse.ArgumentParser("Video Similarity Search Training Script")
@@ -46,7 +47,8 @@ def parse_file(result_dir, f_type='train'):
     top1_acc = []
     top5_acc = []
     runtime = []
-    assert f_type in ['train', 'val', 'global_retrieval'], "f_type:{} is not recognized".format(f_type)
+    nmis = []
+    assert f_type in ['train', 'val', 'global_retrieval', 'nmi'], "f_type:{} is not recognized".format(f_type)
     processed_epoch = []
 
     if f_type == 'train':
@@ -73,6 +75,15 @@ def parse_file(result_dir, f_type='train'):
                 acc.append(float(row[2]))
                 top1_acc.append(float(row[3]))
                 top5_acc.append(float(row[4]))
+    elif f_type=='nmi':
+        with open (os.path.join(result_dir, nmi_progress_file), newline='') as csvfile:
+            csv_reader = csv.reader(csvfile, delimiter=' ')
+            for row in csv_reader:
+                cur_epoch = float(row[0].replace('epoch:', '').replace(',',''))
+                if cur_epoch in processed_epoch:
+                    continue
+                processed_epoch.append(cur_epoch)
+                nmis.append(float(row[1]))
     else:
         with open (os.path.join(result_dir, global_retrieval_file), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
@@ -85,16 +96,23 @@ def parse_file(result_dir, f_type='train'):
                 top1_acc.append(float(row[1]))
                 top5_acc.append(float(row[2]))
 
-    return epoch, runtime, losses, acc, top1_acc, top5_acc
+    return epoch, runtime, losses, acc, top1_acc, top5_acc, nmis
 
 
 def plot_training_progress(result_dir, name, show_plot=False, service=None):
-    _, _, train_losses, _, _, _ = parse_file(result_dir, 'train')
-    _, _, val_losses, val_acc, top1_acc, top5_acc = parse_file(result_dir, 'val')
-    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc = parse_file(result_dir, 'global_retrieval')
+    _, _, train_losses, _, _, _, _ = parse_file(result_dir, 'train')
+    _, _, val_losses, val_acc, top1_acc, top5_acc, _ = parse_file(result_dir, 'val')
+    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc, _ = parse_file(result_dir, 'global_retrieval')
+
+    num_plots = 3
+
+    if (os.path.exists(os.path.join(result_dir, nmi_progress_file))):
+        _, _, _, _, _, _, nmis = parse_file(result_dir, 'nmi')
+        num_plots += 1
+
     # print(top1_5_epoch)
     f = plt.figure(figsize=(18,5))
-    ax1 =  plt.subplot(1, 3, 1)
+    ax1 =  plt.subplot(1, num_plots, 1)
     ax1.plot(np.arange(len(train_losses)), train_losses)
     ax1.plot(np.arange(len(val_losses)), val_losses)
     ax1.set_xlabel('Epoch')
@@ -102,7 +120,7 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     ax1.set_title('Training and Validation Loss vs. Epoch')
     ax1.legend(['Training', 'Validation'])
 
-    ax2 = plt.subplot(1, 3, 2)
+    ax2 = plt.subplot(1, num_plots, 2)
     #ax2.plot(np.arange(len(train_acc)), train_acc)
     ax2.plot(np.arange(len(val_acc)), val_acc)
     ax2.set_xlabel('Epoch')
@@ -110,7 +128,7 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     ax2.set_title('Validation Triplet Accuracy vs. Epoch')
     #ax2.legend(['Training', 'Validation'])
 
-    ax3 = plt.subplot(1, 3, 3)
+    ax3 = plt.subplot(1, num_plots, 3)
     # ax3.plot(np.arange(len(top1_acc)), top1_acc)
     # ax3.plot(np.arange(len(top5_acc)), top5_acc)
     ax3.plot(top1_5_epoch, global_top1_acc)
@@ -119,6 +137,13 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     ax3.set_ylabel('Accuracy (%)')
     ax3.set_title('Validation Top 1/5 Retrieval Accuracy vs. Epoch')
     ax3.legend(['Top1', 'Top5'])
+
+    if (os.path.exists(os.path.join(result_dir, nmi_progress_file))):
+        ax4 = plt.subplot(1, num_plots, 4)
+        ax4.plot(np.arange(len(nmis)), nmis)
+        ax4.set_xlabel('Epoch')
+        ax4.set_ylabel('Cluster Assignment vs True Label NMI')
+        ax4.set_title('NMI vs. Epoch')
 
     plot_name = '{}_train_val_loss.png'.format(name)
     f.savefig(plot_name)
@@ -130,9 +155,9 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
         plt.show()
 
 def write_to_google_sheet(result_dir, client, worksheet_name):
-    epoch, runtime, train_losses, _, _, _ = parse_file(result_dir, 'train')
-    _, _, val_losses, val_acc, top1_acc, top5_acc = parse_file(result_dir, 'val')
-    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc = parse_file(result_dir, 'global_retrieval')
+    epoch, runtime, train_losses, _, _, _, _ = parse_file(result_dir, 'train')
+    _, _, val_losses, val_acc, top1_acc, top5_acc, _ = parse_file(result_dir, 'val')
+    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc, _ = parse_file(result_dir, 'global_retrieval')
 
 
     best_idx = np.argmax(np.array(top1_acc))

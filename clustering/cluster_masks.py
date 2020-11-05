@@ -149,12 +149,19 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=2, visual
     return embeddings
 
 
+# Preprocessing for kmeans - l2normalize
+def preprocess_features_kmeans(data):
+    print('l2-normalizing data..')
+    l2norms = torch.norm(data, dim=1, keepdim=True)
+    return data / l2norms
+
+
 # Perform clustering 
 def fit_cluster(embeddings, method='Agglomerative'):
 
     assert(method in ['DBSCAN', 'Agglomerative', 'OPTICS', 'kmeans'])
 
-    print("Clustering...")
+    print("Clustering with {}...".format(method))
 
     if method == 'Agglomerative':
         distance_threshold = 0.24 #0.24 for ucf train
@@ -170,10 +177,12 @@ def fit_cluster(embeddings, method='Agglomerative'):
                                      metric='cosine',
                                      n_jobs=-1).fit(embeddings)
     elif method == 'kmeans':
+        #pre-process - l2 normalize embeddings
+        embeddings = preprocess_features_kmeans(embeddings)
+
         n_clusters = 1000 #1000 for ucf train
         trained_cluster_obj = KMeans(n_clusters=n_clusters,
-                                     n_init=10,
-                                     n_jobs=-1).fit(embeddings)
+                                     n_init=10).fit(embeddings)
     elif method == 'OPTICS':
         trained_cluster_obj = OPTICS(min_samples=3, max_eps=0.20, cluster_method='dbscan', metric='cosine', n_jobs=-1).fit(embeddings)
 

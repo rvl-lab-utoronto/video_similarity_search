@@ -247,6 +247,7 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
                 torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
             with open(labels_pkl, 'wb') as handle:
                 torch.save(labels, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
+            print('saved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
 
     return embeddings, labels
 

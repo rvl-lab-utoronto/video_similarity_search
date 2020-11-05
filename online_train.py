@@ -14,7 +14,7 @@ from torch import nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from validation import validate
-from evaluate import k_nearest_embeddings, evaluate
+from evaluate import k_nearest_embeddings, get_embeddings_and_labels
 from models.triplet_net import Tripletnet
 from datasets import data_loader
 from models.model_utils import (model_selector, multipathway_input,
@@ -199,6 +199,8 @@ def train(args, cfg):
 
     # ============================= Training loop ==============================
 
+    embeddings_computed = False
+
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if (is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
@@ -207,8 +209,10 @@ def train(args, cfg):
             if is_master_proc:
                 print('\n=> Computing embeddings')
             # Get embeddings using current model
-            embeddings, true_labels = evaluate(cfg, model, cuda, device, eval_train_loader,
-                                     split='train', is_master_proc=is_master_proc)
+            embeddings, true_labels = get_embeddings_and_labels(args, cfg,
+                    model, cuda, device, eval_train_loader, split='train',
+                    is_master_proc=is_master_proc,
+                    load_pkl=embeddings_computed, save_pkl=False)
 
             if is_master_proc:
                 # Cluster
@@ -246,6 +250,8 @@ def train(args, cfg):
         # Train 
         train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
 
+        embeddings_computed = False
+
         # Validate
         if is_master_proc:
             print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
@@ -255,6 +261,7 @@ def train(args, cfg):
                 print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
             topk_acc = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg,
                                         plot=False, epoch=epoch, is_master_proc=is_master_proc)
+            embeddings_computed = True
             #if is_master_proc:
             #    print('\n=> Validating with global top1/5 retrieval from train set with queries from train set')
             #top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_train_loader, train_data, train_data, cfg, plot=False,

@@ -206,13 +206,15 @@ def train(args, cfg):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
 
         if args.iterative_cluster:
+            # Get embeddings using current model
             if is_master_proc:
                 print('\n=> Computing embeddings')
-            # Get embeddings using current model
-            embeddings, true_labels = get_embeddings_and_labels(args, cfg,
-                    model, cuda, device, eval_train_loader, split='train',
-                    is_master_proc=is_master_proc,
-                    load_pkl=embeddings_computed, save_pkl=False)
+
+            if is_master_proc or not embeddings_computed:
+                embeddings, true_labels = get_embeddings_and_labels(args, cfg,
+                        model, cuda, device, eval_train_loader, split='train',
+                        is_master_proc=is_master_proc,
+                        load_pkl=embeddings_computed, save_pkl=False)
 
             if is_master_proc:
                 # Cluster

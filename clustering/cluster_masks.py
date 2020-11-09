@@ -151,9 +151,10 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=2, visual
 
 # Preprocessing for kmeans - l2normalize
 def preprocess_features_kmeans(data):
-    print('l2-normalizing data..')
     l2norms = torch.norm(data, dim=1, keepdim=True)
-    return data / l2norms
+    data = data / l2norms
+    print('l2-normalized data')
+    return data
 
 
 # Perform clustering 
@@ -178,7 +179,7 @@ def fit_cluster(embeddings, method='Agglomerative'):
                                      n_jobs=-1).fit(embeddings)
     elif method == 'kmeans':
         #pre-process - l2 normalize embeddings
-        embeddings = preprocess_features_kmeans(embeddings)
+        #embeddings = preprocess_features_kmeans(embeddings)
 
         n_clusters = 1000 #1000 for ucf train
         trained_cluster_obj = KMeans(n_clusters=n_clusters,

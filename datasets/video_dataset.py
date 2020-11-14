@@ -44,6 +44,9 @@ class VideoDataset(data.Dataset):
         self.total_labels = []
         self.get_all_labels()
 
+    def get_label_to_class_map(self):
+        return self.class_names
+
     def get_total_labels(self):
         return self.total_labels
 
@@ -75,7 +78,7 @@ class VideoDataset(data.Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return clip, target, path
+        return clip, target, path, index
 
     def __getitem__(self, index):
         return self._get_video_custom_temporal(index, self.temporal_transform)

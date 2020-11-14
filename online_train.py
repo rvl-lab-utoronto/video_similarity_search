@@ -211,7 +211,7 @@ def train(args, cfg):
                 print('\n=> Computing embeddings')
 
             if is_master_proc or not embeddings_computed:
-                embeddings, true_labels = get_embeddings_and_labels(args, cfg,
+                embeddings, true_labels, idxs = get_embeddings_and_labels(args, cfg,
                         model, cuda, device, eval_train_loader, split='train',
                         is_master_proc=is_master_proc,
                         load_pkl=embeddings_computed, save_pkl=False)
@@ -230,10 +230,18 @@ def train(args, cfg):
                 with open('{}/tnet_checkpoints/NMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
                     f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
 
-                # Save cluster assignments
+                # Update probability of sampling positive from same video using NMI
+                cfg.DATASET.POSITIVE_SAMPLING_P = float(1.0 - NMI)
+
+                # Get cluster assignments in unshuffled order of dataset
+                cluster_assignments_unshuffled_order = [None] * len(eval_train_loader.dataset)
+                for i in range(len(trained_clustering_obj.labels_)):
+                    cluster_assignments_unshuffled_order[idxs[i]] = trained_clustering_obj.labels_[i]
+
+                # Save cluster assignments corresponding to unshuffled order of dataset
                 cluster_output_path = os.path.join(cfg.OUTPUT_PATH, 'vid_clusters.txt')
                 with open(cluster_output_path, "w") as f:
-                    for label in trained_clustering_obj.labels_:
+                    for label in cluster_assignments_unshuffled_order:
                         f.write('{}\n'.format(label))
                 print('Saved cluster labels to', cluster_output_path)
 

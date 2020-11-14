@@ -222,6 +222,8 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     if is_master_proc and split == 'train' and target_type == 'label' and cfg.DATASET.POSITIVE_SAMPLING_P != 1.0:
         print('NOTE: Will sample positives from same real label (SUPERVISED) for training with POSITIVE_SAMPLING_P =',
             cfg.DATASET.POSITIVE_SAMPLING_P)
+    elif is_master_proc and split == 'train' and triplets:
+        print('Probability of sampling positive from same video: {}'.format(cfg.DATASET.POSITIVE_SAMPLING_P))
 
     if (is_master_proc):
         print ('Loading', cfg.TRAIN.DATASET, split, 'split...')

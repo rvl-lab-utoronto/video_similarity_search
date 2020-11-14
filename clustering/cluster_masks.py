@@ -37,6 +37,12 @@ def m_arg_parser(parser):
         help='Directory holding already-processed embeddings of salient-masked center frames'
     )
     parser.add_argument(
+        '--label_dir',
+        type=str,
+        default=None,
+        help='Directory holding true labels pkl'
+    )
+    parser.add_argument(
         '--split',
         type=str,
         default=None,
@@ -179,9 +185,9 @@ def fit_cluster(embeddings, method='Agglomerative'):
                                      n_jobs=-1).fit(embeddings)
     elif method == 'kmeans':
         #pre-process - l2 normalize embeddings
-        #embeddings = preprocess_features_kmeans(embeddings)
+        embeddings = preprocess_features_kmeans(embeddings)
 
-        n_clusters = 1000 #1000 for ucf train
+        n_clusters = 1000 #2000 for ucf train
         trained_cluster_obj = KMeans(n_clusters=n_clusters,
                                      n_init=10).fit(embeddings)
     elif method == 'OPTICS':
@@ -195,7 +201,7 @@ def fit_cluster(embeddings, method='Agglomerative'):
 
 
 # Print clusters 
-def cluster_embeddings(data, clustering_obj):
+def cluster_embeddings(clustering_obj, true_labels, label_to_class_map):
 
     labels = clustering_obj.labels_
     cluster_to_data_idxs = {label: np.where(clustering_obj.labels_ == label)[0] for label in set(labels)}
@@ -212,8 +218,7 @@ def cluster_embeddings(data, clustering_obj):
     for cluster in cluster_to_data_idxs:
         cur_cluster_vids = []
         for data_idx in cluster_to_data_idxs[cluster]:
-            vid_path = data.data[data_idx]['video']
-            vid_label = vid_path.split(os.sep)[-2]
+            vid_label = label_to_class_map[true_labels[data_idx]]
             cur_cluster_vids.append(vid_label)
         print(cluster, ':', cur_cluster_vids)
 
@@ -300,18 +305,19 @@ if __name__ == '__main__':
     trained_clustering_obj = fit_cluster(embeddings, args.method)
     print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
-    #print('pred labels')
-    #for label in trained_clustering_obj.labels_:
-    #    print(label)
-    #print('\ntrue labels')
-    true_labels = data.get_total_labels()
-    #for label in true_labels:
-    #    print(label)
+    if args.label_dir:
+        labels_pkl = os.path.join(args.label_dir, 'labels.pkl')
+        with open(labels_pkl, 'rb') as handle:
+            true_labels = torch.load(handle)
+        print ('Labels loaded from', labels_pkl)
+    else:
+        true_labels = data.get_total_labels()
 
     NMI = normalized_mutual_info_score(true_labels, trained_clustering_obj.labels_)
     print('NMI between true labels and cluster assignments: {:.2f}\n'.format(NMI))
 
-    cluster_labels = cluster_embeddings(data, trained_clustering_obj)
+    cluster_labels = cluster_embeddings(trained_clustering_obj, true_labels,
+            data.get_label_to_class_map())
 
     with open(os.path.join(args.output, 'vid_clusters.txt'), "a") as f:
         for label in cluster_labels:

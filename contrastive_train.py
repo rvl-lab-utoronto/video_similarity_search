@@ -12,13 +12,19 @@ from validation import validate
 from evaluate import k_nearest_embeddings
 from models.triplet_net import Tripletnet
 from datasets import data_loader
+from datasets.gen_neg import preprocess
 from models.model_utils import (model_selector, multipathway_input,
                             load_pretrained_model, save_checkpoint, load_checkpoint,
                             AverageMeter, accuracy, create_output_dirs)
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from loss.triplet_loss import OnlineTripleLoss
-from loss.NCE_loss import NCEAverage, NCESoftmaxLoss
+from loss.NCE_loss import NCEAverage, NCEAverage_intra_neg, NCESoftmaxLoss
+
+#TODO: add this to config file
+modality = 'res'
+intra_neg = True #True
+neg_type='repeat'
 
 def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
@@ -37,7 +43,13 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
     # Training loop
     start = time.time()
     for batch_idx, (inputs, labels, index) in enumerate(train_loader):
-        view1, view2 = inputs
+        view1 = inputs[0]
+        
+        if modality=='rgb':
+            view2 = inputs[1]
+        elif modality == 'res':
+            view2 = diff(view1)
+        
         batch_size = torch.tensor(view1.size(0)).to(device)
         # Prepare input and send to gpu
         if cfg.MODEL.ARCH == 'slowfast':
@@ -51,12 +63,17 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
 
         if cuda:
             labels = labels[0].to(device)
+            index = index.to(device)
 
         # Get embeddings of view1s and view2s
         feat_1 = model(view1)
         feat_2 = model(view2)
-
-        out_1, out_2 = contrast(feat_1, feat_2, labels)
+        if intra_neg:
+            intra_negative = preprocess(view1, neg_type)
+            feat_neg = model(intra_negative)
+            out_1, out_2 = contrast(feat_1, feat_2, feat_neg, index)
+        else:
+            out_1, out_2 = contrast(feat_1, feat_2, index)
         view1_loss = criterion_1(out_1)
         view2_loss = criterion_2(out_2)
 
@@ -99,6 +116,12 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
             f.write('epoch:{} runtime:{} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg))
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
+
+
+
+def diff(x):
+    shift_x = torch.roll(x, 1, 2)
+    return ((x - shift_x) + 1) / 2
 
 
 # =========================== Running Training Loop ========================== #
@@ -194,7 +217,12 @@ def train(args, cfg):
         print('\n==> Setting criterion & contrastive...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
     n_data = len(train_loader.dataset)
-    contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
+
+    if intra_neg:
+        contrast = NCEAverage_intra_neg(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
+    else:
+        contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
+    
     criterion_1 = NCESoftmaxLoss()
     criterion_2 = NCESoftmaxLoss()
 
@@ -220,7 +248,7 @@ def train(args, cfg):
         if is_master_proc:
             print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
         acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
-        if epoch % 10 == 0:
+        if epoch+1 % 10 == 0:
             if is_master_proc:
                 print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
             topk_acc = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg, 

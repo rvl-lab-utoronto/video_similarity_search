@@ -109,8 +109,8 @@ class ResNet(nn.Module):
                  no_max_pool=False,
                  shortcut_type='B',
                  widen_factor=1.0,
-                 n_classes=512,
-                 out_dim = 64, #128
+                 n_classes=2048,
+                 out_dim = 128, #128
                  projection_head=False):
         super().__init__()
 

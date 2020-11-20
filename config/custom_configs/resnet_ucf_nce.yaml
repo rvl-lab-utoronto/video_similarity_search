@@ -15,7 +15,7 @@ DATASET:
     POSITIVE_SAMPLING_P: 0.2
 
 MODEL:
-    ARCH: '3dresnet'
+    ARCH: 'info_nce' #'3dresnet'
 
 RESNET:
     MODEL_DEPTH: 18

@@ -8,32 +8,37 @@ DATASET:
     ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
     CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
 
-    TARGET_TYPE_T: 'cluster_label'
+    TARGET_TYPE_T: 'label' #'cluster_label'
     TARGET_TYPE_V: 'label'
 
     SAMPLING_STRATEGY: 'random_semi_hard'
-    POSITIVE_SAMPLING_P: 0.2
+    POSITIVE_SAMPLING_P: 0.0 #0.2
 
 MODEL:
-    ARCH: '3dresnet'
+    ARCH: 'uber_nce'
 
-RESNET:
-    MODEL_DEPTH: 18
-    N_CLASSES: 512 #2048
-    # N_INPUT_CHANNELS: 3
-    SHORTCUT: 'B'
-    CONV1_T_SIZE: 7
-    CONV1_T_STRIDE: 1
-    NO_MAX_POOl: true
-    WIDEN_FACTOR: 1
+
+# RESNET:
+#     MODEL_DEPTH: 18
+#     N_CLASSES: 512 #2048
+#     # N_INPUT_CHANNELS: 3
+#     SHORTCUT: 'B'
+#     CONV1_T_SIZE: 7
+#     CONV1_T_STRIDE: 1
+#     NO_MAX_POOl: true
+#     WIDEN_FACTOR: 1
 
 DATA:
-    SAMPLE_SIZE: 128
+    SAMPLE_SIZE: 112 #128
     SAMPLE_DURATION: 16
     INPUT_CHANNEL_NUM: 3
 
 LOSS:
     MARGIN: 0.2
+
+    # K: 1024 #num of negatives
+    # T: 0.07
+    # M: 0.5
 
 OPTIM:
     LR: 0.01

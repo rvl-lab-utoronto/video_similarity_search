@@ -3,6 +3,7 @@ import shutil
 import os
 
 from models.resnet import generate_model
+from models.infoNCE import InfoNCE, UberNCE
 #from models.slowfast.slowfast.models.build import build_model
 #from models.slowfast.slowfast.models.video_model_builder import SlowFast
 from models.slowfast.slowfast.models.video_model_builder import SlowFastRepresentation
@@ -81,7 +82,7 @@ def mocov2_inflated(num_frames, center_init=True):
 
 # Select the appropriate model with the specified cfg parameters
 def model_selector(cfg, projection_head=True, is_master_proc=True):
-    assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast',
+    assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast', 'info_nce', "uber_nce",
             'simclr_pretrained_inflated_res50',
             'imagenet_pretrained_inflated_res50',
             'mocov2_pretrained_inflated_res50']
@@ -122,6 +123,11 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
         # Unused Model with FC:
         #model = build_model(slowfast_cfg)
         #model = SlowFast(slowfast_cfg)
+    elif cfg.MODEL.ARCH == 'info_nce':
+        model = InfoNCE('s3d', dim=128, K=2048, m=0.999, T=0.07)
+
+    elif cfg.MODEL.ARCH == 'uber_nce':
+        model = UberNCE('s3d', dim=128, K=2048, m=0.999, T=0.07)
 
     elif cfg.MODEL.ARCH == 'simclr_pretrained_inflated_res50':
         model = simclr_inflated(cfg.DATA.SAMPLE_DURATION)

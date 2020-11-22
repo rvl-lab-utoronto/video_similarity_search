@@ -9,7 +9,7 @@ _C = CfgNode()
 # Training options
 # -----------------------------------------------------------------------------
 _C.TRAIN = CfgNode()
-_C.TRAIN.EPOCHS = 200
+_C.TRAIN.EPOCHS = 240
 _C.TRAIN.BATCH_SIZE = 16
 #_C.TRAIN.DATASET = "ucf101"
 _C.TRAIN.DATASET = "kinetics"
@@ -67,6 +67,7 @@ _C.DATASET.OPTICAL_V_PATH = ''
 _C.SLOWFAST = CfgNode()
 _C.SLOWFAST.CFG_PATH = 'models/slowfast/configs/Kinetics/SLOWFAST_8x8_R50.yaml'
 _C.SLOWFAST.ALPHA = 4
+_C.SLOWFAST.FAST_MASK = False
 
 
 # -----------------------------------------------------------------------------
@@ -74,7 +75,10 @@ _C.SLOWFAST.ALPHA = 4
 # -----------------------------------------------------------------------------
 _C.RESNET=CfgNode()
 _C.RESNET.MODEL_DEPTH = 18
-_C.RESNET.N_CLASSES=1039
+_C.RESNET.N_CLASSES=101
+_C.RESNET.PROJECTION_HEAD = True
+_C.RESNET.HIDDEN_LAYER = 2048
+_C.RESNET.OUT_DIM = 128
 _C.RESNET.SHORTCUT = 'B'
 _C.RESNET.CONV1_T_SIZE = 7
 _C.RESNET.CONV1_T_STRIDE = 1
@@ -104,7 +108,11 @@ _C.LOSS.MARGIN = 0.2
 _C.LOSS.DIST_METRIC = 'cosine'
 #_C.LOSS.DIST_METRIC = 'euclidean'
 
-
+# NCE loss params
+_C.LOSS.K = 1024 #num of negatives
+_C.LOSS.T = 0.07
+_C.LOSS.M = 0.5
+_C.LOSS.FEAT_DIM = 64
 # -----------------------------------------------------------------------------
 # Optimizer options
 # -----------------------------------------------------------------------------

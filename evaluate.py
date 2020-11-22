@@ -132,7 +132,7 @@ def get_distance_matrix(x_embeddings, y_embeddings=None, dist_metric='cosine'):
         distance_matrix = cosine_distances(x_embeddings, Y=y_embeddings)
     elif dist_metric == 'euclidean':
         distance_matrix = euclidean_distances(x_embeddings, Y=y_embeddings)
-    print('Distance matrix shape:', distance_matrix.shape)
+    #print('Distance matrix shape:', distance_matrix.shape)
 
     if y_embeddings is None:
         np.fill_diagonal(distance_matrix, float('inf'))
@@ -228,11 +228,11 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
         split='val', is_master_proc=True, load_pkl=False, save_pkl=True):
 
     if split == 'train':
-        embeddings_pkl = os.path.join(args.output, 'train_embeddings.pkl')
-        labels_pkl = os.path.join(args.output, 'train_labels.pkl')
+        embeddings_pkl = os.path.join(cfg.OUTPUT_PATH, 'train_embeddings.pkl')
+        labels_pkl = os.path.join(cfg.OUTPUT_PATH, 'train_labels.pkl')
     else:
-        embeddings_pkl = os.path.join(args.output, 'val_embeddings.pkl')
-        labels_pkl = os.path.join(args.output, 'val_labels.pkl')
+        embeddings_pkl = os.path.join(cfg.OUTPUT_PATH, 'val_embeddings.pkl')
+        labels_pkl = os.path.join(cfg.OUTPUT_PATH, 'val_labels.pkl')
 
     if os.path.exists(embeddings_pkl) and os.path.exists(labels_pkl) and load_pkl:
         with open(embeddings_pkl, 'rb') as handle:
@@ -253,14 +253,15 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
 
 def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, train_data, val_data, cfg, plot=True,
                         epoch=None, is_master_proc=True,
-                        evaluate_output=None, num_exemplar=None, service=None, load_pkl=False):
+                        evaluate_output=None, num_exemplar=None, service=None,
+                        load_pkl=False, out_filename='global_retrieval_acc'):
     print ('Getting embeddings...')
-    val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader, 
+    val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader,
                                                         split='val', is_master_proc=is_master_proc, load_pkl=load_pkl)
-    train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader, 
+    train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader,
                                                         split='train', is_master_proc=is_master_proc, load_pkl=load_pkl)
     acc = []
-    
+
     print ('Computing top1/5/10/20 Acc...')
     if (is_master_proc):
         distance_matrix = get_distance_matrix(val_embeddings, train_embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
@@ -269,7 +270,7 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
             to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
             msg = '\nTest Set: Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%, Top10 Acc: {:.2f}%, Top20 Acc: {:.2f}%'.format(100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
             to_write += '\n'
-            with open('{}/tnet_checkpoints/global_retrieval_acc.txt'.format(cfg.OUTPUT_PATH), "a") as val_file:
+            with open('{}/tnet_checkpoints/{}.txt'.format(cfg.OUTPUT_PATH, out_filename), "a") as val_file:
                 val_file.write(to_write)
 
         if plot:
@@ -398,11 +399,11 @@ if __name__ == '__main__':
     if not num_exemplar:
         num_exemplar = int(input('Please specify number of exemplar videos: '))
 
-    if not args.output:
+    if not cfg.OUTPUT_PATH:
         output = input('Please specify output directory: ')
-        args.output = output
+        cfg.OUTPUT_PATH = output
     else:
-        output = args.output
+        output = cfg.OUTPUT_PATH
 
     start = time.time()
     now = datetime.now()

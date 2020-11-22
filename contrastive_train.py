@@ -1,8 +1,3 @@
-"""
-Created by Sherry Chen on Jul 3, 2020
-Build and Train Triplet network. Supports saving and loading checkpoints,
-"""
-
 import sys, os
 #import gc
 import numpy as np
@@ -23,42 +18,52 @@ from models.model_utils import (model_selector, multipathway_input,
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from loss.triplet_loss import OnlineTripleLoss
+from loss.NCE_loss import NCEAverage, NCESoftmaxLoss
 
-def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
+def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
-    running_n_triplets = AverageMeter()
+    view1_loss_meter = AverageMeter()
+    view2_loss_meter = AverageMeter()
+    view1_prob_meter = AverageMeter()
+    view2_prob_meter = AverageMeter()
+
     world_size = du_helper.get_world_size()
+    
     # switching to training mode
     model.train()
-
+    contrast.train()
+    
     # Training loop
     start = time.time()
-    for batch_idx, (inputs, targets, idx) in enumerate(train_loader):
-        anchor, positive = inputs
-        a_target, p_target = targets
-        batch_size = torch.tensor(anchor.size(0)).to(device)
-        targets = torch.cat((a_target, p_target), 0)
-
+    for batch_idx, (inputs, labels, index) in enumerate(train_loader):
+        view1, view2 = inputs
+        batch_size = torch.tensor(view1.size(0)).to(device)
         # Prepare input and send to gpu
         if cfg.MODEL.ARCH == 'slowfast':
-            anchor = multipathway_input(anchor, cfg)
-            positive = multipathway_input(positive, cfg)
+            view1 = multipathway_input(view1, cfg)
+            view2 = multipathway_input(view2, cfg)
             if cuda:
-                for i in range(len(anchor)):
-                    anchor[i], positive[i]= anchor[i].to(device), positive[i].to(device)
+                for i in range(len(view1)):
+                    view1[i], view2[i]= view1[i].to(device), view2[i].to(device)
         elif cuda:
-            anchor, positive = anchor.to(device), positive.to(device)
+            view1, view2 = view1.to(device), view2.to(device)
 
-        # Get embeddings of anchors and positives
-        anchor_outputs = model(anchor)
-        positive_outputs = model(positive)
-        outputs = torch.cat((anchor_outputs, positive_outputs), 0)  # dim: [(batch_size * 2), dim_embedding]
         if cuda:
-            targets = targets.to(device)
+            labels = labels[0].to(device)
 
-        # Sample negatives from batch for each anchor/positive and compute loss
-        loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+        # Get embeddings of view1s and view2s
+        feat_1 = model(view1)
+        feat_2 = model(view2)
+
+        out_1, out_2 = contrast(feat_1, feat_2, labels)
+        view1_loss = criterion_1(out_1)
+        view2_loss = criterion_2(out_2)
+
+        view1_prob = out_1[:,0].mean()
+        view2_prob = out_2[:,0].mean()
+
+        loss = view1_loss + view2_loss
 
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
@@ -76,16 +81,17 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
 
         # Update running loss
         losses.update(loss.item(), batch_size_world)
-        running_n_triplets.update(n_triplets)
-
+        view1_loss_meter.update(view1_loss.item(), batch_size_world)
+        view1_prob_meter.update(view1_prob.item(), batch_size_world)
+        view2_loss_meter.update(view1_loss.item(), batch_size_world)
+        view2_prob_meter.update(view2_prob.item(), batch_size_world)
         # Log
         if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
             print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
-                  'Loss: {:.4f} ({:.4f}) \t'
-                  'N_Triplets: {:.1f}'.format(epoch, losses.count,
+                  'Loss: {:.4f} ({:.4f})'.format(epoch, losses.count,
                     len(train_loader.dataset),
                     100. * (losses.count / len(train_loader.dataset)),
-                    losses.val, losses.avg, running_n_triplets.avg))
+                    losses.val, losses.avg))
 
     if (is_master_proc):
         print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
@@ -118,7 +124,7 @@ def train(args, cfg):
     # Select appropriate model
     if(is_master_proc):
         print('\n==> Generating {} backbone model...'.format(cfg.MODEL.ARCH))
-    model=model_selector(cfg, is_master_proc=is_master_proc)
+    model=model_selector(cfg)
 
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
@@ -143,7 +149,8 @@ def train(args, cfg):
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
         start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
-
+    
+   
     # Setup tripletnet used for validation
     if(is_master_proc):
         print('\n==> Generating triplet network...')
@@ -157,16 +164,7 @@ def train(args, cfg):
             else:
                 tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
 
-    # ======================== Loss and Optimizer Setup ========================
 
-    if(is_master_proc):
-        print('\n==> Setting criterion...')
-    val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-    criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
-    optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
-    if(is_master_proc):
-        print('Using criterion:{} for training'.format(criterion))
-        print('Using criterion:{} for validation'.format(val_criterion))
 
     # ============================== Data Loaders ==============================
 
@@ -189,7 +187,25 @@ def train(args, cfg):
         print('\n==> Building validation data loader (single video)...')
     eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, is_master_proc=False, triplets=False, val_sample=None)
 
+
+    # ======================== Loss and Optimizer Setup ========================
+
+    if(is_master_proc):
+        print('\n==> Setting criterion & contrastive...')
+    val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
+    n_data = len(train_loader.dataset)
+    contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
+    criterion_1 = NCESoftmaxLoss()
+    criterion_2 = NCESoftmaxLoss()
+
+    optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+    if(is_master_proc):
+        print('Using criterion:{} for training'.format(criterion_1, criterion_2))
+        print('Using criterion:{} for validation'.format(val_criterion))
+    
+
     # ============================= Training loop ==============================
+    # acc = validate(val_loader, tripletnet, val_criterion, -1, cfg, cuda, device, is_master_proc)
 
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if (is_master_proc):
@@ -199,8 +215,7 @@ def train(args, cfg):
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
-        # Train 
-        train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
 
         # Validate
         if is_master_proc:
@@ -209,13 +224,9 @@ def train(args, cfg):
         if epoch % 10 == 0:
             if is_master_proc:
                 print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
-            topk_acc = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg,
+            topk_acc = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg, 
                                         plot=False, epoch=epoch, is_master_proc=is_master_proc)
-            #if is_master_proc:
-            #    print('\n=> Validating with global top1/5 retrieval from train set with queries from train set')
-            #top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_train_loader, train_data, train_data, cfg, plot=False,
-            #                        epoch=epoch, is_master_proc=is_master_proc, out_filename='train_retrieval_acc')
-
+            
         # Update best accuracy and save checkpoint
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)
@@ -249,7 +260,7 @@ if __name__ == '__main__':
 
     # Print training parameters
     print('Triplet sampling strategy: {}'.format(cfg.DATASET.SAMPLING_STRATEGY))
-    print('Probability of sampling positive from same video: {}'.format(cfg.DATASET.POSITIVE_SAMPLING_P))
+    print('Probability of sampling view2 from same video: {}'.format(cfg.DATASET.POSITIVE_SAMPLING_P))
     print('OUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))
     print('BATCH_SIZE is set to: {}'.format(cfg.TRAIN.BATCH_SIZE))
     print('NUM_WORKERS is set to: {}'.format(cfg.TRAIN.NUM_DATA_WORKERS))

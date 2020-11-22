@@ -23,7 +23,7 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
 
     tripletnet.eval()
     with torch.no_grad():
-        for batch_idx, (inputs, targets) in enumerate(val_loader):
+        for batch_idx, (inputs, targets, idx) in enumerate(val_loader):
             (anchor, positive, negative) = inputs
             (anchor_target, positive_target, negative_target) = targets
             batch_size = torch.tensor(anchor.size(0)).to(device)
@@ -60,8 +60,8 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
                 labels = torch.cat((anchor_target.detach().cpu(), positive_target.detach().cpu()), dim=0)
                 distance_matrix = get_distance_matrix(embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
                 topk_acc = get_topk_acc(distance_matrix, labels.tolist())
-                top1_accs.update(topk_acc[0])
-                top5_accs.update(topk_acc[1])
+                top1_acc = torch.tensor(topk_acc[0]).to(device)
+                top5_acc = torch.tensor(topk_acc[1]).to(device)
 
             else:
                 print('Metric type:{} is not implemented'.format(metric))

@@ -1,5 +1,3 @@
-OUTPUT_PATH: '/home/sherry/output/ucf'
-
 TRAIN:
     DATASET: "ucf101"
 
@@ -15,20 +13,10 @@ DATASET:
     POSITIVE_SAMPLING_P: 0.2
 
 MODEL:
-    ARCH: '3dresnet'
-
-RESNET:
-    MODEL_DEPTH: 18
-    N_CLASSES: 512 #2048
-    # N_INPUT_CHANNELS: 3
-    SHORTCUT: 'B'
-    CONV1_T_SIZE: 7
-    CONV1_T_STRIDE: 1
-    NO_MAX_POOl: true
-    WIDEN_FACTOR: 1
+    ARCH: 's3d'
 
 DATA:
-    SAMPLE_SIZE: 112
+    SAMPLE_SIZE: 128
     SAMPLE_DURATION: 16
     INPUT_CHANNEL_NUM: 3
 

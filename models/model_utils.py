@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import shutil
 import os
 
@@ -7,6 +8,8 @@ from models.resnet import generate_model
 #from models.slowfast.slowfast.models.video_model_builder import SlowFast
 from models.slowfast.slowfast.models.video_model_builder import SlowFastRepresentation
 from models.slowfast.slowfast.config.defaults import get_cfg
+from models.s3d.select_backbone import select_backbone
+from models.r3d.r3d import R3DNet
 
 import copy
 import torchvision
@@ -80,15 +83,16 @@ def mocov2_inflated(num_frames, center_init=True):
 
 
 # Select the appropriate model with the specified cfg parameters
-def model_selector(cfg, projection_head=True):
-    assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast',
+def model_selector(cfg, projection_head=True, is_master_proc=True):
+    assert cfg.MODEL.ARCH in ['3dresnet', 's3d', 'r3d', 'slowfast',
             'simclr_pretrained_inflated_res50',
             'imagenet_pretrained_inflated_res50',
             'mocov2_pretrained_inflated_res50']
 
     if cfg.MODEL.ARCH == '3dresnet':
         model=generate_model(model_depth=cfg.RESNET.MODEL_DEPTH,
-                        n_classes=cfg.RESNET.N_CLASSES,
+                        hidden_layer=cfg.RESNET.HIDDEN_LAYER,
+                        out_dim=cfg.RESNET.OUT_DIM,
                         n_input_channels=cfg.DATA.INPUT_CHANNEL_NUM,
                         shortcut_type=cfg.RESNET.SHORTCUT,
                         conv1_t_size=cfg.RESNET.CONV1_T_SIZE,
@@ -97,6 +101,26 @@ def model_selector(cfg, projection_head=True):
                         widen_factor=cfg.RESNET.WIDEN_FACTOR,
                         projection_head=projection_head)
 
+    elif cfg.MODEL.ARCH == 's3d':
+        dim = 128
+        backbone, param = select_backbone('s3d')
+        feature_size = param['feature_size']
+        model = nn.Sequential(backbone,
+                              nn.AdaptiveAvgPool3d((1,1,1)),
+                              nn.Conv3d(feature_size, feature_size, kernel_size=1, bias=True),
+                              nn.ReLU(),
+                              nn.Conv3d(feature_size, dim, kernel_size=1, bias=True),
+                              Flatten())
+
+    elif cfg.MODEL.ARCH == 'r3d':
+        dim=128
+        feature_size = 512
+        backbone = R3DNet(layer_sizes=(1,1,1,1), with_classifier=False)
+        model = nn.Sequential(backbone,
+                              nn.Linear(feature_size, feature_size),
+                              nn.ReLU(),
+                              nn.Linear(feature_size, dim))
+
     elif cfg.MODEL.ARCH == 'slowfast':
         slowfast_cfg = get_cfg()
         slowfast_cfg.merge_from_file(cfg.SLOWFAST.CFG_PATH)
@@ -104,11 +128,20 @@ def model_selector(cfg, projection_head=True):
         slowfast_cfg.NUM_GPUS = cfg.NUM_GPUS
         slowfast_cfg.DATA.NUM_FRAMES = cfg.DATA.SAMPLE_DURATION
         slowfast_cfg.DATA.CROP_SIZE = cfg.DATA.SAMPLE_SIZE
-        slowfast_cfg.DATA.INPUT_CHANNEL_NUM = [cfg.DATA.INPUT_CHANNEL_NUM, cfg.DATA.INPUT_CHANNEL_NUM]
+
+        if cfg.SLOWFAST.FAST_MASK:
+            if is_master_proc:
+                print ("Fast pathway of SlowFast will use mask input")
+            # 4th input channel will be sent to the fast pathway while RGB is
+            # sent to slow pathway
+            assert (cfg.DATA.INPUT_CHANNEL_NUM == 4)
+            slowfast_cfg.DATA.INPUT_CHANNEL_NUM = [3, 3]
+        else:
+            slowfast_cfg.DATA.INPUT_CHANNEL_NUM = [cfg.DATA.INPUT_CHANNEL_NUM, cfg.DATA.INPUT_CHANNEL_NUM]
 
         # Use a custom SlowFast with a head that doesn't include the FC
         # layers after the global avg pooling and dropout
-        model = SlowFastRepresentation(slowfast_cfg)
+        model = SlowFastRepresentation(slowfast_cfg, projection_head=True)
 
         # Unused Model with FC:
         #model = build_model(slowfast_cfg)
@@ -133,6 +166,13 @@ def multipathway_input(frames, cfg):
     fast_pathway = frames
     slow_pathway = torch.index_select(frames, frame_idx, torch.linspace(0,
         frames.shape[frame_idx] - 1, frames.shape[frame_idx] // cfg.SLOWFAST.ALPHA).long(),)
+
+    if cfg.SLOWFAST.FAST_MASK:
+        # Use salient obj channel only for fast path
+        slow_pathway = slow_pathway[:,:3,:,:,:]
+        fast_pathway = fast_pathway[:,3,:,:,:]
+        fast_pathway = torch.stack((fast_pathway, fast_pathway, fast_pathway), dim=1)
+
     frame_list = [slow_pathway, fast_pathway]
 
     return frame_list

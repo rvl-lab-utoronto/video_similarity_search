@@ -218,8 +218,8 @@ def train(args, cfg):
     if(is_master_proc):
         print('\n==> Setting criterion & contrastive...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-    n_data = len(train_loader.dataset)
-    # n_labels = len(cluster_labels)
+    # n_data = len(train_loader.dataset)
+    n_data = len(cluster_labels) #n_labels
 
     if intra_neg:
         contrast = NCEAverage_intra_neg(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)

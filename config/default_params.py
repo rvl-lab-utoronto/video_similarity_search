@@ -9,7 +9,7 @@ _C = CfgNode()
 # Training options
 # -----------------------------------------------------------------------------
 _C.TRAIN = CfgNode()
-_C.TRAIN.EPOCHS = 200
+_C.TRAIN.EPOCHS = 240
 _C.TRAIN.BATCH_SIZE = 16
 #_C.TRAIN.DATASET = "ucf101"
 _C.TRAIN.DATASET = "kinetics"

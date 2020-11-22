@@ -91,7 +91,8 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
 
     if cfg.MODEL.ARCH == '3dresnet':
         model=generate_model(model_depth=cfg.RESNET.MODEL_DEPTH,
-                        n_classes=cfg.RESNET.N_CLASSES,
+                        hidden_layer=cfg.RESNET.HIDDEN_LAYER,
+                        out_dim=cfg.RESNET.OUT_DIM,
                         n_input_channels=cfg.DATA.INPUT_CHANNEL_NUM,
                         shortcut_type=cfg.RESNET.SHORTCUT,
                         conv1_t_size=cfg.RESNET.CONV1_T_SIZE,

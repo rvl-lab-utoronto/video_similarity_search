@@ -205,6 +205,7 @@ def train(args, cfg):
     
 
     # ============================= Training loop ==============================
+    # acc = validate(val_loader, tripletnet, val_criterion, -1, cfg, cuda, device, is_master_proc)
 
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if (is_master_proc):

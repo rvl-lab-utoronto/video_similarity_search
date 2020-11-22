@@ -220,7 +220,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
     if (is_master_proc):
         print ('Loading', cfg.TRAIN.DATASET, split, 'split...')
-    data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
+    data, (collate_fn, cluster_labels) = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, normalize=normalize,
                 channel_ext=channel_ext, cluster_path=cluster_path,
@@ -279,7 +279,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                                                   worker_init_fn=worker_init_fn
                                                   # collate_fn=collate_fn)
                                                   )
-    return data_loader, (data, sampler)
+    return data_loader, (sampler, cluster_labels)
 
 
 if __name__ == '__main__':

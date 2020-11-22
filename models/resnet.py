@@ -111,7 +111,7 @@ class ResNet(nn.Module):
                  widen_factor=1.0,
                  n_classes=2048,
                  out_dim = 128, #128
-                 projection_head=False):
+                 projection_head=True):
         super().__init__()
 
         block_inplanes = [int(x * widen_factor) for x in block_inplanes]

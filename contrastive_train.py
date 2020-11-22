@@ -23,7 +23,7 @@ from loss.NCE_loss import NCEAverage, NCEAverage_intra_neg, NCESoftmaxLoss
 
 #TODO: add this to config file
 modality = 'res'
-intra_neg = True #True
+intra_neg = False #True
 neg_type='repeat'
 
 def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
@@ -71,9 +71,9 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
         if intra_neg:
             intra_negative = preprocess(view1, neg_type)
             feat_neg = model(intra_negative)
-            out_1, out_2 = contrast(feat_1, feat_2, feat_neg, index)
+            out_1, out_2 = contrast(feat_1, feat_2, feat_neg, labels)#index)
         else:
-            out_1, out_2 = contrast(feat_1, feat_2, index)
+            out_1, out_2 = contrast(feat_1, feat_2, labels) #index)
         view1_loss = criterion_1(out_1)
         view2_loss = criterion_2(out_2)
 
@@ -193,7 +193,7 @@ def train(args, cfg):
 
     if(is_master_proc):
         print('\n==> Building training data loader (triplet)...')
-    train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+    train_loader, (train_sampler, cluster_labels) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
     if(is_master_proc):
         print('\n==> Building validation data loader (triplet)...')
@@ -204,12 +204,14 @@ def train(args, cfg):
 
     if(is_master_proc):
         print('\n==> Building training data loader (single video)...')
-    eval_train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, is_master_proc=False, triplets=False)
-
+    eval_train_loader, (_, eval_cluster_labels) = data_loader.build_data_loader('train', cfg, is_master_proc=False, triplets=False)
+    
     if(is_master_proc):
         print('\n==> Building validation data loader (single video)...')
-    eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, is_master_proc=False, triplets=False, val_sample=None)
-
+    eval_val_loader, (_, _) = data_loader.build_data_loader('val', cfg, is_master_proc=False, triplets=False, val_sample=None)
+    
+    eval_train_data = eval_train_loader.dataset
+    eval_val_data = eval_val_loader.dataset
 
     # ======================== Loss and Optimizer Setup ========================
 
@@ -217,6 +219,7 @@ def train(args, cfg):
         print('\n==> Setting criterion & contrastive...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
     n_data = len(train_loader.dataset)
+    # n_labels = len(cluster_labels)
 
     if intra_neg:
         contrast = NCEAverage_intra_neg(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
@@ -233,7 +236,8 @@ def train(args, cfg):
     
 
     # ============================= Training loop ==============================
-
+    acc = validate(val_loader, tripletnet, val_criterion, -1, cfg, cuda, device, is_master_proc)
+    print('initial validation accuracy:{}'.format(acc))
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if (is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
@@ -247,6 +251,7 @@ def train(args, cfg):
         # Validate
         if is_master_proc:
             print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
+        
         acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
         if epoch+1 % 10 == 0:
             if is_master_proc:

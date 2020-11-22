@@ -69,15 +69,15 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
         if (is_master_proc):
             print('Image loader:', 'ImageLoaderPIL')
 
-
+    cluster_labels = None
     if triplets:
         if (is_master_proc):
             print('Using triplets dataset...')
 
         if target_type == 'cluster_label':
             cluster_labels = set(Dataset.get_cluster_labels())
-        else:
-            cluster_labels = None
+        # else:
+        #     cluster_labels = None
 
         data = TripletsData(data = Dataset.get_dataset(),
                             class_names = Dataset.get_idx_to_class_map(),
@@ -109,4 +109,4 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
     if (is_master_proc):
         print('{}_data: {}'.format(split, len(data)))
 
-    return data, ret_collate_fn
+    return data, (ret_collate_fn, cluster_labels)

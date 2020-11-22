@@ -9,7 +9,7 @@ eps = 1e-7
 
 class NCEAverage(nn.Module):
     #outputSize = ndata, inputSize = num of features
-    def __init__(self, inputSize, outputSize, K, T=0.07, momentum=0.5, use_softmax=False):
+    def __init__(self, inputSize, outputSize, K, T=0.07, momentum=0.5, use_softmax=True):
         super(NCEAverage, self).__init__()
         self.nLem = outputSize
         self.unigrams = torch.ones(self.nLem)

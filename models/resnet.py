@@ -109,9 +109,9 @@ class ResNet(nn.Module):
                  no_max_pool=False,
                  shortcut_type='B',
                  widen_factor=1.0,
-                 n_classes=512,
-                 out_dim = 128, #64
-                 projection_head=False):
+                 hidden_layer= 2048,
+                 out_dim = 128,
+                 projection_head=True):
         super().__init__()
 
         block_inplanes = [int(x * widen_factor) for x in block_inplanes]
@@ -149,10 +149,11 @@ class ResNet(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
         self.projection_head = projection_head
         if projection_head:
-            self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, n_classes)
-            self.fc2 = nn.Linear(n_classes, out_dim)
+            print('==> setting up non-linear project heads')
+            self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
+            self.fc2 = nn.Linear(hidden_layer, out_dim)
         else:
-            self.fc = nn.Linear(block_inplanes[3] * block.expansion, n_classes)
+            self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
 
 
         for m in self.modules():

@@ -13,7 +13,7 @@ MODEL:
 
 RESNET:
     MODEL_DEPTH: 18
-    N_CLASSES: 1039
+    N_CLASSES: 2048
     # N_INPUT_CHANNELS: 5 #RGB + keypoint
     SHORTCUT: 'B'
     CONV1_T_SIZE: 7

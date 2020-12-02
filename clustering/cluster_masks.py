@@ -11,7 +11,8 @@ import torchvision.models as models
 import cv2
 import numpy as np
 from torchvision import transforms
-from sklearn.cluster import AgglomerativeClustering, DBSCAN, OPTICS
+from sklearn.cluster import AgglomerativeClustering, DBSCAN, OPTICS, KMeans
+from sklearn.metrics import normalized_mutual_info_score
 import time
 import pickle as pkl
 
@@ -27,7 +28,7 @@ def m_arg_parser(parser):
     parser.add_argument(
         '--visualize',
         action='store_true',
-        help='Visalize salient masks only'
+        help='Visualize salient masks only'
     )
     parser.add_argument(
         '--embedding_dir',
@@ -36,10 +37,22 @@ def m_arg_parser(parser):
         help='Directory holding already-processed embeddings of salient-masked center frames'
     )
     parser.add_argument(
+        '--label_dir',
+        type=str,
+        default=None,
+        help='Directory holding true labels pkl'
+    )
+    parser.add_argument(
         '--split',
         type=str,
         default=None,
         help='dataset split to cluster'
+    )
+    parser.add_argument(
+        '--method',
+        type=str,
+        default='DBSCAN',
+        help='Clustering algorithm'
     )
     return parser
 
@@ -68,7 +81,7 @@ def cv_f32_to_u8 (img):
 
 def get_embeddings_mask_regions(model, data, test_loader, log_interval=2, visualize=False):
     print("Getting embeddings...")
-    
+
     model.eval()
     embeddings = []
     #vid_paths = []
@@ -80,11 +93,11 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=2, visual
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                     std=[0.229, 0.224, 0.225])
 
-    with torch.no_grad():      
+    with torch.no_grad():
         for batch_idx, (inputs, _, _) in enumerate(test_loader): 
             num_frames = inputs.shape[2]
             rgb_center_img_tensor = inputs[:, :3, num_frames // 2, :, :]  # N x 3 x H x W
-            masks = inputs[:,3,:,:,:]  
+            masks = inputs[:,3,:,:,:]
             mask = torch.mean(masks, dim=1)  # N x H x W
             #mask[i] = torch.ceil(mask[i])
             #mask[i] = torch.round(mask[i])
@@ -142,13 +155,23 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=2, visual
     return embeddings
 
 
+# Preprocessing for kmeans - l2normalize
+def preprocess_features_kmeans(data):
+    l2norms = torch.norm(data, dim=1, keepdim=True)
+    data = data / l2norms
+    print('l2-normalized data')
+    return data
+
+
 # Perform clustering 
-def fit_cluster(embeddings, method='DBSCAN'):
-    print("Clustering...")
+def fit_cluster(embeddings, method='Agglomerative'):
 
-    distance_threshold = 0.24
+    assert(method in ['DBSCAN', 'Agglomerative', 'OPTICS', 'kmeans'])
 
-    if method == 'AgglomerativeClustering':
+    print("Clustering with {}...".format(method))
+
+    if method == 'Agglomerative':
+        distance_threshold = 0.24 #0.24 for ucf train
         trained_cluster_obj = AgglomerativeClustering(n_clusters=None,
                                                       linkage='average',
                                                       distance_threshold=distance_threshold,
@@ -156,10 +179,17 @@ def fit_cluster(embeddings, method='DBSCAN'):
     elif method == 'DBSCAN':
         # If small clusters have too many incorrect increase min_samples, if there are some very large clusters with
         # too many incorrect decrease eps, if too few / little cluster representation decrease min_samples, if too many -1 increase eps
-        trained_cluster_obj = DBSCAN(eps=0.12, # 0.18 for ucf val, #0.13 for ucf train, #0.12 for kin train
-                                     min_samples=3, #3 for ucf val, #2-5 (3 main) for ucf train, 3 for kin train
+        trained_cluster_obj = DBSCAN(eps=0.14, # 0.18 for ucf val, #0.14 for ucf train, #0.12 for kin train
+                                     min_samples=2, #3 for ucf val, #2 for ucf train, 3 for kin train
                                      metric='cosine',
                                      n_jobs=-1).fit(embeddings)
+    elif method == 'kmeans':
+        #pre-process - l2 normalize embeddings
+        embeddings = preprocess_features_kmeans(embeddings)
+
+        n_clusters = 1000 #2000 for ucf train
+        trained_cluster_obj = KMeans(n_clusters=n_clusters,
+                                     n_init=10).fit(embeddings)
     elif method == 'OPTICS':
         trained_cluster_obj = OPTICS(min_samples=3, max_eps=0.20, cluster_method='dbscan', metric='cosine', n_jobs=-1).fit(embeddings)
 
@@ -171,8 +201,8 @@ def fit_cluster(embeddings, method='DBSCAN'):
 
 
 # Print clusters 
-def cluster_embeddings(data, clustering_obj):
- 
+def cluster_embeddings(clustering_obj, true_labels, label_to_class_map):
+
     labels = clustering_obj.labels_
     cluster_to_data_idxs = {label: np.where(clustering_obj.labels_ == label)[0] for label in set(labels)}
 
@@ -188,11 +218,10 @@ def cluster_embeddings(data, clustering_obj):
     for cluster in cluster_to_data_idxs:
         cur_cluster_vids = []
         for data_idx in cluster_to_data_idxs[cluster]:
-            vid_path = data.data[data_idx]['video']
-            vid_label = vid_path.split(os.sep)[-2]
+            vid_label = label_to_class_map[true_labels[data_idx]]
             cur_cluster_vids.append(vid_label)
         print(cluster, ':', cur_cluster_vids)
-    
+
     return labels
 
 
@@ -242,7 +271,9 @@ if __name__ == '__main__':
     ]
     spatial_transform = Compose(spatial_transform)
 
-    test_loader, (data, _) = data_loader.build_data_loader(split, cfg, triplets=False, req_spatial_transform=spatial_transform, req_train_shuffle=False)
+    test_loader, (data, _) = data_loader.build_data_loader(split, cfg,
+            triplets=False, req_spatial_transform=spatial_transform,
+            req_train_shuffle=False, drop_last=False)
     print()
 
     # =============================== Embeddings ===============================
@@ -260,21 +291,33 @@ if __name__ == '__main__':
         start_time = time.time()
         embeddings = get_embeddings_mask_regions(img_model, data, test_loader, visualize=args.visualize)
         print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
-        
+
         with open(embedding_pkl_file, 'wb') as handle:
             torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
         print ('Embeddings saved to', embedding_pkl_file)
 
     print('Embeddings size', embeddings.size())
     print()
-    
+
     # =============================== Clustering ===============================
 
     start_time = time.time()
-    trained_clustering_obj = fit_cluster(embeddings)
+    trained_clustering_obj = fit_cluster(embeddings, args.method)
     print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
-    cluster_labels = cluster_embeddings(data, trained_clustering_obj)
+    if args.label_dir:
+        labels_pkl = os.path.join(args.label_dir, 'labels.pkl')
+        with open(labels_pkl, 'rb') as handle:
+            true_labels = torch.load(handle)
+        print ('Labels loaded from', labels_pkl)
+    else:
+        true_labels = data.get_total_labels()
+
+    NMI = normalized_mutual_info_score(true_labels, trained_clustering_obj.labels_)
+    print('NMI between true labels and cluster assignments: {:.2f}\n'.format(NMI))
+
+    cluster_labels = cluster_embeddings(trained_clustering_obj, true_labels,
+            data.get_label_to_class_map())
 
     with open(os.path.join(args.output, 'vid_clusters.txt'), "a") as f:
         for label in cluster_labels:

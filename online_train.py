@@ -14,7 +14,7 @@ from torch import nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from validation import validate
-from evaluate import k_nearest_embeddings
+from evaluate import k_nearest_embeddings, get_embeddings_and_labels
 from models.triplet_net import Tripletnet
 from datasets import data_loader
 from models.model_utils import (model_selector, multipathway_input,
@@ -23,6 +23,9 @@ from models.model_utils import (model_selector, multipathway_input,
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from loss.triplet_loss import OnlineTripleLoss
+from clustering.cluster_masks import fit_cluster
+from sklearn.metrics import normalized_mutual_info_score
+
 
 def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
@@ -170,9 +173,10 @@ def train(args, cfg):
 
     # ============================== Data Loaders ==============================
 
-    if(is_master_proc):
-        print('\n==> Building training data loader (triplet)...')
-    train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+    if not args.iterative_cluster:
+        if(is_master_proc):
+            print('\n==> Building training data loader (triplet)...')
+        train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
     if(is_master_proc):
         print('\n==> Building validation data loader (triplet)...')
@@ -183,17 +187,71 @@ def train(args, cfg):
 
     if(is_master_proc):
         print('\n==> Building training data loader (single video)...')
-    eval_train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, is_master_proc=False, triplets=False)
+    eval_train_loader, (train_data, _) = data_loader.build_data_loader('train',
+            cfg, is_master_proc=False, triplets=False, req_train_shuffle=False,
+            drop_last=False)
 
     if(is_master_proc):
         print('\n==> Building validation data loader (single video)...')
-    eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, is_master_proc=False, triplets=False, val_sample=None)
+    eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg,
+            is_master_proc=False, triplets=False, val_sample=None,
+            drop_last=False)
 
     # ============================= Training loop ==============================
+
+    embeddings_computed = False
 
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if (is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
+
+        if args.iterative_cluster:
+            # Get embeddings using current model
+            if is_master_proc:
+                print('\n=> Computing embeddings')
+
+            if is_master_proc or not embeddings_computed:
+                embeddings, true_labels, idxs = get_embeddings_and_labels(args, cfg,
+                        model, cuda, device, eval_train_loader, split='train',
+                        is_master_proc=is_master_proc,
+                        load_pkl=embeddings_computed, save_pkl=False)
+
+            if is_master_proc:
+                # Cluster
+                print('\n=> Clustering')
+                start_time = time.time()
+                trained_clustering_obj = fit_cluster(embeddings, 'kmeans')
+                print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
+
+                # Calculate NMI vs true labels and cluster assignments
+                #true_labels = train_data.get_total_labels()
+                NMI = normalized_mutual_info_score(true_labels, trained_clustering_obj.labels_)
+                print('NMI between true labels and cluster assignments: {:.3f}\n'.format(NMI))
+                with open('{}/tnet_checkpoints/NMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
+                    f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
+
+                # Update probability of sampling positive from same video using NMI
+                cfg.DATASET.POSITIVE_SAMPLING_P = float(1.0 - NMI)
+
+                # Get cluster assignments in unshuffled order of dataset
+                cluster_assignments_unshuffled_order = [None] * len(eval_train_loader.dataset)
+                for i in range(len(trained_clustering_obj.labels_)):
+                    cluster_assignments_unshuffled_order[idxs[i]] = trained_clustering_obj.labels_[i]
+
+                # Save cluster assignments corresponding to unshuffled order of dataset
+                cluster_output_path = os.path.join(cfg.OUTPUT_PATH, 'vid_clusters.txt')
+                with open(cluster_output_path, "w") as f:
+                    for label in cluster_assignments_unshuffled_order:
+                        f.write('{}\n'.format(label))
+                print('Saved cluster labels to', cluster_output_path)
+
+            # Make processes wait for master process to finish with clustering
+            torch.distributed.barrier()
+
+            # Rebuild train_loader with new cluster assignments as pseudolabels
+            if(is_master_proc):
+                print('\n==> Building training data loader (triplet)...')
+            train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
         # Call set_epoch on the distributed sampler so the data is shuffled
         if cfg.NUM_GPUS > 1:
@@ -201,6 +259,8 @@ def train(args, cfg):
 
         # Train 
         train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+
+        embeddings_computed = False
 
         # Validate
         if is_master_proc:
@@ -211,6 +271,7 @@ def train(args, cfg):
                 print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
             topk_acc = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg,
                                         plot=False, epoch=epoch, is_master_proc=is_master_proc)
+            embeddings_computed = True
             #if is_master_proc:
             #    print('\n=> Validating with global top1/5 retrieval from train set with queries from train set')
             #top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_train_loader, train_data, train_data, cfg, plot=False,
@@ -230,6 +291,12 @@ if __name__ == '__main__':
     print ('\n==> Parsing parameters:')
     args = arg_parser().parse_args()
     cfg = load_config(args)
+
+    # If iteratively clustering, overwrite the cluster_path
+    print('Iteratively clustering?:', args.iterative_cluster)
+    if args.iterative_cluster:
+        assert(cfg.DATASET.TARGET_TYPE_T == 'cluster_label' and cfg.DATASET.POSITIVE_SAMPLING_P != 1.0)
+        cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
 
     # Set shard_id to $SLURM_NODEID if running on compute canada
     shard_id = args.shard_id

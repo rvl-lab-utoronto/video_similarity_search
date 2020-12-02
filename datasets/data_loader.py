@@ -177,7 +177,7 @@ def get_channel_extention(cfg):
 # Return a pytorch DataLoader
 def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                       negative_sampling=False, req_spatial_transform=None,
-                      req_train_shuffle=None, val_sample=1):
+                      req_train_shuffle=None, val_sample=1, drop_last=True):
 
     # ==================== Transforms and parameter Setup ======================
 
@@ -204,7 +204,12 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     # Set the target type and path to clustering information
     if split == 'train':
         target_type = cfg.DATASET.TARGET_TYPE_T
-        cluster_path = cfg.DATASET.CLUSTER_PATH
+
+        # Only need cluster labels if sampling triplets
+        if triplets:
+            cluster_path = cfg.DATASET.CLUSTER_PATH
+        else:
+            cluster_path = None
     else:
         target_type = cfg.DATASET.TARGET_TYPE_V
         cluster_path = None
@@ -217,6 +222,8 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     if is_master_proc and split == 'train' and target_type == 'label' and cfg.DATASET.POSITIVE_SAMPLING_P != 1.0:
         print('NOTE: Will sample positives from same real label (SUPERVISED) for training with POSITIVE_SAMPLING_P =',
             cfg.DATASET.POSITIVE_SAMPLING_P)
+    elif is_master_proc and split == 'train' and triplets:
+        print('Probability of sampling positive from same video: {}'.format(cfg.DATASET.POSITIVE_SAMPLING_P))
 
     if (is_master_proc):
         print ('Loading', cfg.TRAIN.DATASET, split, 'split...')
@@ -254,11 +261,11 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
         if is_master_proc:
             print (split, 'batch size for this process:', batch_size)
 
+        # if drop_last == True,
         # Drop the last non-full batch of each workers dataset replica.
         # Note: this hides a bug with all_gather in validation which
         # would occur when the last batch had different sizes across
         # different gpu processes.
-        drop_last = True
 
         data_loader = torch.utils.data.DataLoader(data,
                                                   batch_size=batch_size,

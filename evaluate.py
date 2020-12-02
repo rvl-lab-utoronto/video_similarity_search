@@ -91,9 +91,10 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
     embedding = []
     # vid_info = []
     labels = []
+    idxs = []
     world_size = du_helper.get_world_size()
     with torch.no_grad():
-        for batch_idx, (input, targets, info) in enumerate(data_loader):
+        for batch_idx, (input, targets, info, indexes) in enumerate(data_loader):
             batch_size = input.size(0)
             if cfg.MODEL.ARCH == 'slowfast':
                 input = multipathway_input(input, cfg)
@@ -105,12 +106,14 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
                     input= input.to(device)
             if cuda:
                 targets = targets.to(device)
+                indexes = indexes.to(device)
 
             embedd = model(input)
             if cfg.NUM_GPUS > 1:
-                embedd, targets = du_helper.all_gather([embedd, targets])
+                embedd, targets, indexes = du_helper.all_gather([embedd, targets, indexes])
             embedding.append(embedd.detach().cpu())
             labels.append(targets.detach().cpu())
+            idxs.append(indexes.detach().cpu())
             # vid_info.extend(info)
             # print('embedd size', embedd.size())
             batch_size_world = batch_size * world_size
@@ -120,8 +123,9 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
 
     embeddings = torch.cat(embedding, dim=0)
     labels = torch.cat(labels, dim=0).tolist()
+    idxs = torch.cat(idxs, dim=0).tolist()
     #if is_master_proc: print('embeddings size', embeddings.size())
-    return embeddings, labels
+    return embeddings, labels, idxs
 
 
 def get_distance_matrix(x_embeddings, y_embeddings=None, dist_metric='cosine'):
@@ -132,7 +136,7 @@ def get_distance_matrix(x_embeddings, y_embeddings=None, dist_metric='cosine'):
         distance_matrix = cosine_distances(x_embeddings, Y=y_embeddings)
     elif dist_metric == 'euclidean':
         distance_matrix = euclidean_distances(x_embeddings, Y=y_embeddings)
-    print('Distance matrix shape:', distance_matrix.shape)
+    #print('Distance matrix shape:', distance_matrix.shape)
 
     if y_embeddings is None:
         np.fill_diagonal(distance_matrix, float('inf'))
@@ -229,26 +233,33 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
 
     if split == 'train':
         embeddings_pkl = os.path.join(cfg.OUTPUT_PATH, 'train_embeddings.pkl')
+        idxs_pkl = os.path.join(cfg.OUTPUT_PATH, 'train_idxs.pkl')
         labels_pkl = os.path.join(cfg.OUTPUT_PATH, 'train_labels.pkl')
     else:
         embeddings_pkl = os.path.join(cfg.OUTPUT_PATH, 'val_embeddings.pkl')
+        idxs_pkl = os.path.join(cfg.OUTPUT_PATH, 'val_idxs.pkl')
         labels_pkl = os.path.join(cfg.OUTPUT_PATH, 'val_labels.pkl')
 
-    if os.path.exists(embeddings_pkl) and os.path.exists(labels_pkl) and load_pkl:
+    if os.path.exists(embeddings_pkl) and os.path.exists(labels_pkl) and os.path.exists(idxs_pkl) and load_pkl:
         with open(embeddings_pkl, 'rb') as handle:
             embeddings = torch.load(handle)
         with open(labels_pkl, 'rb') as handle:
             labels = torch.load(handle)
+        with open(idxs_pkl, 'rb') as handle:
+            idxs = torch.load(handle)
         print('retrieved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
     else:
-        embeddings, labels = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
+        embeddings, labels, idxs = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
         if save_pkl:
             with open(embeddings_pkl, 'wb') as handle:
                 torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
             with open(labels_pkl, 'wb') as handle:
                 torch.save(labels, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
+            with open(idxs_pkl, 'wb') as handle:
+                torch.save(idxs, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
+            print('saved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
 
-    return embeddings, labels
+    return embeddings, labels, idxs
 
 
 def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, train_data, val_data, cfg, plot=True,
@@ -256,9 +267,9 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
                         evaluate_output=None, num_exemplar=None, service=None,
                         load_pkl=False, out_filename='global_retrieval_acc'):
     print ('Getting embeddings...')
-    val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader,
+    val_embeddings, val_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader,
                                                         split='val', is_master_proc=is_master_proc, load_pkl=load_pkl)
-    train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader,
+    train_embeddings, train_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader,
                                                         split='train', is_master_proc=is_master_proc, load_pkl=load_pkl)
     acc = []
 

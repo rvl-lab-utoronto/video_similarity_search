@@ -110,6 +110,11 @@ def arg_parser():
         type=str,
         help='validation batch size'
     )
+    parser.add_argument(
+        '--iterative_cluster',
+        action='store_true',
+        help='Perform iterative clustering for pseudolabel assignment'
+    )
     return parser
 
 

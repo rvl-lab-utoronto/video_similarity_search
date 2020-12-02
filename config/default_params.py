@@ -120,7 +120,7 @@ _C.LOSS.FEAT_DIM = 128
 _C.OPTIM = CfgNode()
 _C.OPTIM.LR = 0.05
 _C.OPTIM.MOMENTUM = 0.5
-
+_C.OPTIM.SCHEDULE = []
 
 # -----------------------------------------------------------------------------
 # Misc options

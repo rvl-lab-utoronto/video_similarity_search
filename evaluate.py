@@ -108,7 +108,8 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
                 targets = targets.to(device)
                 indexes = indexes.to(device)
 
-            embedd = model(input)
+            embedd = model(input).flatten(1)
+            
             if cfg.NUM_GPUS > 1:
                 embedd, targets, indexes = du_helper.all_gather([embedd, targets, indexes])
             embedding.append(embedd.detach().cpu())

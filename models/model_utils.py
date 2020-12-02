@@ -148,7 +148,7 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
         #model = build_model(slowfast_cfg)
         #model = SlowFast(slowfast_cfg)
     elif cfg.MODEL.ARCH == 'info_nce':
-        model = InfoNCE('s3d', dim=128, K=2048, m=0.999, T=0.07)
+        model = InfoNCE('s3d', dim=128, K=2048, m=0.999, T=0.07) #TODO: use config parameters
 
     elif cfg.MODEL.ARCH == 'uber_nce':
         model = UberNCE('s3d', dim=128, K=2048, m=0.999, T=0.07)

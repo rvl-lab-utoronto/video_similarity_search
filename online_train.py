@@ -23,11 +23,118 @@ from models.model_utils import (model_selector, multipathway_input,
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from loss.triplet_loss import OnlineTripleLoss
+from loss.NCE_loss import NCEAverage, NCEAverage_intra_neg, NCESoftmaxLoss
 from clustering.cluster_masks import fit_cluster
 from sklearn.metrics import normalized_mutual_info_score
 
+#TODO: add this to config file
+modality = 'res'
+intra_neg = False #True
+moco = False #True
+neg_type='repeat'
 
-def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
+
+def contrastive_train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
+    losses = AverageMeter()
+    accs = AverageMeter()
+    view1_loss_meter = AverageMeter()
+    view2_loss_meter = AverageMeter()
+    view1_prob_meter = AverageMeter()
+    view2_prob_meter = AverageMeter()
+
+    world_size = du_helper.get_world_size()
+    
+    # switching to training mode
+    model.train()
+    contrast.train()
+    
+    # Training loop
+    start = time.time()
+    for batch_idx, (inputs, labels, index) in enumerate(train_loader):
+        view1 = inputs[0]
+        if modality=='rgb':
+            view2 = inputs[1]
+        elif modality == 'res':
+            view2 = diff(view1)
+        
+        batch_size = torch.tensor(view1.size(0)).to(device)
+        # Prepare input and send to gpu
+        if cfg.MODEL.ARCH == 'slowfast':
+            view1 = multipathway_input(view1, cfg)
+            view2 = multipathway_input(view2, cfg)
+            if cuda:
+                for i in range(len(view1)):
+                    view1[i], view2[i]= view1[i].to(device), view2[i].to(device)
+        elif cuda:
+            view1, view2 = view1.to(device), view2.to(device)
+
+        if cuda:
+            labels = labels[0].to(device)
+            index = index.to(device)
+
+        # Get embeddings of view1s and view2s
+        feat_1 = model(view1)
+        feat_2 = model(view2)
+        if intra_neg:
+            intra_negative = preprocess(view1, neg_type)
+            feat_neg = model(intra_negative)
+            out_1, out_2 = contrast(feat_1, feat_2, feat_neg, index) #labels
+        else:
+            out_1, out_2 = contrast(feat_1, feat_2, index) #labels
+
+        view1_loss = criterion_1(out_1)
+        view2_loss = criterion_2(out_2)
+
+        view1_prob = out_1[:,0].mean()
+        view2_prob = out_2[:,0].mean()
+
+        loss = view1_loss + view2_loss
+
+        # Compute gradient and perform optimization step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # Average loss across all gpu processes
+        if cfg.NUM_GPUS > 1:
+            [loss] = du_helper.all_reduce([loss], avg=True)
+            [batch_size_world] = du_helper.all_reduce([batch_size], avg=False)
+        else:
+            batch_size_world = batch_size
+
+        batch_size_world = batch_size_world.item()
+
+        # Update running loss
+        losses.update(loss.item(), batch_size_world)
+        view1_loss_meter.update(view1_loss.item(), batch_size_world)
+        view1_prob_meter.update(view1_prob.item(), batch_size_world)
+        view2_loss_meter.update(view1_loss.item(), batch_size_world)
+        view2_prob_meter.update(view2_prob.item(), batch_size_world)
+        # Log
+        if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
+            print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
+                  'Loss: {:.4f} ({:.4f})'.format(epoch, losses.count,
+                    len(train_loader.dataset),
+                    100. * (losses.count / len(train_loader.dataset)),
+                    losses.val, losses.avg))
+
+    if (is_master_proc):
+        print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
+        print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
+        with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
+            f.write('epoch:{} runtime:{} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg))
+        print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
+
+
+
+def diff(x):
+    shift_x = torch.roll(x, 1, 2)
+    return ((x - shift_x) + 1) / 2
+
+
+
+
+def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
     running_n_triplets = AverageMeter()
@@ -120,7 +227,8 @@ def train(args, cfg):
 
     # Select appropriate model
     if(is_master_proc):
-        print('\n==> Generating {} backbone model...'.format(cfg.MODEL.ARCH))
+        print('\n==> Generating {} backbone model (for training)...'.format(cfg.MODEL.ARCH))
+    
     model=model_selector(cfg, is_master_proc=is_master_proc)
 
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
@@ -149,7 +257,9 @@ def train(args, cfg):
 
     # Setup tripletnet used for validation
     if(is_master_proc):
-        print('\n==> Generating triplet network...')
+        print('\n==> Generating triplet network (for validation) ...')
+    
+    #only for validation
     tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
     if cuda:
         tripletnet = tripletnet.cuda(device=device)
@@ -159,7 +269,7 @@ def train(args, cfg):
                     device_ids=[device], find_unused_parameters=True)
             else:
                 tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
-
+        
     # ======================== Loss and Optimizer Setup ========================
 
     if(is_master_proc):
@@ -176,7 +286,7 @@ def train(args, cfg):
     if not args.iterative_cluster:
         if(is_master_proc):
             print('\n==> Building training data loader (triplet)...')
-        train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+        train_loader, (train_sampler, _) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
     if(is_master_proc):
         print('\n==> Building validation data loader (triplet)...')
@@ -246,22 +356,45 @@ def train(args, cfg):
                 print('Saved cluster labels to', cluster_output_path)
 
             # Make processes wait for master process to finish with clustering
-            torch.distributed.barrier()
+            if cfg.NUM_GPUS > 1:
+                torch.distributed.barrier()
 
             # Rebuild train_loader with new cluster assignments as pseudolabels
             if(is_master_proc):
                 print('\n==> Building training data loader (triplet)...')
-            train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+            train_loader, (train_sampler,_) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
         # Call set_epoch on the distributed sampler so the data is shuffled
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
         # Train 
-        train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        if cfg.LOSS.TYPE == 'triplet':
+            if (is_master_proc): print('==> training with Triplet Loss')
+            triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        
+        elif cfg.LOSS.TYPE == 'contrastive':
+            if (is_master_proc): print('==> training with Contrastive Loss')
+            n_data = len(train_loader.dataset)
+            # n_data = len(cluster_labels) #n_labels
+            if intra_neg:
+                contrast = NCEAverage_intra_neg(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
+            elif moco:
+                contrast = MemoryMoCo(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T).to(device)
+            else:
+                contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
+
+            criterion_1 = NCESoftmaxLoss().to(device)
+            criterion_2 = NCESoftmaxLoss().to(device)
+            if(is_master_proc):
+                print('Using criterion:{} for training'.format(criterion_1, criterion_2))
+                print('Using criterion:{} for validation'.format(val_criterion))
+            contrastive_train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        
+        else:
+            assert False, 'Loss Type:{} not recognized'.format(cfg.LOSS.TYPE)
 
         embeddings_computed = False
-
         # Validate
         if is_master_proc:
             print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))

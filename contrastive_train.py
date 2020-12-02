@@ -24,6 +24,7 @@ from loss.NCE_loss import NCEAverage, NCEAverage_intra_neg, NCESoftmaxLoss
 #TODO: add this to config file
 modality = 'res'
 intra_neg = False #True
+moco = False #True
 neg_type='repeat'
 
 def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
@@ -44,7 +45,6 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
     start = time.time()
     for batch_idx, (inputs, labels, index) in enumerate(train_loader):
         view1 = inputs[0]
-        
         if modality=='rgb':
             view2 = inputs[1]
         elif modality == 'res':
@@ -71,9 +71,10 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
         if intra_neg:
             intra_negative = preprocess(view1, neg_type)
             feat_neg = model(intra_negative)
-            out_1, out_2 = contrast(feat_1, feat_2, feat_neg, labels)#index)
+            out_1, out_2 = contrast(feat_1, feat_2, feat_neg, index) #labels
         else:
-            out_1, out_2 = contrast(feat_1, feat_2, labels) #index)
+            out_1, out_2 = contrast(feat_1, feat_2, index) #labels
+
         view1_loss = criterion_1(out_1)
         view2_loss = criterion_2(out_2)
 
@@ -218,16 +219,18 @@ def train(args, cfg):
     if(is_master_proc):
         print('\n==> Setting criterion & contrastive...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-    # n_data = len(train_loader.dataset)
-    n_data = len(cluster_labels) #n_labels
+    n_data = len(train_loader.dataset)
+    # n_data = len(cluster_labels) #n_labels
 
     if intra_neg:
         contrast = NCEAverage_intra_neg(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
+    elif moco:
+        contrast = MemoryMoCo(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T).to(device)
     else:
         contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
     
-    criterion_1 = NCESoftmaxLoss()
-    criterion_2 = NCESoftmaxLoss()
+    criterion_1 = NCESoftmaxLoss().to(device)
+    criterion_2 = NCESoftmaxLoss().to(device)
 
     optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
     if(is_master_proc):

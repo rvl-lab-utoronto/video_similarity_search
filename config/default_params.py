@@ -104,14 +104,15 @@ _C.DATA.INPUT_CHANNEL_NUM = 3
 # Loss Options
 # -----------------------------------------------------------------------------
 _C.LOSS = CfgNode()
+_C.LOSS.TYPE = 'triplet'
 _C.LOSS.MARGIN = 0.2
 _C.LOSS.DIST_METRIC = 'cosine'
 #_C.LOSS.DIST_METRIC = 'euclidean'
 
 # NCE loss params
 _C.LOSS.K = 1024 #num of negatives
-_C.LOSS.T = 0.07
-_C.LOSS.M = 0.5
+_C.LOSS.T = 0.07 #temperature
+_C.LOSS.M = 0.5 #momentum
 _C.LOSS.FEAT_DIM = 128
 # -----------------------------------------------------------------------------
 # Optimizer options

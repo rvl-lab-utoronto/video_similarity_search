@@ -15,7 +15,7 @@ DATASET:
     POSITIVE_SAMPLING_P: 0.2
 
 MODEL:
-    ARCH: 'info_nce' #'3dresnet'
+    ARCH: 'uber_nce' #'3dresnet'
 
 RESNET:
     MODEL_DEPTH: 18
@@ -43,5 +43,7 @@ LOSS:
     # M: 0.5
 
 OPTIM:
-    LR: 0.01
+    LR: 0.001 #0.01
+    SCHEDULE: [120, 160]
     MOMENTUM: 0.5
+    

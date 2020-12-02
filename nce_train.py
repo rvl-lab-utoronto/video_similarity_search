@@ -68,18 +68,17 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, dev
     
     # switching to training mode
     model.train()
-    # contrast.train()
+
     def tr(x):
         # print(x.shape)
         B = x.shape[0]
         x = torch.tensor(x)
-        return x.view(B, 3, 2, 16, 112, 112).transpose(1,2).contiguous() #TODO: make it configureable
+        return x.view(B, 3, 2, cfg.DATA.SAMPLE_DURATION, cfg.LOSS.FEAT_DIM, cfg.LOSS.FEAT_DIM).transpose(1,2).contiguous() #TODO: make it configureable
     
     # Training loop
     start = time.time()
     for batch_idx, (inputs, labels, index) in enumerate(train_loader):
         inputs = np.concatenate(inputs, axis=1) # [ B, N, C, W, H]
-
         input_seq = tr(inputs)        
         batch_size = torch.tensor(input_seq.size(0)).to(device)
         
@@ -140,6 +139,14 @@ def diff(x):
     shift_x = torch.roll(x, 1, 2)
     return ((x - shift_x) + 1) / 2
 
+def adjust_learning_rate(optimizer, epoch, cfg):
+    """Decay the learning rate based on schedule"""
+    lr = cfg.OPTIM.LR
+    # stepwise lr schedule
+    for milestone in cfg.OPTIM.SCHEDULE:
+        lr *= 0.1 if epoch >= milestone else 1.
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
 
 # =========================== Running Training Loop ========================== #
 
@@ -234,13 +241,6 @@ def train(args, cfg):
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
     n_data = len(train_loader.dataset)
 
-    # if intra_neg:
-    #     contrast = NCEAverage_intra_neg(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
-    # else:
-    #     contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
-    
-    # criterion_1 = NCESoftmaxLoss()
-    # criterion_2 = NCESoftmaxLoss()
     criterion = nn.CrossEntropyLoss().to(device)
     optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
     if(is_master_proc):
@@ -258,6 +258,7 @@ def train(args, cfg):
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
+        adjust_learning_rate(optimizer, epoch, cfg)
         top1_acc, top5_acc = train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
         acc =  top1_acc
         # Validate

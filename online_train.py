@@ -24,7 +24,7 @@ from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from loss.triplet_loss import OnlineTripleLoss
 from clustering.cluster_masks import fit_cluster
-from sklearn.metrics import normalized_mutual_info_score
+from sklearn.metrics import normalized_mutual_info_score, adjusted_mutual_info_score
 
 
 def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
@@ -223,12 +223,18 @@ def train(args, cfg):
                 trained_clustering_obj = fit_cluster(embeddings, 'kmeans')
                 print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
-                # Calculate NMI vs true labels and cluster assignments
+                # Calculate NMI for true labels vs cluster assignments
                 #true_labels = train_data.get_total_labels()
                 NMI = normalized_mutual_info_score(true_labels, trained_clustering_obj.labels_)
                 print('NMI between true labels and cluster assignments: {:.3f}\n'.format(NMI))
                 with open('{}/tnet_checkpoints/NMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
                     f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
+
+                # Calculate Adjusted NMI for true labels vs cluster assignements
+                AMI = adjusted_mutual_info_score(true_labels, trained_clustering_obj.labels_)
+                print('AMI between true labels and cluster assignments: {:.3f}\n'.format(AMI))
+                with open('{}/tnet_checkpoints/AMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
+                    f.write('epoch:{} {:.3f}\n'.format(epoch, AMI))
 
                 # Update probability of sampling positive from same video using NMI
                 cfg.DATASET.POSITIVE_SAMPLING_P = float(1.0 - NMI)

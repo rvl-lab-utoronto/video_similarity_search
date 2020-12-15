@@ -305,6 +305,8 @@ if __name__ == '__main__':
         assert(cfg.DATASET.TARGET_TYPE_T == 'cluster_label' and cfg.DATASET.POSITIVE_SAMPLING_P != 1.0)
         cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
 
+    print('Multiview positives (25% chance replace): {}'.format(cfg.DATASET.POS_CHANNEL_REPLACE))
+
     # Set shard_id to $SLURM_NODEID if running on compute canada
     shard_id = args.shard_id
     if args.compute_canada:
@@ -322,7 +324,6 @@ if __name__ == '__main__':
         print("Using {} GPU(s) per node".format(cfg.NUM_GPUS))
 
     # Print training parameters
-    print('Multiview positives: {}'.format(cfg.DATASET.POS_CHANNEL_REPLACE))
     print('Triplet sampling strategy: {}'.format(cfg.DATASET.SAMPLING_STRATEGY))
     print('Probability of sampling positive from same video: {}'.format(cfg.DATASET.POSITIVE_SAMPLING_P))
     print('OUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))

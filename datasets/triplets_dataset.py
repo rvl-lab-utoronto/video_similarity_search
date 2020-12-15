@@ -92,9 +92,8 @@ class TripletsData(data.Dataset):
 
         p_target = positive[self.target_type]
 
-        print('anchor')
-        a_clip = self._load_clip(anchor, self.anchor_temporal_transform)
-        print('positive')
+        a_clip = self._load_clip(anchor, self.anchor_temporal_transform,
+                use_channel_ext=(False if self.pos_channel_replace else True))
         p_clip = self._load_clip(positive, self.positive_temporal_transform,
                 pos_channel_replace=self.pos_channel_replace)
 
@@ -109,14 +108,15 @@ class TripletsData(data.Dataset):
         else:
             return (a_clip, p_clip), (a_target, p_target), index
 
-    def _load_clip(self, data, temporal_transform, pos_channel_replace=False):
+    def _load_clip(self, data, temporal_transform, use_channel_ext=True, pos_channel_replace=False):
         path = data['video']
         frame_indices = list(range(1, data['num_frames'] + 1))
         frame_id = temporal_transform(frame_indices)
 
         channel_paths = {}
-        for key in self.channel_ext:
-            channel_paths[key] = data[key]
+        if use_channel_ext:
+            for key in self.channel_ext:
+                channel_paths[key] = data[key]
 
         clip = construct_net_input(self.loader, self.channel_ext,
                 self.spatial_transform, self.normalize, path, frame_id,

@@ -241,6 +241,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     if (is_master_proc):
         print ('Single video input size:', data[1][0][0].size())
 
+
     # ============================ Build DataLoader ============================
 
     # Use a DistributedSampler if using more than 1 GPU

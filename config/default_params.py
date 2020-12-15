@@ -61,6 +61,8 @@ _C.DATASET.SALIENT_PATH = ''
 _C.DATASET.OPTICAL_U_PATH = ''
 _C.DATASET.OPTICAL_V_PATH = ''
 
+_C.DATASET.POS_CHANNEL_REPLACE = False
+
 # -----------------------------------------------------------------------------
 # Slowfast options
 # -----------------------------------------------------------------------------

@@ -322,6 +322,7 @@ if __name__ == '__main__':
         print("Using {} GPU(s) per node".format(cfg.NUM_GPUS))
 
     # Print training parameters
+    print('Multiview positives: {}'.format(cfg.DATASET.POS_CHANNEL_REPLACE))
     print('Triplet sampling strategy: {}'.format(cfg.DATASET.SAMPLING_STRATEGY))
     print('Probability of sampling positive from same video: {}'.format(cfg.DATASET.POSITIVE_SAMPLING_P))
     print('OUTPUT_PATH is set to: {}'.format(cfg.OUTPUT_PATH))

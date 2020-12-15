@@ -31,6 +31,7 @@ class TripletsData(data.Dataset):
                  video_loader=None,
                  positive_sampling_p=1.0,
                  negative_sampling=False,
+                 pos_channel_replace=False,
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
                  target_type='label'):
 
@@ -44,6 +45,7 @@ class TripletsData(data.Dataset):
         self.spatial_transform = spatial_transform
         self.normalize=normalize
         self.positive_types = ['same_inst', 'diff_inst']
+        self.pos_channel_replace = pos_channel_replace
 
         if temporal_transform is not None:
             self.anchor_temporal_transform = temporal_transform['anchor']
@@ -81,7 +83,7 @@ class TripletsData(data.Dataset):
             positive = anchor.copy()
 
         else: #sample positive from same a_target (of type target_type - 'label' or 'cluster_label')
-            p_idx = np.random.choice(self.label_to_indices[a_target]) 
+            p_idx = np.random.choice(self.label_to_indices[a_target])
 
             # Pick different video from anchor if there is more than 1 video with target a_target
             while p_idx == index and len(self.label_to_indices[a_target]) > 1:
@@ -90,8 +92,11 @@ class TripletsData(data.Dataset):
 
         p_target = positive[self.target_type]
 
+        print('anchor')
         a_clip = self._load_clip(anchor, self.anchor_temporal_transform)
-        p_clip = self._load_clip(positive, self.positive_temporal_transform)
+        print('positive')
+        p_clip = self._load_clip(positive, self.positive_temporal_transform,
+                pos_channel_replace=self.pos_channel_replace)
 
         if self.negative_sampling:
             while True:
@@ -104,7 +109,7 @@ class TripletsData(data.Dataset):
         else:
             return (a_clip, p_clip), (a_target, p_target), index
 
-    def _load_clip(self, data, temporal_transform):
+    def _load_clip(self, data, temporal_transform, pos_channel_replace=False):
         path = data['video']
         frame_indices = list(range(1, data['num_frames'] + 1))
         frame_id = temporal_transform(frame_indices)
@@ -113,7 +118,10 @@ class TripletsData(data.Dataset):
         for key in self.channel_ext:
             channel_paths[key] = data[key]
 
-        clip = construct_net_input(self.loader, self.channel_ext, self.spatial_transform, self.normalize, path, frame_id, channel_paths=channel_paths)
+        clip = construct_net_input(self.loader, self.channel_ext,
+                self.spatial_transform, self.normalize, path, frame_id,
+                channel_paths=channel_paths,
+                pos_channel_replace=pos_channel_replace)
         return clip
 
     def __len__(self):

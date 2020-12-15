@@ -205,7 +205,7 @@ def train(args, cfg):
         if (is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
 
-        if args.iterative_cluster:
+        if args.iterative_cluster and epoch % cfg.ITERCLUSTER.INTERVAL == 0:
             # Get embeddings using current model
             if is_master_proc:
                 print('\n=> Computing embeddings')
@@ -220,7 +220,7 @@ def train(args, cfg):
                 # Cluster
                 print('\n=> Clustering')
                 start_time = time.time()
-                trained_clustering_obj = fit_cluster(embeddings, 'kmeans')
+                trained_clustering_obj = fit_cluster(embeddings, 'kmeans', cfg.ITERCLUSTER.K)
                 print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
                 # Calculate NMI for true labels vs cluster assignments
@@ -328,6 +328,7 @@ if __name__ == '__main__':
     print('NUM_WORKERS is set to: {}'.format(cfg.TRAIN.NUM_DATA_WORKERS))
     print('SAMPLE SIZE is set to: {}'.format(cfg.DATA.SAMPLE_SIZE))
     print('N_CLASSES is set to: {}'.format(cfg.RESNET.N_CLASSES))
+    print('ITERCLUSTER.INTERVAL is set to: {}'.format(cfg.ITERCLUSTER.INTERVAL))
     print('Learning rate is set to {}'.format(cfg.OPTIM.LR))
 
     # Launch processes for all gpus

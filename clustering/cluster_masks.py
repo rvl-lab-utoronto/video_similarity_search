@@ -164,11 +164,13 @@ def preprocess_features_kmeans(data):
 
 
 # Perform clustering 
-def fit_cluster(embeddings, method='Agglomerative'):
+def fit_cluster(embeddings, method='Agglomerative', k=1000):
 
     assert(method in ['DBSCAN', 'Agglomerative', 'OPTICS', 'kmeans'])
 
     print("Clustering with {}...".format(method))
+    if method == 'kmeans':
+        print("k:", k)
 
     if method == 'Agglomerative':
         distance_threshold = 0.24 #0.24 for ucf train
@@ -187,7 +189,7 @@ def fit_cluster(embeddings, method='Agglomerative'):
         #pre-process - l2 normalize embeddings
         embeddings = preprocess_features_kmeans(embeddings)
 
-        n_clusters = 1000 #2000 for ucf train
+        n_clusters = k #2000 for ucf train
         trained_cluster_obj = KMeans(n_clusters=n_clusters,
                                      n_init=10).fit(embeddings)
     elif method == 'OPTICS':

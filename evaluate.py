@@ -250,7 +250,7 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
         print('retrieved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
     else:
         embeddings, labels, idxs = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
-        if save_pkl:
+        if save_pkl and is_master_proc:
             with open(embeddings_pkl, 'wb') as handle:
                 torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
             with open(labels_pkl, 'wb') as handle:
@@ -266,7 +266,8 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
                         epoch=None, is_master_proc=True,
                         evaluate_output=None, num_exemplar=None, service=None,
                         load_pkl=False, out_filename='global_retrieval_acc'):
-    print ('Getting embeddings...')
+    if is_master_proc:
+        print ('Getting embeddings...')
     val_embeddings, val_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader,
                                                         split='val', is_master_proc=is_master_proc, load_pkl=load_pkl)
     train_embeddings, train_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader,

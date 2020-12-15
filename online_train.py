@@ -330,6 +330,7 @@ if __name__ == '__main__':
     print('SAMPLE SIZE is set to: {}'.format(cfg.DATA.SAMPLE_SIZE))
     print('N_CLASSES is set to: {}'.format(cfg.RESNET.N_CLASSES))
     print('ITERCLUSTER.INTERVAL is set to: {}'.format(cfg.ITERCLUSTER.INTERVAL))
+    print('ITERCLUSTER.ADAPTIVEP is set to: {}'.format(cfg.ITERCLUSTER.ADAPTIVEP))
     print('Learning rate is set to {}'.format(cfg.OPTIM.LR))
 
     # Launch processes for all gpus

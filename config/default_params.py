@@ -126,7 +126,7 @@ _C.OPTIM.MOMENTUM = 0.5
 _C.ITERCLUSTER = CfgNode()
 _C.ITERCLUSTER.INTERVAL = 5
 _C.ITERCLUSTER.K = 1000
-_C.ITERCLUSTER.ADAPTIVEP = True
+_C.ITERCLUSTER.ADAPTIVEP = False
 
 # -----------------------------------------------------------------------------
 # Misc options

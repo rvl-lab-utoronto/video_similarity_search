@@ -237,7 +237,8 @@ def train(args, cfg):
                     f.write('epoch:{} {:.3f}\n'.format(epoch, AMI))
 
                 # Update probability of sampling positive from same video using NMI
-                cfg.DATASET.POSITIVE_SAMPLING_P = float(1.0 - NMI)
+                if cfg.ITERCLUSTER.ADAPTIVEP:
+                    cfg.DATASET.POSITIVE_SAMPLING_P = float(1.0 - NMI)
 
                 # Get cluster assignments in unshuffled order of dataset
                 cluster_assignments_unshuffled_order = [None] * len(eval_train_loader.dataset)

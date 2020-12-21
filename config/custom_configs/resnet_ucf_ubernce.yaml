@@ -36,7 +36,7 @@ DATA:
     INPUT_CHANNEL_NUM: 3
 
 LOSS:
-    TYPE: 'contrastive'
+    TYPE: 'UberNCE'
     MARGIN: 0.2
     FEAT_DIM: 128
     # K: 1024 #num of negatives

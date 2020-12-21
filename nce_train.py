@@ -6,6 +6,7 @@ import argparse
 import tqdm
 import torch
 from torch import nn
+import torch.nn.functional as F 
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from validation import validate
@@ -21,67 +22,82 @@ import misc.distributed_helper as du_helper
 from loss.triplet_loss import OnlineTripleLoss
 from loss.NCE_loss import NCEAverage, NCEAverage_intra_neg, NCESoftmaxLoss
 
-#TODO: add this to config file
-modality = 'res'
-intra_neg = False #True
-moco = False #True
-neg_type='repeat'
+def calc_topk_accuracy(output, target, topk=(1,)):
+    """
+    Modified from: https://gist.github.com/agermanidis/275b23ad7a10ee89adccf021536bb97e
+    Given predicted and ground truth labels, 
+    calculate top-k accuracies.
+    """
+    maxk = max(topk)
+    batch_size = target.size(0)
 
-def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
+    _, pred = output.topk(maxk, 1, True, True)
+    pred = pred.t()
+    correct = pred.eq(target.view(1, -1).expand_as(pred))
+
+    res = []
+    for k in topk:
+        correct_k = correct[:k].view(-1).float().sum(0)
+        res.append(correct_k.mul_(1 / batch_size))
+    return res
+
+def calc_mask_accuracy(output, target_mask, topk=(1,)):
+    maxk = max(topk)
+    _, pred = output.topk(maxk,1,True,True)
+
+    zeros = torch.zeros_like(target_mask).long()
+    pred_mask = torch.zeros_like(target_mask).long()
+
+    res = []
+    for k in range(maxk):
+        pred_ = pred[:,k].unsqueeze(1)
+        onehot = zeros.scatter(1,pred_,1)
+        pred_mask = onehot + pred_mask # accumulate 
+        if k+1 in topk:
+            res.append(((pred_mask * target_mask).sum(1)>=1).float().mean(0))
+    return res 
+
+
+def train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
-    view1_loss_meter = AverageMeter()
-    view2_loss_meter = AverageMeter()
-    view1_prob_meter = AverageMeter()
-    view2_prob_meter = AverageMeter()
+    top1_meter = AverageMeter()
+    top5_meter = AverageMeter()
 
     world_size = du_helper.get_world_size()
     
     # switching to training mode
     model.train()
-    contrast.train()
+
+    def tr(x):
+        # print(x.shape)
+        B = x.shape[0]
+        x = torch.tensor(x)
+        return x.view(B, 3, 2, cfg.DATA.SAMPLE_DURATION, cfg.LOSS.FEAT_DIM, cfg.LOSS.FEAT_DIM).transpose(1,2).contiguous() #TODO: make it configureable
     
     # Training loop
     start = time.time()
     for batch_idx, (inputs, labels, index) in enumerate(train_loader):
-        view1 = inputs[0]
-        if modality=='rgb':
-            view2 = inputs[1]
-        elif modality == 'res':
-            view2 = diff(view1)
+        inputs = np.concatenate(inputs, axis=1) # [ B, N, C, W, H]
+        input_seq = tr(inputs)        
+        batch_size = torch.tensor(input_seq.size(0)).to(device)
         
-        batch_size = torch.tensor(view1.size(0)).to(device)
-        # Prepare input and send to gpu
-        if cfg.MODEL.ARCH == 'slowfast':
-            view1 = multipathway_input(view1, cfg)
-            view2 = multipathway_input(view2, cfg)
-            if cuda:
-                for i in range(len(view1)):
-                    view1[i], view2[i]= view1[i].to(device), view2[i].to(device)
-        elif cuda:
-            view1, view2 = view1.to(device), view2.to(device)
-
         if cuda:
-            labels = labels[0].to(device)
-            index = index.to(device)
+            input_seq = input_seq.to(device)
+            label = labels[0].to(device)
 
-        # Get embeddings of view1s and view2s
-        feat_1 = model(view1)
-        feat_2 = model(view2)
-        if intra_neg:
-            intra_negative = preprocess(view1, neg_type)
-            feat_neg = model(intra_negative)
-            out_1, out_2 = contrast(feat_1, feat_2, feat_neg, index) #labels
-        else:
-            out_1, out_2 = contrast(feat_1, feat_2, index) #labels
+        if cfg.MODEL.ARCH == 'info_nce':
+            output, target = model(input_seq)
+            loss = criterion(output, target)
+            top1, top5 = calc_topk_accuracy(output, target, (1,5))
 
-        view1_loss = criterion_1(out_1)
-        view2_loss = criterion_2(out_2)
-
-        view1_prob = out_1[:,0].mean()
-        view2_prob = out_2[:,0].mean()
-
-        loss = view1_loss + view2_loss
+            # print('loss', loss)
+        if cfg.MODEL.ARCH == 'uber_nce':
+            # optimize all positive pairs, compute the mean for num_pos and for batch_size 
+            output, target = model(input_seq, label)
+            loss = - (F.log_softmax(output, dim=1) * target).sum(1) / target.sum(1)
+            loss = loss.mean()
+            top1, top5 = calc_mask_accuracy(output, target, (1,5))
 
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
@@ -99,17 +115,16 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
 
         # Update running loss
         losses.update(loss.item(), batch_size_world)
-        view1_loss_meter.update(view1_loss.item(), batch_size_world)
-        view1_prob_meter.update(view1_prob.item(), batch_size_world)
-        view2_loss_meter.update(view1_loss.item(), batch_size_world)
-        view2_prob_meter.update(view2_prob.item(), batch_size_world)
+        top1_meter.update(top1.item(), batch_size)
+        top5_meter.update(top5.item(), batch_size)
+
         # Log
         if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
             print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
-                  'Loss: {:.4f} ({:.4f})'.format(epoch, losses.count,
+                  'Loss: {:.4f} ({:.4f})  Top1:{} Top5:{}'.format(epoch, losses.count,
                     len(train_loader.dataset),
                     100. * (losses.count / len(train_loader.dataset)),
-                    losses.val, losses.avg))
+                    losses.val, losses.avg, top1_meter.val, top5_meter.val))
 
     if (is_master_proc):
         print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
@@ -117,13 +132,21 @@ def train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimiz
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
             f.write('epoch:{} runtime:{} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg))
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
-
+    return top1_meter.avg, top5_meter.avg
 
 
 def diff(x):
     shift_x = torch.roll(x, 1, 2)
     return ((x - shift_x) + 1) / 2
 
+def adjust_learning_rate(optimizer, epoch, cfg):
+    """Decay the learning rate based on schedule"""
+    lr = cfg.OPTIM.LR
+    # stepwise lr schedule
+    for milestone in cfg.OPTIM.SCHEDULE:
+        lr *= 0.1 if epoch >= milestone else 1.
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
 
 # =========================== Running Training Loop ========================== #
 
@@ -149,7 +172,6 @@ def train(args, cfg):
     if(is_master_proc):
         print('\n==> Generating {} backbone model...'.format(cfg.MODEL.ARCH))
     model=model_selector(cfg)
-
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
         print('Number of params: {}'.format(n_parameters))
@@ -194,7 +216,7 @@ def train(args, cfg):
 
     if(is_master_proc):
         print('\n==> Building training data loader (triplet)...')
-    train_loader, (train_sampler, cluster_labels) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+    train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
     if(is_master_proc):
         print('\n==> Building validation data loader (triplet)...')
@@ -205,14 +227,12 @@ def train(args, cfg):
 
     if(is_master_proc):
         print('\n==> Building training data loader (single video)...')
-    eval_train_loader, (_, eval_cluster_labels) = data_loader.build_data_loader('train', cfg, is_master_proc=False, triplets=False)
-    
+    eval_train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, is_master_proc=False, triplets=False)
+
     if(is_master_proc):
         print('\n==> Building validation data loader (single video)...')
-    eval_val_loader, (_, _) = data_loader.build_data_loader('val', cfg, is_master_proc=False, triplets=False, val_sample=None)
-    
-    eval_train_data = eval_train_loader.dataset
-    eval_val_data = eval_val_loader.dataset
+    eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, is_master_proc=False, triplets=False, val_sample=None)
+
 
     # ======================== Loss and Optimizer Setup ========================
 
@@ -220,26 +240,15 @@ def train(args, cfg):
         print('\n==> Setting criterion & contrastive...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
     n_data = len(train_loader.dataset)
-    # n_data = len(cluster_labels) #n_labels
 
-    if intra_neg:
-        contrast = NCEAverage_intra_neg(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
-    elif moco:
-        contrast = MemoryMoCo(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T).to(device)
-    else:
-        contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
-    
-    criterion_1 = NCESoftmaxLoss().to(device)
-    criterion_2 = NCESoftmaxLoss().to(device)
-
+    criterion = nn.CrossEntropyLoss().to(device)
     optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
     if(is_master_proc):
-        print('Using criterion:{} for training'.format(criterion_1, criterion_2))
-        print('Using criterion:{} for validation'.format(val_criterion))
+        print('Using criterion:{} for training'.format(criterion))
+        # print('Using criterion:{} for validation'.format(val_criterion))
     
 
     # ============================= Training loop ==============================
-    # acc = validate(val_loader, tripletnet, val_criterion, -1, cfg, cuda, device, is_master_proc)
 
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if (is_master_proc):
@@ -249,18 +258,18 @@ def train(args, cfg):
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
-        train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
-
+        adjust_learning_rate(optimizer, epoch, cfg)
+        top1_acc, top5_acc = train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        acc =  top1_acc
         # Validate
-        if is_master_proc:
-            print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
-        
-        acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
-        if epoch+1 % 10 == 0:
-            if is_master_proc:
-                print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
-            topk_acc = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg, 
-                                        plot=False, epoch=epoch, is_master_proc=is_master_proc)
+        # if is_master_proc:
+        #     print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
+        # acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
+        # if epoch+1 % 10 == 0:
+        #     if is_master_proc:
+        #         print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
+        #     topk_acc = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg, 
+        #                                 plot=False, epoch=epoch, is_master_proc=is_master_proc)
             
         # Update best accuracy and save checkpoint
         is_best = acc > best_acc

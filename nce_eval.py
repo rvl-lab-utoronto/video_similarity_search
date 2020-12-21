@@ -24,7 +24,7 @@ from datasets.temporal_transforms import Compose as TemporalCompose
 import misc.distributed_helper as du_helper
 from config.m_parser import load_config, arg_parser
 from misc.upload_gdrive import GoogleDriveUploader
-
+from models.infoNCE import select_backbone
 # num_exemplar = 10
 log_interval = 10
 top_k = 5
@@ -83,6 +83,254 @@ def m_arg_parser(parser):
     return parser
 
 
+
+
+
+# def test_retrieval(model, criterion, transforms_cuda, device, epoch, args):
+#     accuracy = [AverageMeter(),AverageMeter(),AverageMeter(),AverageMeter()]
+#     model.eval()
+    
+#     def tr(x):
+#         seq_len = 16
+#         num_seq = 2
+#         B = x.size(0); assert B == 1
+#         test_sample = x.size(2)//(args.seq_len*args.num_seq)
+#         return x.view(3,test_sample,args.num_seq,args.seq_len,args.img_dim,args.img_dim).permute(1,2,0,3,4,5)
+
+#     with torch.no_grad():
+#         # transform = transforms.Compose([
+#         #             A.CenterCrop(size=(224,224)),
+#         #             A.Scale(size=(args.img_dim,args.img_dim)),
+#         #             A.ColorJitter(0.2, 0.2, 0.2, 0.1, p=0.3, consistent=True),
+#         #             A.ToTensor()])
+
+#         # if args.dataset == 'ucf101':
+#         #     d_class = UCF101LMDB
+#         # elif args.dataset == 'ucf101-f':
+#         #     d_class = UCF101Flow_LMDB
+#         # elif args.dataset == 'hmdb51':
+#         #     d_class = HMDB51LMDB
+#         # elif args.dataset == 'hmdb51-f':
+#         #     d_class = HMDB51Flow_LMDB
+
+#         # train_dataset = d_class(mode='train', 
+#         #                     transform=transform, 
+#         #                     num_frames=args.num_seq*args.seq_len,
+#         #                     ds=args.ds,
+#         #                     which_split=1,
+#         #                     return_label=True,
+#         #                     return_path=True)
+#         # print('train dataset size: %d' % len(train_dataset))
+
+#         # test_dataset = d_class(mode='test', 
+#         #                     transform=transform, 
+#         #                     num_frames=args.num_seq*args.seq_len,
+#         #                     ds=args.ds,
+#         #                     which_split=1,
+#         #                     return_label=True,
+#         #                     return_path=True)
+#         # print('test dataset size: %d' % len(test_dataset))
+
+#         # train_sampler = data.Sequential(train_dataset)
+#         # test_sampler = data.Sequential(test_dataset)
+
+#         # train_loader = data.DataLoader(train_dataset,
+#         #                               batch_size=1,
+#         #                               sampler=train_sampler,
+#         #                               shuffle=False,
+#         #                               num_workers=args.workers,
+#         #                               pin_memory=True)
+#         # test_loader = data.DataLoader(test_dataset,
+#         #                               batch_size=1,
+#         #                               sampler=test_sampler,
+#         #                               shuffle=False,
+#         #                               num_workers=args.workers,
+#         #                               pin_memory=True)
+#         if args.dirname is None:
+#             dirname = 'feature'
+#         else:
+#             dirname = args.dirname
+
+#         if os.path.exists(os.path.join(os.path.dirname(args.test), dirname, '%s_test_feature.pth.tar' % args.dataset)): 
+#             test_feature = torch.load(os.path.join(os.path.dirname(args.test), dirname, '%s_test_feature.pth.tar' % args.dataset)).to(device)
+#             test_label = torch.load(os.path.join(os.path.dirname(args.test), dirname, '%s_test_label.pth.tar' % args.dataset)).to(device)
+#         else:
+#             try: os.makedirs(os.path.join(os.path.dirname(args.test), dirname))
+#             except: pass 
+
+#             print('Computing test set feature ... ')
+#             test_feature = None
+#             test_label = []
+#             test_vname = []
+#             sample_id = 0 
+#             for idx, (input_seq, target) in tqdm(enumerate(test_loader), total=len(test_loader)):
+#                 B = 1
+#                 input_seq = input_seq.to(device, non_blocking=True)
+#                 input_seq = tr(input_seq)
+#                 current_target, vname = target
+#                 current_target = current_target.to(device, non_blocking=True)
+
+#                 test_sample = input_seq.size(0)
+#                 if args.other is not None: input_seq = input_seq.squeeze(1)
+#                 logit, feature = model(input_seq)
+#                 if test_feature is None:
+#                     test_feature = torch.zeros(len(test_dataset), feature.size(-1), device=feature.device)
+
+#                 if args.other is not None: 
+#                     test_feature[sample_id,:] = feature.mean(0)
+#                 else:
+#                     test_feature[sample_id,:] = feature[:,-1,:].mean(0)
+#                 test_label.append(current_target)
+#                 test_vname.append(vname)
+#                 sample_id += 1
+
+#             print(test_feature.size())
+#             # test_feature = torch.stack(test_feature, dim=0)
+#             test_label = torch.cat(test_label, dim=0)
+#             torch.save(test_feature, os.path.join(os.path.dirname(args.test), dirname, '%s_test_feature.pth.tar' % args.dataset))
+#             torch.save(test_label, os.path.join(os.path.dirname(args.test), dirname, '%s_test_label.pth.tar' % args.dataset))
+#             with open(os.path.join(os.path.dirname(args.test), dirname, '%s_test_vname.pkl' % args.dataset), 'wb') as fp:
+#                 pickle.dump(test_vname, fp)
+
+
+#         if os.path.exists(os.path.join(os.path.dirname(args.test), dirname, '%s_train_feature.pth.tar' % args.dataset)): 
+#             train_feature = torch.load(os.path.join(os.path.dirname(args.test), dirname, '%s_train_feature.pth.tar' % args.dataset)).to(device)
+#             train_label = torch.load(os.path.join(os.path.dirname(args.test), dirname, '%s_train_label.pth.tar' % args.dataset)).to(device)
+#         else:
+#             print('Computing train set feature ... ')
+#             train_feature = None
+#             train_label = []
+#             train_vname = []
+#             sample_id = 0
+#             for idx, (input_seq, target) in tqdm(enumerate(train_loader), total=len(train_loader)):
+#                 B = 1
+#                 input_seq = input_seq.to(device, non_blocking=True)
+#                 input_seq = tr(input_seq)
+#                 current_target, vname = target
+#                 current_target = current_target.to(device, non_blocking=True)
+
+#                 test_sample = input_seq.size(0)
+#                 if args.other is not None: input_seq = input_seq.squeeze(1)
+#                 logit, feature = model(input_seq)
+#                 if train_feature is None:
+#                     train_feature = torch.zeros(len(train_dataset), feature.size(-1), device=feature.device)
+
+#                 if args.other is not None: 
+#                     train_feature[sample_id,:] = feature.mean(0)
+#                 else:
+#                     train_feature[sample_id,:] = feature[:,-1,:].mean(0)
+#                 # train_feature.append(feature[:,-1,:].mean(0))
+#                 train_label.append(current_target)
+#                 train_vname.append(vname)
+#                 sample_id += 1
+#             # train_feature = torch.stack(train_feature, dim=0)
+#             print(train_feature.size())
+#             train_label = torch.cat(train_label, dim=0)
+#             torch.save(train_feature, os.path.join(os.path.dirname(args.test), dirname, '%s_train_feature.pth.tar' % args.dataset))
+#             torch.save(train_label, os.path.join(os.path.dirname(args.test), dirname, '%s_train_label.pth.tar' % args.dataset))
+#             with open(os.path.join(os.path.dirname(args.test), dirname, '%s_train_vname.pkl' % args.dataset), 'wb') as fp:
+#                 pickle.dump(train_vname, fp)
+
+#         ks = [1,5,10,20,50]
+#         NN_acc = []
+
+#         # centering
+#         test_feature = test_feature - test_feature.mean(dim=0, keepdim=True)
+#         train_feature = train_feature - train_feature.mean(dim=0, keepdim=True)
+
+#         # normalize
+#         test_feature = F.normalize(test_feature, p=2, dim=1)
+#         train_feature = F.normalize(train_feature, p=2, dim=1)
+
+#         # dot product
+#         sim = test_feature.matmul(train_feature.t())
+
+#         torch.save(sim, os.path.join(os.path.dirname(args.test), dirname, '%s_sim.pth.tar' % args.dataset))
+
+#         for k in ks:
+#             topkval, topkidx = torch.topk(sim, k, dim=1)
+#             acc = torch.any(train_label[topkidx] == test_label.unsqueeze(1), dim=1).float().mean().item()
+#             NN_acc.append(acc)
+#             print('%dNN acc = %.4f' % (k, acc))
+
+#         args.logger.log('NN-Retrieval on %s:' % args.dataset)
+#         for k,acc in zip(ks, NN_acc):
+#             args.logger.log('\t%dNN acc = %.4f' % (k, acc))
+
+#         with open(os.path.join(os.path.dirname(args.test), dirname, '%s_test_vname.pkl' % args.dataset), 'rb') as fp:
+#             test_vname = pickle.load(fp)
+
+#         with open(os.path.join(os.path.dirname(args.test), dirname, '%s_train_vname.pkl' % args.dataset), 'rb') as fp:
+#             train_vname = pickle.load(fp)
+
+#         sys.exit(0)
+
+
+
+
+
+class LinearClassifier(nn.Module):
+    def __init__(self, num_class=101, 
+                 network='resnet50', 
+                 dropout=0.5, 
+                 use_dropout=True, 
+                 use_l2_norm=False,
+                 use_final_bn=False):
+        super(LinearClassifier, self).__init__()
+        self.network = network
+        self.num_class = num_class
+        self.dropout = dropout
+        self.use_dropout = use_dropout
+        self.use_l2_norm = use_l2_norm
+        self.use_final_bn = use_final_bn
+        
+        message = 'Classifier to %d classes with %s backbone;' % (num_class, network)
+        if use_dropout: message += ' + dropout %f' % dropout
+        if use_l2_norm: message += ' + L2Norm'
+        if use_final_bn: message += ' + final BN'
+        print(message)
+
+        self.backbone, self.param = select_backbone(network)
+        
+        if use_final_bn:
+            self.final_bn = nn.BatchNorm1d(self.param['feature_size'])
+            self.final_bn.weight.data.fill_(1)
+            self.final_bn.bias.data.zero_()
+        
+        if use_dropout:
+            self.final_fc = nn.Sequential(
+                nn.Dropout(dropout),
+                nn.Linear(self.param['feature_size'], self.num_class))
+        else:
+            self.final_fc = nn.Sequential(
+                nn.Linear(self.param['feature_size'], self.num_class))
+        self._initialize_weights(self.final_fc)
+        
+    def forward(self, block):
+        # print(block)
+        (B, C, T, H, W) = block.shape
+        feat3d = self.backbone(block)
+        feat3d = F.adaptive_avg_pool3d(feat3d, (1,1,1)) # [B,C,1,1,1]
+        feat3d = feat3d.view(B, self.param['feature_size']) # [B,C]
+
+        if self.use_l2_norm:
+            feat3d = F.normalize(feat3d, p=2, dim=1)
+        
+        if self.use_final_bn:
+            logit = self.final_fc(self.final_bn(feat3d))
+        else:
+            logit = self.final_fc(feat3d)
+
+        return logit, feat3d
+
+    def _initialize_weights(self, module):
+        for name, param in module.named_parameters():
+            if 'bias' in name:
+                nn.init.constant_(param, 0.0)
+            elif 'weight' in name:
+                nn.init.normal_(param, 0.01)
+
+
 def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_proc=True):
     #log_interval=len(data_loader.dataset)//5
     log_interval = 5
@@ -91,10 +339,9 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
     embedding = []
     # vid_info = []
     labels = []
-    idxs = []
     world_size = du_helper.get_world_size()
     with torch.no_grad():
-        for batch_idx, (input, targets, info, indexes) in enumerate(data_loader):
+        for batch_idx, (input, targets, info) in enumerate(data_loader):
             batch_size = input.size(0)
             if cfg.MODEL.ARCH == 'slowfast':
                 input = multipathway_input(input, cfg)
@@ -106,15 +353,12 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
                     input= input.to(device)
             if cuda:
                 targets = targets.to(device)
-                indexes = indexes.to(device)
 
-            embedd = model(input).flatten(1)
-            
+            _, embedd = model(input)
             if cfg.NUM_GPUS > 1:
-                embedd, targets, indexes = du_helper.all_gather([embedd, targets, indexes])
+                embedd, targets = du_helper.all_gather([embedd, targets])
             embedding.append(embedd.detach().cpu())
             labels.append(targets.detach().cpu())
-            idxs.append(indexes.detach().cpu())
             # vid_info.extend(info)
             # print('embedd size', embedd.size())
             batch_size_world = batch_size * world_size
@@ -124,9 +368,8 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
 
     embeddings = torch.cat(embedding, dim=0)
     labels = torch.cat(labels, dim=0).tolist()
-    idxs = torch.cat(idxs, dim=0).tolist()
     #if is_master_proc: print('embeddings size', embeddings.size())
-    return embeddings, labels, idxs
+    return embeddings, labels
 
 
 def get_distance_matrix(x_embeddings, y_embeddings=None, dist_metric='cosine'):
@@ -137,7 +380,7 @@ def get_distance_matrix(x_embeddings, y_embeddings=None, dist_metric='cosine'):
         distance_matrix = cosine_distances(x_embeddings, Y=y_embeddings)
     elif dist_metric == 'euclidean':
         distance_matrix = euclidean_distances(x_embeddings, Y=y_embeddings)
-    #print('Distance matrix shape:', distance_matrix.shape)
+    print('Distance matrix shape:', distance_matrix.shape)
 
     if y_embeddings is None:
         np.fill_diagonal(distance_matrix, float('inf'))
@@ -234,33 +477,26 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
 
     if split == 'train':
         embeddings_pkl = os.path.join(cfg.OUTPUT_PATH, 'train_embeddings.pkl')
-        idxs_pkl = os.path.join(cfg.OUTPUT_PATH, 'train_idxs.pkl')
         labels_pkl = os.path.join(cfg.OUTPUT_PATH, 'train_labels.pkl')
     else:
         embeddings_pkl = os.path.join(cfg.OUTPUT_PATH, 'val_embeddings.pkl')
-        idxs_pkl = os.path.join(cfg.OUTPUT_PATH, 'val_idxs.pkl')
         labels_pkl = os.path.join(cfg.OUTPUT_PATH, 'val_labels.pkl')
 
-    if os.path.exists(embeddings_pkl) and os.path.exists(labels_pkl) and os.path.exists(idxs_pkl) and load_pkl:
+    if os.path.exists(embeddings_pkl) and os.path.exists(labels_pkl) and load_pkl:
         with open(embeddings_pkl, 'rb') as handle:
             embeddings = torch.load(handle)
         with open(labels_pkl, 'rb') as handle:
             labels = torch.load(handle)
-        with open(idxs_pkl, 'rb') as handle:
-            idxs = torch.load(handle)
         print('retrieved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
     else:
-        embeddings, labels, idxs = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
+        embeddings, labels = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
         if save_pkl:
             with open(embeddings_pkl, 'wb') as handle:
                 torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
             with open(labels_pkl, 'wb') as handle:
                 torch.save(labels, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
-            with open(idxs_pkl, 'wb') as handle:
-                torch.save(idxs, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
-            print('saved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
 
-    return embeddings, labels, idxs
+    return embeddings, labels
 
 
 def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, train_data, val_data, cfg, plot=True,
@@ -268,16 +504,16 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
                         evaluate_output=None, num_exemplar=None, service=None,
                         load_pkl=False, out_filename='global_retrieval_acc'):
     print ('Getting embeddings...')
-    val_embeddings, val_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader,
+    val_embeddings, val_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader,
                                                         split='val', is_master_proc=is_master_proc, load_pkl=load_pkl)
-    train_embeddings, train_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader,
+    train_embeddings, train_labels = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader,
                                                         split='train', is_master_proc=is_master_proc, load_pkl=load_pkl)
     acc = []
 
     print ('Computing top1/5/10/20 Acc...')
     if (is_master_proc):
-        distance_matrix = get_distance_matrix(val_embeddings, train_embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
-        acc = get_topk_acc(distance_matrix, val_labels, y_labels=train_labels)
+        distance_matrix = get_distance_matrix(val_embeddings, None, dist_metric=cfg.LOSS.DIST_METRIC)
+        acc = get_topk_acc(distance_matrix, val_labels, y_labels=None)
         if epoch is not None:
             to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
             msg = '\nTest Set: Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%, Top10 Acc: {:.2f}%, Top20 Acc: {:.2f}%'.format(100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
@@ -428,19 +664,20 @@ if __name__ == '__main__':
     # ============================== Model Setup ===============================
     # Check if this is the master process (true if not distributed)
     is_master_proc = du_helper.is_master_proc(cfg.NUM_GPUS)
+    model = LinearClassifier(
+                    network='s3d', 
+                    num_class=101,
+                    dropout=0.9,
+                    use_dropout=False,
+                    use_final_bn=False,
+                    use_l2_norm=False)    # Select appropriate model
 
-    # Select appropriate model
-    if(is_master_proc):
-        print('\n==> Generating {} backbone model...'.format(cfg.MODEL.ARCH))
-    model=model_selector(cfg, projection_head=False)
-
-    n_parameters = sum([p.data.nelement() for p in model.parameters()])
-    if(is_master_proc):
-        print('Number of params: {}'.format(n_parameters))
-
-    # # Load pretrained backbone if path exists
-    # if args.pretrain_path is not None:
-    #     model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
+    # if(is_master_proc):
+    #     print('\n==> Generating {} backbone model...'.format(cfg.MODEL.ARCH))
+    # # model=model_selector(cfg, projection_head=False)
+    # n_parameters = sum([p.data.nelement() for p in model.parameters()])
+    # if(is_master_proc):
+    #     print('Number of params: {}'.format(n_parameters))
 
     # Transfer model to DDP
     if cuda:
@@ -449,50 +686,37 @@ if __name__ == '__main__':
             model = nn.DataParallel(model)
         model = model.cuda(device=device)
 
-        # if torch.cuda.device_count() > 1:
-        #     #model = nn.DataParallel(model)
-        #     if cfg.MODEL.ARCH == '3dresnet':
-        #         model = torch.nn.parallel.DistributedDataParallel(module=model,
-        #             device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
-        #     else:
-        #         model = torch.nn.parallel.DistributedDataParallel(module=model,
-        #             device_ids=[device], broadcast_buffers=False)
-
-    if args.pretrain_path is not None:
-        model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
+    # if args.pretrain_path is not None:
+    #     model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
-        if torch.cuda.device_count() > 1:
-            start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
-        else:
-            print('loading checkpoint path...')
-            from collections import OrderedDict
-            new_state_dict = OrderedDict()
-            checkpoint = torch.load(args.checkpoint_path)
-            state_dict = checkpoint['state_dict']
-            for k, v in state_dict.items():
-                name = k[7:] # remove `module.`
-                new_state_dict[name] = v
-            model.load_state_dict(new_state_dict)
+        checkpoint = torch.load(args.checkpoint_path, map_location=torch.device('cpu'))
+        epoch = checkpoint['epoch']
+        state_dict = checkpoint['state_dict']
 
-    # tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
-    # if cuda:
-    #     cfg.NUM_GPUS = torch.cuda.device_count()
-    #     print("Using {} GPU(s)".format(cfg.NUM_GPUS))
-    #     if cfg.NUM_GPUS > 1 or force_data_parallel:
-    #         tripletnet = nn.DataParallel(tripletnet)
-    #
-    # model = tripletnet.module.embeddingnet
+        # if args.retrieval_ucf or args.retrieval_full: # if directly test on pretrained network
+        new_dict = {}
+        for k,v in state_dict.items():
+            if 'encoder_q.0.' in k:
+                new_k = k.replace('encoder_q.0.', '')
+                new_dict[new_k] = v 
 
-    print('=> finished generating similarity network...')
 
-    # ============================== Data Loaders ==============================
+            # k = k.replace('encoder_q.0.', 'backbone.')
+            # new_dict[k] = v
+        state_dict = new_dict
+        model.backbone.load_state_dict(state_dict)
+    # print(model)
+
+    # print('=> finished generating similarity network...')
+
+    # # ============================== Data Loaders ==============================
 
     train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False)
-    test_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, triplets=False, val_sample=None)
+    test_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, triplets=False)#, val_sample=None)
 
-    # ================================ Evaluate ================================
+    # # ================================ Evaluate ================================
 
     if args.heatmap:
         if args.ex_idx and args.test_idx:

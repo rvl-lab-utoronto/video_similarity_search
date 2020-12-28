@@ -126,7 +126,7 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     f = plt.figure(figsize=(18,5))
     ax1 =  plt.subplot(1, num_plots, 1)
     ax1.plot(np.arange(len(train_losses)), train_losses)
-    ax1.plot(np.arange(len(val_losses)), val_losses)
+    # ax1.plot(np.arange(len(val_losses)), val_losses)
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Loss')
     ax1.set_title('Train/Val Loss vs. Epoch')
@@ -178,12 +178,12 @@ def write_to_google_sheet(result_dir, client, worksheet_name):
     top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc, _ = parse_file(result_dir, 'global_retrieval')
 
 
-    best_idx = np.argmax(np.array(top1_acc))
-    print('best epoch:{}, triplet accuracy:{}, val_top1 accuracy:{}, val_top5 accuracy:{}'.format(epoch[best_idx],
-                        val_acc[best_idx], top1_acc[best_idx], top5_acc[best_idx]))
+    # best_idx = np.argmax(np.array(top1_acc))
+    # print('best epoch:{}, triplet accuracy:{}, val_top1 accuracy:{}, val_top5 accuracy:{}'.format(epoch[best_idx],
+    #                     val_acc[best_idx], top1_acc[best_idx], top5_acc[best_idx]))
 
-    best_idx = np.argmax(np.array(global_top1_acc))
-    print('best epoch:{}, global top1 acc:{}, global top5 acc:{}'.format(top1_5_epoch[best_idx], global_top1_acc[best_idx], global_top5_acc[best_idx]))
+    # best_idx = np.argmax(np.array(global_top1_acc))
+    # print('best epoch:{}, global top1 acc:{}, global top5 acc:{}'.format(top1_5_epoch[best_idx], global_top1_acc[best_idx], global_top5_acc[best_idx]))
 
     sh = client.open('training_results')
 
@@ -197,11 +197,11 @@ def write_to_google_sheet(result_dir, client, worksheet_name):
     df['epoch'] = epoch
     df['train_loss'] = train_losses
     # df['train_acc'] = train_acc
-    df['val_losses'] = val_losses
-    df['val_acc'] = val_acc
-    df['runtime'] = runtime
-    df['top1_acc'] = top1_acc
-    df['top5_acc'] = top5_acc
+    # df['val_losses'] = val_losses
+    # df['val_acc'] = val_acc
+    # df['runtime'] = runtime
+    # df['top1_acc'] = top1_acc
+    # df['top5_acc'] = top5_acc
     worksheet.update([df.columns.values.tolist()] + df.values.tolist())
 
 def gs_report(result_dir, name):

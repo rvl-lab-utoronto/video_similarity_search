@@ -126,7 +126,7 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     f = plt.figure(figsize=(18,5))
     ax1 =  plt.subplot(1, num_plots, 1)
     ax1.plot(np.arange(len(train_losses)), train_losses)
-    # ax1.plot(np.arange(len(val_losses)), val_losses)
+    ax1.plot(np.arange(len(val_losses)), val_losses)
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Loss')
     ax1.set_title('Train/Val Loss vs. Epoch')

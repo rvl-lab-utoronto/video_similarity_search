@@ -394,7 +394,7 @@ def train(args, cfg):
 
     if(is_master_proc):
         print('\n==> Building training data loader (triplet)...')
-    train_loader, (train_sampler, _) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+    train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
     if(is_master_proc):
         print('\n==> Building validation data loader (triplet)...')
@@ -478,7 +478,7 @@ def train(args, cfg):
             # Rebuild train_loader with new cluster assignments as pseudolabels
             if(is_master_proc):
                 print('\n==> Building training data loader (triplet)...')
-            train_loader, (train_sampler,_) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+            train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
         # Call set_epoch on the distributed sampler so the data is shuffled
         if cfg.NUM_GPUS > 1:

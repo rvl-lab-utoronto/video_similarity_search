@@ -80,9 +80,8 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
         else:
             cluster_labels = None
 
-        # Don't do channel extensions or replacements (multiview) for validation
+        # Don't do channel replacements (multiview) for validation
         if split != 'train':
-            channel_ext={}
             pos_channel_replace=False
 
         data = TripletsData(data = Dataset.get_dataset(),

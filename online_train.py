@@ -173,10 +173,10 @@ def train(args, cfg):
 
     # ============================== Data Loaders ==============================
 
-    if not args.iterative_cluster:
-        if(is_master_proc):
-            print('\n==> Building training data loader (triplet)...')
-        train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+    #if not args.iterative_cluster:
+    if(is_master_proc):
+        print('\n==> Building training data loader (triplet)...')
+    train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
     if(is_master_proc):
         print('\n==> Building validation data loader (triplet)...')

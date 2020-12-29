@@ -62,6 +62,7 @@ _C.DATASET.OPTICAL_U_PATH = ''
 _C.DATASET.OPTICAL_V_PATH = ''
 
 _C.DATASET.POS_CHANNEL_REPLACE = False
+_C.DATASET.PROB_POS_CHANNEL_REPLACE = 0.25
 
 # -----------------------------------------------------------------------------
 # Slowfast options

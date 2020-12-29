@@ -237,6 +237,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 negative_sampling=negative_sampling,
                 positive_sampling_p=cfg.DATASET.POSITIVE_SAMPLING_P,
                 pos_channel_replace=cfg.DATASET.POS_CHANNEL_REPLACE,
+                prob_pos_channel_replace=cfg.DATASET.PROB_POS_CHANNEL_REPLACE,
                 is_master_proc=is_master_proc)
     if (is_master_proc):
         print ('Single video input size:', data[1][0][0].size())

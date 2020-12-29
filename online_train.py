@@ -13,7 +13,7 @@ import torch
 from torch import nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
-import torch.nn.functional as F 
+import torch.nn.functional as F
 from validation import validate
 from evaluate import k_nearest_embeddings, get_embeddings_and_labels
 from models.triplet_net import Tripletnet
@@ -26,13 +26,14 @@ import misc.distributed_helper as du_helper
 from loss.triplet_loss import OnlineTripleLoss
 from loss.NCE_loss import NCEAverage, NCEAverage_intra_neg, NCESoftmaxLoss
 from clustering.cluster_masks import fit_cluster
-from sklearn.metrics import normalized_mutual_info_score
+from sklearn.metrics import normalized_mutual_info_score, adjusted_mutual_info_score
 
 #TODO: add this to config file
 modality = 'res'
 intra_neg = False #True
 moco = False #True
 neg_type='repeat'
+
 
 def calc_mask_accuracy(output, target_mask, topk=(1,)):
     maxk = max(topk)
@@ -48,7 +49,8 @@ def calc_mask_accuracy(output, target_mask, topk=(1,)):
         pred_mask = onehot + pred_mask # accumulate 
         if k+1 in topk:
             res.append(((pred_mask * target_mask).sum(1)>=1).float().mean(0))
-    return res 
+    return res
+
 
 def UberNCE_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
@@ -57,7 +59,7 @@ def UberNCE_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
     top5_meter = AverageMeter()
 
     world_size = du_helper.get_world_size()
-    
+
     # switching to training mode
     model.train()
 
@@ -66,14 +68,14 @@ def UberNCE_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         B = x.shape[0]
         x = torch.tensor(x)
         return x.view(B, 3, 2, cfg.DATA.SAMPLE_DURATION, cfg.LOSS.FEAT_DIM, cfg.LOSS.FEAT_DIM).transpose(1,2).contiguous() #TODO: make it configureable
-    
+
     # Training loop
     start = time.time()
     for batch_idx, (inputs, labels, index) in enumerate(train_loader):
         inputs = np.concatenate(inputs, axis=1) # [ B, N, C, W, H]
-        input_seq = tr(inputs)        
+        input_seq = tr(inputs)
         batch_size = torch.tensor(input_seq.size(0)).to(device)
-        
+
         if cuda:
             input_seq = input_seq.to(device, non_blocking=True)
             label = labels[0].to(device, non_blocking=True)
@@ -135,11 +137,11 @@ def contrastive_train_epoch(train_loader, model, criterion_1, criterion_2, contr
     view2_prob_meter = AverageMeter()
 
     world_size = du_helper.get_world_size()
-    
+
     # switching to training mode
     model.train()
     contrast.train()
-    
+
     # Training loop
     start = time.time()
     for batch_idx, (inputs, labels, index) in enumerate(train_loader):
@@ -148,7 +150,7 @@ def contrastive_train_epoch(train_loader, model, criterion_1, criterion_2, contr
             view2 = inputs[1]
         elif modality == 'res':
             view2 = diff(view1)
-        
+
         batch_size = torch.tensor(view1.size(0)).to(device)
         # Prepare input and send to gpu
         if cfg.MODEL.ARCH == 'slowfast':
@@ -218,12 +220,9 @@ def contrastive_train_epoch(train_loader, model, criterion_1, criterion_2, contr
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
-
 def diff(x):
     shift_x = torch.roll(x, 1, 2)
     return ((x - shift_x) + 1) / 2
-
-
 
 
 def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
@@ -299,6 +298,7 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
 
 # =========================== Running Training Loop ========================== #
 
+
 # Setup training and run training loop
 def train(args, cfg):
     best_acc = 0
@@ -320,7 +320,7 @@ def train(args, cfg):
     # Select appropriate model
     if(is_master_proc):
         print('\n==> Generating {} backbone model (for training)...'.format(cfg.MODEL.ARCH))
-    
+
     model=model_selector(cfg, is_master_proc=is_master_proc)
 
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
@@ -330,12 +330,12 @@ def train(args, cfg):
     # Load pretrained backbone if path exists
     if args.pretrain_path is not None:
         model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
-    
+
     if cfg.MODEL.ARCH == 'uber_nce':
         encoder = model.encoder_q
     else:
         encoder = model
-        
+
     # Transfer model to DDP
     if cuda:
         model = model.cuda(device=device)
@@ -366,10 +366,10 @@ def train(args, cfg):
     # Setup tripletnet used for validation
     if(is_master_proc):
         print('\n==> Generating triplet network (for validation) ...')
-    
+
     #only for validation
     tripletnet = Tripletnet(encoder, cfg.LOSS.DIST_METRIC)
-    
+
     if cuda:
         tripletnet = tripletnet.cuda(device=device)
         if torch.cuda.device_count() > 1:
@@ -378,7 +378,7 @@ def train(args, cfg):
                     device_ids=[device], find_unused_parameters=True)
             else:
                 tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
-        
+
     # ======================== Loss and Optimizer Setup ========================
 
     if(is_master_proc):
@@ -392,10 +392,10 @@ def train(args, cfg):
 
     # ============================== Data Loaders ==============================
 
-    if not args.iterative_cluster:
+    if not args.iterative_cluster or start_epoch != 0:
         if(is_master_proc):
             print('\n==> Building training data loader (triplet)...')
-        train_loader, (train_sampler, _) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+        train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
     if(is_master_proc):
         print('\n==> Building validation data loader (triplet)...')
@@ -424,7 +424,7 @@ def train(args, cfg):
         if (is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
 
-        if args.iterative_cluster:
+        if args.iterative_cluster and epoch % cfg.ITERCLUSTER.INTERVAL == 0:
             # Get embeddings using current model
             if is_master_proc:
                 print('\n=> Computing embeddings')
@@ -440,18 +440,25 @@ def train(args, cfg):
                 print('\n=> Clustering')
                 start_time = time.time()
                 print('embeddings shape', embeddings.size())
-                trained_clustering_obj = fit_cluster(embeddings, 'kmeans')
+                trained_clustering_obj = fit_cluster(embeddings, 'kmeans', cfg.ITERCLUSTER.K)
                 print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
-                # Calculate NMI vs true labels and cluster assignments
+                # Calculate NMI for true labels vs cluster assignments
                 #true_labels = train_data.get_total_labels()
                 NMI = normalized_mutual_info_score(true_labels, trained_clustering_obj.labels_)
                 print('NMI between true labels and cluster assignments: {:.3f}\n'.format(NMI))
                 with open('{}/tnet_checkpoints/NMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
                     f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
 
+                # Calculate Adjusted NMI for true labels vs cluster assignements
+                AMI = adjusted_mutual_info_score(true_labels, trained_clustering_obj.labels_)
+                print('AMI between true labels and cluster assignments: {:.3f}\n'.format(AMI))
+                with open('{}/tnet_checkpoints/AMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
+                    f.write('epoch:{} {:.3f}\n'.format(epoch, AMI))
+
                 # Update probability of sampling positive from same video using NMI
-                cfg.DATASET.POSITIVE_SAMPLING_P = float(1.0 - NMI)
+                if cfg.ITERCLUSTER.ADAPTIVEP:
+                    cfg.DATASET.POSITIVE_SAMPLING_P = float(1.0 - NMI)
 
                 # Get cluster assignments in unshuffled order of dataset
                 cluster_assignments_unshuffled_order = [None] * len(eval_train_loader.dataset)
@@ -472,7 +479,7 @@ def train(args, cfg):
             # Rebuild train_loader with new cluster assignments as pseudolabels
             if(is_master_proc):
                 print('\n==> Building training data loader (triplet)...')
-            train_loader, (train_sampler,_) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+            train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
         # Call set_epoch on the distributed sampler so the data is shuffled
         if cfg.NUM_GPUS > 1:
@@ -482,7 +489,7 @@ def train(args, cfg):
         if cfg.LOSS.TYPE == 'triplet':
             if (is_master_proc): print('==> training with Triplet Loss')
             triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
-        
+
         elif cfg.LOSS.TYPE == 'contrastive':
             if (is_master_proc): print('==> training with Contrastive Loss')
             n_data = len(train_loader.dataset)
@@ -543,6 +550,8 @@ if __name__ == '__main__':
         assert(cfg.DATASET.TARGET_TYPE_T == 'cluster_label' and cfg.DATASET.POSITIVE_SAMPLING_P != 1.0)
         cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
 
+    print('Multiview positives (25% chance replace): {}'.format(cfg.DATASET.POS_CHANNEL_REPLACE))
+
     # Set shard_id to $SLURM_NODEID if running on compute canada
     shard_id = args.shard_id
     if args.compute_canada:
@@ -567,6 +576,8 @@ if __name__ == '__main__':
     print('NUM_WORKERS is set to: {}'.format(cfg.TRAIN.NUM_DATA_WORKERS))
     print('SAMPLE SIZE is set to: {}'.format(cfg.DATA.SAMPLE_SIZE))
     print('N_CLASSES is set to: {}'.format(cfg.RESNET.N_CLASSES))
+    print('ITERCLUSTER.INTERVAL is set to: {}'.format(cfg.ITERCLUSTER.INTERVAL))
+    print('ITERCLUSTER.ADAPTIVEP is set to: {}'.format(cfg.ITERCLUSTER.ADAPTIVEP))
     print('Learning rate is set to {}'.format(cfg.OPTIM.LR))
 
     # Launch processes for all gpus

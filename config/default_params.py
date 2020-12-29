@@ -61,6 +61,8 @@ _C.DATASET.SALIENT_PATH = ''
 _C.DATASET.OPTICAL_U_PATH = ''
 _C.DATASET.OPTICAL_V_PATH = ''
 
+_C.DATASET.POS_CHANNEL_REPLACE = False
+
 # -----------------------------------------------------------------------------
 # Slowfast options
 # -----------------------------------------------------------------------------
@@ -121,6 +123,14 @@ _C.OPTIM = CfgNode()
 _C.OPTIM.LR = 0.05
 _C.OPTIM.MOMENTUM = 0.5
 _C.OPTIM.SCHEDULE = []
+
+# -----------------------------------------------------------------------------
+# Iterative clustering options
+# -----------------------------------------------------------------------------
+_C.ITERCLUSTER = CfgNode()
+_C.ITERCLUSTER.INTERVAL = 5
+_C.ITERCLUSTER.K = 1000
+_C.ITERCLUSTER.ADAPTIVEP = False
 
 # -----------------------------------------------------------------------------
 # Misc options

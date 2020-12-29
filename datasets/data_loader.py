@@ -196,10 +196,12 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
     # Get input channel extension (e.g. salient object mask, keypoint channel)
     # dictionary and assert that the specified input_channel_num is valid
-    channel_ext = get_channel_extention(cfg)
-    assert (len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
-    if (is_master_proc):
-        print('Channel ext:', channel_ext)
+    channel_ext = {}
+    if (triplets and cfg.DATASET.POS_CHANNEL_REPLACE and split == 'train') or not cfg.DATASET.POS_CHANNEL_REPLACE:
+        channel_ext = get_channel_extention(cfg)
+        assert (cfg.DATASET.POS_CHANNEL_REPLACE or len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
+        if (is_master_proc):
+            print('Channel ext:', channel_ext)
 
     # Set the target type and path to clustering information
     if split == 'train':
@@ -227,15 +229,18 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
     if (is_master_proc):
         print ('Loading', cfg.TRAIN.DATASET, split, 'split...')
-    data, (collate_fn, cluster_labels) = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
+    data, (collate_fn, _) = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, normalize=normalize,
                 channel_ext=channel_ext, cluster_path=cluster_path,
                 target_type=target_type, val_sample=val_sample,
-                negative_sampling=negative_sampling, positive_sampling_p=cfg.DATASET.POSITIVE_SAMPLING_P,
+                negative_sampling=negative_sampling,
+                positive_sampling_p=cfg.DATASET.POSITIVE_SAMPLING_P,
+                pos_channel_replace=cfg.DATASET.POS_CHANNEL_REPLACE,
                 is_master_proc=is_master_proc)
     if (is_master_proc):
         print ('Single video input size:', data[1][0][0].size())
+
 
     # ============================ Build DataLoader ============================
 
@@ -286,7 +291,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                                                   worker_init_fn=worker_init_fn
                                                   # collate_fn=collate_fn)
                                                   )
-    return data_loader, (sampler, cluster_labels)
+    return data_loader, (data, sampler)
 
 
 if __name__ == '__main__':

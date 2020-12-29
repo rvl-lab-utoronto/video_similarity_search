@@ -34,7 +34,8 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
              file_type, triplets, sample_duration, spatial_transform=None,
              temporal_transform=None, normalize=None, target_transform=None, channel_ext={},
              cluster_path=None, target_type=None, val_sample=1,
-             negative_sampling=False, positive_sampling_p=1.0, is_master_proc=True):
+             negative_sampling=False, positive_sampling_p=1.0,
+             pos_channel_replace=False, is_master_proc=True):
 
     assert split in ['train', 'val', 'test']
     assert dataset_name in ['kinetics', 'ucf101']
@@ -79,6 +80,10 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
         # else:
         #     cluster_labels = None
 
+        # Don't do channel replacements (multiview) for validation
+        if split != 'train':
+            pos_channel_replace=False
+
         data = TripletsData(data = Dataset.get_dataset(),
                             class_names = Dataset.get_idx_to_class_map(),
                             cluster_labels = cluster_labels,
@@ -91,7 +96,8 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                             video_loader=loader,
                             target_type=target_type,
                             negative_sampling=negative_sampling,
-                            positive_sampling_p = positive_sampling_p)
+                            positive_sampling_p=positive_sampling_p,
+                            pos_channel_replace=pos_channel_replace)
     else:
         if (is_master_proc):
             print('Using single video dataset...')

@@ -12,6 +12,10 @@ DATASET:
     SAMPLING_STRATEGY: 'random_semi_hard'
     POSITIVE_SAMPLING_P: 0.2
 
+    POS_CHANNEL_REPLACE: True
+    CHANNEL_EXTENSIONS: 'salient'
+    SALIENT_PATH: /media/diskstation/datasets/UCF101/poolnet_new
+
 MODEL:
     ARCH: '3dresnet'
 

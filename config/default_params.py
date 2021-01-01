@@ -61,6 +61,8 @@ _C.DATASET.SALIENT_PATH = ''
 _C.DATASET.OPTICAL_U_PATH = ''
 _C.DATASET.OPTICAL_V_PATH = ''
 
+_C.DATASET.POS_CHANNEL_REPLACE = False
+
 # -----------------------------------------------------------------------------
 # Slowfast options
 # -----------------------------------------------------------------------------
@@ -104,22 +106,31 @@ _C.DATA.INPUT_CHANNEL_NUM = 3
 # Loss Options
 # -----------------------------------------------------------------------------
 _C.LOSS = CfgNode()
+_C.LOSS.TYPE = 'triplet'
 _C.LOSS.MARGIN = 0.2
 _C.LOSS.DIST_METRIC = 'cosine'
 #_C.LOSS.DIST_METRIC = 'euclidean'
 
 # NCE loss params
 _C.LOSS.K = 1024 #num of negatives
-_C.LOSS.T = 0.07
-_C.LOSS.M = 0.5
-_C.LOSS.FEAT_DIM = 64
+_C.LOSS.T = 0.07 #temperature
+_C.LOSS.M = 0.5 #momentum
+_C.LOSS.FEAT_DIM = 128
 # -----------------------------------------------------------------------------
 # Optimizer options
 # -----------------------------------------------------------------------------
 _C.OPTIM = CfgNode()
 _C.OPTIM.LR = 0.05
 _C.OPTIM.MOMENTUM = 0.5
+_C.OPTIM.SCHEDULE = []
 
+# -----------------------------------------------------------------------------
+# Iterative clustering options
+# -----------------------------------------------------------------------------
+_C.ITERCLUSTER = CfgNode()
+_C.ITERCLUSTER.INTERVAL = 5
+_C.ITERCLUSTER.K = 1000
+_C.ITERCLUSTER.ADAPTIVEP = False
 
 # -----------------------------------------------------------------------------
 # Misc options

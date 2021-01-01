@@ -22,7 +22,7 @@ def arg_parser():
         help='Path to checkpoint'
     )
     parser.add_argument(
-        "--cfg",
+        "--cfg", '-cfg',
         default=None,
         dest="cfg_file", type=str,
         help="Path to the config file",
@@ -76,7 +76,7 @@ def arg_parser():
         type=int
     )
     parser.add_argument(
-        "--ip_address_port",
+        "--ip_address_port", '-ip',
         default="tcp://localhost:9999",
         type=str
     )
@@ -111,7 +111,7 @@ def arg_parser():
         help='validation batch size'
     )
     parser.add_argument(
-        '--iterative_cluster',
+        '--iterative_cluster', '-ic',
         action='store_true',
         help='Perform iterative clustering for pseudolabel assignment'
     )

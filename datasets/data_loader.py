@@ -199,7 +199,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     channel_ext = {}
     if (triplets and cfg.DATASET.POS_CHANNEL_REPLACE and split == 'train') or not cfg.DATASET.POS_CHANNEL_REPLACE:
         channel_ext = get_channel_extention(cfg)
-        assert (cfg.DATASET.POS_CHANNEL_REPLACE or len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
+        assert (cfg.DATASET.MODALITY or cfg.DATASET.POS_CHANNEL_REPLACE or len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
         if (is_master_proc):
             print('Channel ext:', channel_ext)
 
@@ -237,10 +237,10 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 negative_sampling=negative_sampling,
                 positive_sampling_p=cfg.DATASET.POSITIVE_SAMPLING_P,
                 pos_channel_replace=cfg.DATASET.POS_CHANNEL_REPLACE,
+                modality=cfg.DATASET.MODALITY,
                 is_master_proc=is_master_proc)
-    if (is_master_proc):
-        print ('Single video input size:', data[1][0][0].size())
-
+    # if (is_master_proc):
+    #     print ('Single video input size:', data.size())
 
     # ============================ Build DataLoader ============================
 

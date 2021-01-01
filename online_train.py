@@ -225,6 +225,80 @@ def diff(x):
     return ((x - shift_x) + 1) / 2
 
 
+
+def triplet_multiview_train_epoch(train_loader, model1, model2, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
+    losses = AverageMeter()
+    accs = AverageMeter()
+    running_n_triplets = AverageMeter()
+    world_size = du_helper.get_world_size()
+    # switching to training mode
+    model.train()
+
+    # Training loop
+    start = time.time()
+    for batch_idx, (inputs, targets, idx) in enumerate(train_loader):
+        anchor, positive = inputs
+        a_target, p_target = targets
+        batch_size = torch.tensor(anchor.size(0)).to(device)
+        targets = torch.cat((a_target, p_target), 0)
+
+        # Prepare input and send to gpu
+        if cfg.MODEL.ARCH == 'slowfast':
+            anchor = multipathway_input(anchor, cfg)
+            positive = multipathway_input(positive, cfg)
+            if cuda:
+                for i in range(len(anchor)):
+                    anchor[i], positive[i]= anchor[i].to(device), positive[i].to(device)
+        elif cuda:
+            anchor, positive = anchor.to(device), positive.to(device)
+
+        # Get embeddings of anchors and positives
+        anchor_outputs = model(anchor)
+        positive_outputs = model(positive)
+        outputs = torch.cat((anchor_outputs, positive_outputs), 0)  # dim: [(batch_size * 2), dim_embedding]
+        if cuda:
+            targets = targets.to(device)
+
+        # Sample negatives from batch for each anchor/positive and compute loss
+        loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+
+        # Compute gradient and perform optimization step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # Average loss across all gpu processes
+        if cfg.NUM_GPUS > 1:
+            [loss] = du_helper.all_reduce([loss], avg=True)
+            [batch_size_world] = du_helper.all_reduce([batch_size], avg=False)
+        else:
+            batch_size_world = batch_size
+
+        batch_size_world = batch_size_world.item()
+
+        # Update running loss
+        losses.update(loss.item(), batch_size_world)
+        running_n_triplets.update(n_triplets)
+
+        # Log
+        if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
+            print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
+                  'Loss: {:.4f} ({:.4f}) \t'
+                  'N_Triplets: {:.1f}'.format(epoch, losses.count,
+                    len(train_loader.dataset),
+                    100. * (losses.count / len(train_loader.dataset)),
+                    losses.val, losses.avg, running_n_triplets.avg))
+
+    if (is_master_proc):
+        print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
+        print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
+        with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
+            f.write('epoch:{} runtime:{} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg))
+        print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
+
+
+
+
 def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
@@ -321,23 +395,31 @@ def train(args, cfg):
     if(is_master_proc):
         print('\n==> Generating {} backbone model (for training)...'.format(cfg.MODEL.ARCH))
 
-    model=model_selector(cfg, is_master_proc=is_master_proc)
+    if cfg.DATASET.MODALITY==True:
+        model1=model_selector(cfg, is_master_proc=is_master_proc)
+        model2=model_selector(cfg, is_master_proc=is_master_proc)
+    
+    else:
+        model=model_selector(cfg, is_master_proc=is_master_proc)
 
-    n_parameters = sum([p.data.nelement() for p in model.parameters()])
-    if(is_master_proc):
-        print('Number of params: {}'.format(n_parameters))
+        n_parameters = sum([p.data.nelement() for p in model.parameters()])
+        if(is_master_proc):
+            print('Number of params: {}'.format(n_parameters))
 
-    # Load pretrained backbone if path exists
-    if args.pretrain_path is not None:
-        model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
+        # Load pretrained backbone if path exists
+        if args.pretrain_path is not None:
+            model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
 
     if cfg.MODEL.ARCH == 'uber_nce':
         encoder = model.encoder_q
     else:
-        encoder = model
+        if cfg.DATASET.MODALITY==True:
+            encoder = model1 
+        else:
+            encoder = model
 
-    # Transfer model to DDP
-    if cuda:
+    def DDP(model):
+        # Transfer model to DDP
         model = model.cuda(device=device)
         if torch.cuda.device_count() > 1:
             #model = nn.DataParallel(model)
@@ -347,21 +429,25 @@ def train(args, cfg):
             else:
                 model = torch.nn.parallel.DistributedDataParallel(module=model,
                     device_ids=[device], broadcast_buffers=False)
+        return model
 
-    # if cuda:
-        encoder = encoder.cuda(device=device)
-        if torch.cuda.device_count() > 1:
-            #model = nn.DataParallel(model)
-            if cfg.MODEL.ARCH == '3dresnet':
-                encoder = torch.nn.parallel.DistributedDataParallel(module=encoder,
-                    device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
-            else:
-                encoder = torch.nn.parallel.DistributedDataParallel(module=encoder,
-                    device_ids=[device], broadcast_buffers=False)
+    if cuda:
+        if cfg.DATASET.MODALITY==True:
+            model1 = DDP(model1)
+            model2 = DDP(model2)
+
+        else:
+            model = DDP(model)
+
+        encoder = DDP(encoder)
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
-        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
+        if cfg.DATASET.MODALITY==True:
+            start_epoch, best_acc = load_checkpoint(model1, args.checkpoint_path + '_1', is_master_proc)
+            start_epoch, best_acc = load_checkpoint(model2, args.checkpoint_path + '_2', is_master_proc)
+        else:
+            start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
 
     # Setup tripletnet used for validation
     if(is_master_proc):
@@ -380,15 +466,26 @@ def train(args, cfg):
                 tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
 
     # ======================== Loss and Optimizer Setup ========================
+    if cfg.DATASET.MODALITY == True:
+        if(is_master_proc):
+            print('\n==> Setting criterion...')
+            val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
+            criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
+            optimizer1 = optim.SGD(model1.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+            optimizer2 = optim.SGD(model2.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+            if(is_master_proc):
+                print('Using criterion:{} for training'.format(criterion))
+                print('Using criterion:{} for validation'.format(val_criterion))
 
-    if(is_master_proc):
-        print('\n==> Setting criterion...')
-    val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-    criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
-    optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
-    if(is_master_proc):
-        print('Using criterion:{} for training'.format(criterion))
-        print('Using criterion:{} for validation'.format(val_criterion))
+    else:
+        if(is_master_proc):
+            print('\n==> Setting criterion...')
+            val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
+            criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
+            optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+            if(is_master_proc):
+                print('Using criterion:{} for training'.format(criterion))
+                print('Using criterion:{} for validation'.format(val_criterion))
 
     # ============================== Data Loaders ==============================
 
@@ -488,7 +585,10 @@ def train(args, cfg):
         # Train 
         if cfg.LOSS.TYPE == 'triplet':
             if (is_master_proc): print('==> training with Triplet Loss')
-            triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+            if cfg.DATASET.MODALITY==True:
+                triplet_multiview_train_epoch(train_loader, model1, model2, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+            else:
+                triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
 
         elif cfg.LOSS.TYPE == 'contrastive':
             if (is_master_proc): print('==> training with Contrastive Loss')

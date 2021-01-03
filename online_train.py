@@ -226,17 +226,19 @@ def diff(x):
 
 
 
-def triplet_multiview_train_epoch(train_loader, model1, model2, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
+def triplet_multiview_train_epoch(train_loader, model1, model2, criterion, optimizer1, optimizer2, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
     running_n_triplets = AverageMeter()
     world_size = du_helper.get_world_size()
     # switching to training mode
-    model.train()
+    model1.train()
+    model2.train()
 
     # Training loop
     start = time.time()
     for batch_idx, (inputs, targets, idx) in enumerate(train_loader):
+        print(inputs)
         anchor, positive = inputs
         a_target, p_target = targets
         batch_size = torch.tensor(anchor.size(0)).to(device)
@@ -586,7 +588,7 @@ def train(args, cfg):
         if cfg.LOSS.TYPE == 'triplet':
             if (is_master_proc): print('==> training with Triplet Loss')
             if cfg.DATASET.MODALITY==True:
-                triplet_multiview_train_epoch(train_loader, model1, model2, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+                triplet_multiview_train_epoch(train_loader, model1, model2, criterion, optimizer1, optimizer2, epoch, cfg, cuda, device, is_master_proc)
             else:
                 triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
 
@@ -617,12 +619,13 @@ def train(args, cfg):
         # Validate
         if is_master_proc:
             print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
-        acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
+        
+        # acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
         if epoch % 10 == 0:
-            if is_master_proc:
-                print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
-            topk_acc = k_nearest_embeddings(args, encoder, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg,
-                                        plot=False, epoch=epoch, is_master_proc=is_master_proc)
+            # if is_master_proc:
+            #     print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
+            # topk_acc = k_nearest_embeddings(args, encoder, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg,
+            #                             plot=False, epoch=epoch, is_master_proc=is_master_proc)
             embeddings_computed = True
             #if is_master_proc:
             #    print('\n=> Validating with global top1/5 retrieval from train set with queries from train set')

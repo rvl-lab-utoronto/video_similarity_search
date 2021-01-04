@@ -6,7 +6,7 @@ DATASET:
     VID_PATH: ./jpg
     ANNOTATION_PATH: /home/cheny257/projects/def-florian7/datasets/UCF101/json/ucf101_01.json
     CHANNEL_EXTENSIONS: 'keypoint'
-    KEYPOINT_PATH: ./lw_pose
+    KEYPOINT_PATH: ./alphapose
 
 
 MODEL:
@@ -25,7 +25,7 @@ RESNET:
 DATA:
     SAMPLE_SIZE: 128
     SAMPLE_DURATION: 16
-    INPUT_CHANNEL_NUM: 3
+    INPUT_CHANNEL_NUM: 4
 
 LOSS:
     MARGIN: 0.1

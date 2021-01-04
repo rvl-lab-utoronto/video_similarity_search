@@ -17,8 +17,8 @@ source /home/cheny257/projects/def-florian7/cheny257/code/resnet_env/bin/activat
 clush -w $(slurm_hl2hl.py --format PDSH) tar -xvf /home/cheny257/projects/def-florian7/datasets/UCF101/jpg.tar.gz -C $SLURM_TMPDIR
 echo 'Extracted jpg.tar.gz'
 
-clush -w $(slurm_hl2hl.py --format PDSH) tar -xvf /home/cheny257/projects/def-florian7/datasets/UCF101/alphapose.tar.gz -C $SLURM_TMPDIR
-echo 'Extracted alphapose.tar.gz'
+clush -w $(slurm_hl2hl.py --format PDSH) tar -xvf /home/cheny257/projects/def-florian7/datasets/UCF101/alphapose_v3.tar.gz -C $SLURM_TMPDIR
+echo 'Extracted alphapose_v3.tar.gz' #changed to alphapose_v3
 
 clush -w $(slurm_hl2hl.py --format PDSH) tar -xvf /home/cheny257/projects/def-florian7/datasets/UCF101/poolnet_new.tar.gz -C $SLURM_TMPDIR
 echo 'Extracted poolnet_new.tar.gz'

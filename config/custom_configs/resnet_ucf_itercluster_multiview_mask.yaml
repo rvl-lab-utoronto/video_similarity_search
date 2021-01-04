@@ -4,7 +4,7 @@ TRAIN:
 DATASET:
     VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
     ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
-    #CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
+    # CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt' #EDIT TODELETE
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'

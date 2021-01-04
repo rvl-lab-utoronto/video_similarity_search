@@ -226,37 +226,35 @@ def diff(x):
 
 
 
-def triplet_multiview_train_epoch(train_loader, model1, model2, criterion, optimizer1, optimizer2, epoch, cfg, cuda, device, is_master_proc=True):
+def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
     running_n_triplets = AverageMeter()
     world_size = du_helper.get_world_size()
     # switching to training mode
-    model1.train()
-    model2.train()
+    model.train()
 
     # Training loop
     start = time.time()
     for batch_idx, (inputs, targets, idx) in enumerate(train_loader):
-        print(inputs)
-        anchor, positive = inputs
+        # print(len(inputs), len(inputs[0]), inputs[0][0].size())
+        anchors, positives = inputs
         a_target, p_target = targets
-        batch_size = torch.tensor(anchor.size(0)).to(device)
+
+        anchor_v1, anchor_v2 = anchors
+        positive_v1, positive_v2 = positives
+
+        batch_size = torch.tensor(anchor_v1.size(0)).to(device)
         targets = torch.cat((a_target, p_target), 0)
 
-        # Prepare input and send to gpu
-        if cfg.MODEL.ARCH == 'slowfast':
-            anchor = multipathway_input(anchor, cfg)
-            positive = multipathway_input(positive, cfg)
-            if cuda:
-                for i in range(len(anchor)):
-                    anchor[i], positive[i]= anchor[i].to(device), positive[i].to(device)
-        elif cuda:
-            anchor, positive = anchor.to(device), positive.to(device)
+        if cuda:
+            anchor_v1, positive_v1 = anchor_v1.to(device), positive_v1.to(device)
+            anchor_v2, positive_v2 = anchor_v2.to(device), positive_v2.to(device)
 
         # Get embeddings of anchors and positives
-        anchor_outputs = model(anchor)
-        positive_outputs = model(positive)
+        anchor_outputs = model((anchor_v1, anchor_v2))
+        positive_outputs = model((positive_v1, positive_v2))
+
         outputs = torch.cat((anchor_outputs, positive_outputs), 0)  # dim: [(batch_size * 2), dim_embedding]
         if cuda:
             targets = targets.to(device)
@@ -397,28 +395,21 @@ def train(args, cfg):
     if(is_master_proc):
         print('\n==> Generating {} backbone model (for training)...'.format(cfg.MODEL.ARCH))
 
-    if cfg.DATASET.MODALITY==True:
-        model1=model_selector(cfg, is_master_proc=is_master_proc)
-        model2=model_selector(cfg, is_master_proc=is_master_proc)
-    
-    else:
-        model=model_selector(cfg, is_master_proc=is_master_proc)
 
-        n_parameters = sum([p.data.nelement() for p in model.parameters()])
-        if(is_master_proc):
-            print('Number of params: {}'.format(n_parameters))
+    model=model_selector(cfg, is_master_proc=is_master_proc)
 
-        # Load pretrained backbone if path exists
-        if args.pretrain_path is not None:
-            model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
+    n_parameters = sum([p.data.nelement() for p in model.parameters()])
+    if(is_master_proc):
+        print('Number of params: {}'.format(n_parameters))
+
+    # Load pretrained backbone if path exists
+    if args.pretrain_path is not None:
+        model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
 
     if cfg.MODEL.ARCH == 'uber_nce':
         encoder = model.encoder_q
     else:
-        if cfg.DATASET.MODALITY==True:
-            encoder = model1 
-        else:
-            encoder = model
+        encoder = model
 
     def DDP(model):
         # Transfer model to DDP
@@ -434,22 +425,12 @@ def train(args, cfg):
         return model
 
     if cuda:
-        if cfg.DATASET.MODALITY==True:
-            model1 = DDP(model1)
-            model2 = DDP(model2)
-
-        else:
-            model = DDP(model)
-
+        model = DDP(model)
         encoder = DDP(encoder)
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
-        if cfg.DATASET.MODALITY==True:
-            start_epoch, best_acc = load_checkpoint(model1, args.checkpoint_path + '_1', is_master_proc)
-            start_epoch, best_acc = load_checkpoint(model2, args.checkpoint_path + '_2', is_master_proc)
-        else:
-            start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
+        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
 
     # Setup tripletnet used for validation
     if(is_master_proc):
@@ -468,26 +449,14 @@ def train(args, cfg):
                 tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
 
     # ======================== Loss and Optimizer Setup ========================
-    if cfg.DATASET.MODALITY == True:
+    if(is_master_proc):
+        print('\n==> Setting criterion...')
+        val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
+        criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
+        optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
         if(is_master_proc):
-            print('\n==> Setting criterion...')
-            val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-            criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
-            optimizer1 = optim.SGD(model1.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
-            optimizer2 = optim.SGD(model2.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
-            if(is_master_proc):
-                print('Using criterion:{} for training'.format(criterion))
-                print('Using criterion:{} for validation'.format(val_criterion))
-
-    else:
-        if(is_master_proc):
-            print('\n==> Setting criterion...')
-            val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-            criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
-            optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
-            if(is_master_proc):
-                print('Using criterion:{} for training'.format(criterion))
-                print('Using criterion:{} for validation'.format(val_criterion))
+            print('Using criterion:{} for training'.format(criterion))
+            print('Using criterion:{} for validation'.format(val_criterion))
 
     # ============================== Data Loaders ==============================
 
@@ -588,7 +557,7 @@ def train(args, cfg):
         if cfg.LOSS.TYPE == 'triplet':
             if (is_master_proc): print('==> training with Triplet Loss')
             if cfg.DATASET.MODALITY==True:
-                triplet_multiview_train_epoch(train_loader, model1, model2, criterion, optimizer1, optimizer2, epoch, cfg, cuda, device, is_master_proc)
+                triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
             else:
                 triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
 
@@ -620,16 +589,16 @@ def train(args, cfg):
         if is_master_proc:
             print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
         
-        # acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
+        acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
         if epoch % 10 == 0:
-            # if is_master_proc:
-            #     print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
-            # topk_acc = k_nearest_embeddings(args, encoder, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg,
-            #                             plot=False, epoch=epoch, is_master_proc=is_master_proc)
+            if is_master_proc:
+                print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
+            topk_acc = k_nearest_embeddings(args, encoder, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg,
+                                        plot=False, epoch=epoch, is_master_proc=is_master_proc)
             embeddings_computed = True
-            #if is_master_proc:
+            # if is_master_proc:
             #    print('\n=> Validating with global top1/5 retrieval from train set with queries from train set')
-            #top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_train_loader, train_data, train_data, cfg, plot=False,
+            # top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_train_loader, train_data, train_data, cfg, plot=False,
             #                        epoch=epoch, is_master_proc=is_master_proc, out_filename='train_retrieval_acc')
 
         # Update best accuracy and save checkpoint

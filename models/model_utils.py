@@ -16,7 +16,7 @@ import copy
 import torchvision
 from models.baselines.inflate_src.i3res import I3ResNet
 from models.baselines.simclr_pytorch.resnet_wider import resnet50x1
-
+from models.multiview import Multiview
 
 def create_output_dirs(cfg):
     if not os.path.exists(cfg.OUTPUT_PATH):
@@ -101,6 +101,22 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
                         no_max_pool=cfg.RESNET.NO_MAX_POOl,
                         widen_factor=cfg.RESNET.WIDEN_FACTOR,
                         projection_head=projection_head)
+        #only resnet supports multiview for now
+        if cfg.DATASET.MODALITY == True:
+            encoder1 = model
+            encoder2 = generate_model(model_depth=cfg.RESNET.MODEL_DEPTH,
+                        hidden_layer=cfg.RESNET.HIDDEN_LAYER,
+                        out_dim=cfg.RESNET.OUT_DIM,
+                        n_input_channels=cfg.DATA.INPUT_CHANNEL_NUM,
+                        shortcut_type=cfg.RESNET.SHORTCUT,
+                        conv1_t_size=cfg.RESNET.CONV1_T_SIZE,
+                        conv1_t_stride=cfg.RESNET.CONV1_T_STRIDE,
+                        no_max_pool=cfg.RESNET.NO_MAX_POOl,
+                        widen_factor=cfg.RESNET.WIDEN_FACTOR,
+                        projection_head=projection_head)
+                        
+            model = Multiview(encoder1, encoder2, cfg.RESNET.OUT_DIM)
+
 
     elif cfg.MODEL.ARCH == 's3d':
         dim = 128
@@ -161,6 +177,7 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
 
     elif cfg.MODEL.ARCH == 'mocov2_pretrained_inflated_res50':
         model = mocov2_inflated(cfg.DATA.SAMPLE_DURATION)
+    
 
     return model
 

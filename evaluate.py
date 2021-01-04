@@ -95,15 +95,21 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
     world_size = du_helper.get_world_size()
     with torch.no_grad():
         for batch_idx, (input, targets, info, indexes) in enumerate(data_loader):
-            batch_size = input.size(0)
-            if cfg.MODEL.ARCH == 'slowfast':
-                input = multipathway_input(input, cfg)
+            if cfg.DATASET.MODALITY == True:
+                batch_size = input[0].size(0)
                 if cuda:
                     for i in range(len(input)):
                         input[i] = input[i].to(device)
             else:
-                if cuda:
-                    input= input.to(device)
+                batch_size = input.size(0)
+                if cfg.MODEL.ARCH == 'slowfast':
+                    input = multipathway_input(input, cfg)
+                    if cuda:
+                        for i in range(len(input)):
+                            input[i] = input[i].to(device)
+                else:
+                    if cuda:
+                        input= input.to(device)
             if cuda:
                 targets = targets.to(device)
                 indexes = indexes.to(device)

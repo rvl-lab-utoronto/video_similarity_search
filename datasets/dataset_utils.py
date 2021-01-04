@@ -32,32 +32,32 @@ def construct_net_input(vid_loader, channel_ext, spatial_transform,
     SALIENT_MASK_THRESHOLD = 0.01
 
     if modality:
-        if split == 'val':
-            pass
+        # if split == 'val':
+        #     pass
+        # else:
+        assert len(channel_paths) == 1, 'Only 1 other view for now'
+        for key_i in channel_paths:
+            key = key_i
+            break
+        channel_path = channel_paths[key]
+        channel_loader = channel_ext[key][1]
+        channel_clip = channel_loader(channel_path, frame_indices)
+        if spatial_transform is not None:
+            channel_clip = [spatial_transform(img) for img in channel_clip]
+
+        if key != 'salient' or key == 'salient' and \
+                torch.mean(torch.stack(channel_clip, 0)) >= SALIENT_MASK_THRESHOLD:
+
+            channel_clip = [torch.cat((channel_clip[i], channel_clip[i], channel_clip[i]), dim=0) for i in
+                range(len(channel_clip))]
         else:
-            assert len(channel_paths) == 1, 'Only 1 other view for now'
-            for key_i in channel_paths:
-                key = key_i
-                break
-            channel_path = channel_paths[key]
-            channel_loader = channel_ext[key][1]
-            channel_clip = channel_loader(channel_path, frame_indices)
-            if spatial_transform is not None:
-                channel_clip = [spatial_transform(img) for img in channel_clip]
+            channel_clip = clip
 
-            if key != 'salient' or key == 'salient' and \
-                    torch.mean(torch.stack(channel_clip, 0)) >= SALIENT_MASK_THRESHOLD:
-
-                channel_clip = [torch.cat((channel_clip[i], channel_clip[i], channel_clip[i]), dim=0) for i in
-                    range(len(channel_clip))]
-            else:
-                channel_clip = clip
-
-            clip = [normalize_fn(img) for img in clip]
-            clip = torch.stack(clip, 0).permute(1, 0, 2, 3) #change to (C, D, H, W)
-            channel_clip = [normalize_fn(img) for img in channel_clip]
-            channel_clip= torch.stack(channel_clip, 0).permute(1, 0, 2, 3) #change to (C, D, H, W)
-            return [clip, channel_clip]
+        clip = [normalize_fn(img) for img in clip]
+        clip = torch.stack(clip, 0).permute(1, 0, 2, 3) #change to (C, D, H, W)
+        channel_clip = [normalize_fn(img) for img in channel_clip]
+        channel_clip= torch.stack(channel_clip, 0).permute(1, 0, 2, 3) #change to (C, D, H, W)
+        return [clip, channel_clip]
 
     elif pos_channel_replace:
         # Threshold for mean for salient view (if > threshold, salient view is

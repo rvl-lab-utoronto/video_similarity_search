@@ -553,6 +553,8 @@ def train(args, cfg):
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
+        acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
+
         # Train 
         if cfg.LOSS.TYPE == 'triplet':
             if (is_master_proc): print('==> training with Triplet Loss')

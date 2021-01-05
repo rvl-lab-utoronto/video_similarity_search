@@ -3,7 +3,7 @@
 #SBATCH --time=0-20:10:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=resnet_u_kp_mask_multinodes
+#SBATCH --job-name=resnet_ucf_mask_iterclusterlr0.05
 #SBATCH --output=%x-%j.out
 #SBATCH --gres=gpu:v100l:4
 #SBATCH --mem=48G
@@ -12,13 +12,11 @@
 
 module load python/3.6
 
-source /home/cheny257/projects/def-florian7/cheny257/code/resnet_env/bin/activate
+source /home/cheny257/projects/def-florian7/cheny257/vidsim_env/bin/activate
+
 
 clush -w $(slurm_hl2hl.py --format PDSH) tar -xvf /home/cheny257/projects/def-florian7/datasets/UCF101/jpg.tar.gz -C $SLURM_TMPDIR
 echo 'Extracted jpg.tar.gz'
-
-clush -w $(slurm_hl2hl.py --format PDSH) tar -xvf /home/cheny257/projects/def-florian7/datasets/UCF101/alphapose_v3.tar.gz -C $SLURM_TMPDIR
-echo 'Extracted alphapose_v3.tar.gz' #changed to alphapose_v3
 
 clush -w $(slurm_hl2hl.py --format PDSH) tar -xvf /home/cheny257/projects/def-florian7/datasets/UCF101/poolnet_new.tar.gz -C $SLURM_TMPDIR
 echo 'Extracted poolnet_new.tar.gz'
@@ -32,13 +30,14 @@ echo master_address:$MASTER_ADDRESS
 MPORT=3456
 echo master_port:$MPORT
 
-srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/train.py \
---cfg '/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/custom_configs/cc_resnet_kp_mask_ucf.yaml' \
+srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/online_train.py \
+--cfg '/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/custom_configs/cc_resnet_ucf_itercluster_mask.yaml' \
 --gpu 0,1,2,3 \
 --num_data_workers 4 \
---batch_size 32 \
---output '/home/cheny257/projects/def-florian7/cheny257/output/ResNet18_U_kp_mask_08232020' \
+--batch_size 40 \
+--output '/home/cheny257/projects/def-florian7/cheny257/output/resnet_ucf_mask_itercluster_lr0.05' \
 --num_shards 2 \
---epoch 200 \
+--epoch 600 \
 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT \
--cc
+--compute_canada \
+-ic

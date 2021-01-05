@@ -402,10 +402,6 @@ def train(args, cfg):
     if(is_master_proc):
         print('Number of params: {}'.format(n_parameters))
 
-    # Load pretrained backbone if path exists
-    if args.pretrain_path is not None:
-        model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
-
     if cfg.MODEL.ARCH == 'uber_nce':
         encoder = model.encoder_q
     else:
@@ -427,6 +423,10 @@ def train(args, cfg):
     if cuda:
         model = DDP(model)
         encoder = DDP(encoder)
+
+    # Load pretrained backbone if path exists
+    if args.pretrain_path is not None:
+        model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:

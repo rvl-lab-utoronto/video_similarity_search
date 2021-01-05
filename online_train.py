@@ -252,9 +252,7 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
             anchor, positive = anchor.to(device), positive.to(device)
 
         # Get embeddings of anchors and positives
-        anchor_outputs = model(anchor)
-        positive_outputs = model(positive)
-        outputs = torch.cat((anchor_outputs, positive_outputs), 0)  # dim: [(batch_size * 2), dim_embedding]
+        outputs = model(torch.cat((anchor, positive), 0))  # dim: [(batch_size * 2), dim_embedding]
         if cuda:
             targets = targets.to(device)
 
@@ -424,6 +422,8 @@ def train(args, cfg):
         if (is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
 
+        # =================== Compute embeddings and cluster ===================
+
         if args.iterative_cluster and epoch % cfg.ITERCLUSTER.INTERVAL == 0:
             # Get embeddings using current model
             if is_master_proc:
@@ -446,7 +446,7 @@ def train(args, cfg):
                 # Calculate NMI for true labels vs cluster assignments
                 #true_labels = train_data.get_total_labels()
                 NMI = normalized_mutual_info_score(true_labels, trained_clustering_obj.labels_)
-                print('NMI between true labels and cluster assignments: {:.3f}\n'.format(NMI))
+                print('NMI between true labels and cluster assignments: {:.3f}'.format(NMI))
                 with open('{}/tnet_checkpoints/NMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
                     f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
 
@@ -481,53 +481,67 @@ def train(args, cfg):
                 print('\n==> Building training data loader (triplet)...')
             train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
+        # ====================== Training for this epoch =======================
+
         # Call set_epoch on the distributed sampler so the data is shuffled
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
         # Train 
         if cfg.LOSS.TYPE == 'triplet':
-            if (is_master_proc): print('==> training with Triplet Loss')
-            triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+            if (is_master_proc): print('\n==> Training with Triplet Loss')
+            triplet_train_epoch(train_loader, model, criterion, optimizer,
+                    epoch, cfg, cuda, device, is_master_proc)
 
         elif cfg.LOSS.TYPE == 'contrastive':
-            if (is_master_proc): print('==> training with Contrastive Loss')
+            if (is_master_proc): print('\n==> Training with Contrastive Loss')
             n_data = len(train_loader.dataset)
             # n_data = len(cluster_labels) #n_labels
             if intra_neg:
-                contrast = NCEAverage_intra_neg(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
+                contrast = NCEAverage_intra_neg(cfg.LOSS.FEAT_DIM, n_data,
+                        cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
             elif moco:
-                contrast = MemoryMoCo(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T).to(device)
+                contrast = MemoryMoCo(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K,
+                        cfg.LOSS.T).to(device)
             else:
-                contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
+                contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K,
+                        cfg.LOSS.T, cfg.LOSS.M).to(device)
 
             criterion_1 = NCESoftmaxLoss().to(device)
             criterion_2 = NCESoftmaxLoss().to(device)
             if(is_master_proc):
                 print('Using criterion:{} for training'.format(criterion_1, criterion_2))
                 print('Using criterion:{} for validation'.format(val_criterion))
-            contrastive_train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
+            contrastive_train_epoch(train_loader, model, criterion_1, criterion_2,
+                    contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
+
         elif cfg.LOSS.TYPE == 'UberNCE':
             criterion = nn.CrossEntropyLoss().to(device)
-            UberNCE_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+            UberNCE_train_epoch(train_loader, model, criterion, optimizer,
+                    epoch, cfg, cuda, device, is_master_proc)
+
         else:
             assert False, 'Loss Type:{} not recognized'.format(cfg.LOSS.TYPE)
 
+        # Old embeddings are now obsolete
         embeddings_computed = False
-        # Validate
+
+        # ============================= Evaluation =============================
+
+        # Validate with triplet loss and retrieval on val set with query from val set 
         if is_master_proc:
             print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
-        acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
+        acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda,
+                device, is_master_proc)
+
+        # Validate witt retrieval on train set with query from val set
         if epoch % 10 == 0:
             if is_master_proc:
                 print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
-            topk_acc = k_nearest_embeddings(args, encoder, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg,
+            topk_acc = k_nearest_embeddings(args, encoder, cuda, device,
+                    eval_train_loader, eval_val_loader, train_data, val_data, cfg,
                                         plot=False, epoch=epoch, is_master_proc=is_master_proc)
             embeddings_computed = True
-            #if is_master_proc:
-            #    print('\n=> Validating with global top1/5 retrieval from train set with queries from train set')
-            #top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_train_loader, train_data, train_data, cfg, plot=False,
-            #                        epoch=epoch, is_master_proc=is_master_proc, out_filename='train_retrieval_acc')
 
         # Update best accuracy and save checkpoint
         is_best = acc > best_acc

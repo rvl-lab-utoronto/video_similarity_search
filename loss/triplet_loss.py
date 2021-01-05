@@ -84,7 +84,7 @@ class NegativeTripletSelector:
         assert(-1 not in unique_labels)
 
         triplets_indices = [[] for i in range(3)]
-        for i, label in enumerate(unique_labels):
+        for label in unique_labels:
 
             # Get embeddings indices with current label
             label_mask = labels == label
@@ -117,7 +117,7 @@ class NegativeTripletSelector:
         anchor_positives = list(combinations(pos_indices, 2))
 
         # For each anchor/positive pair, pick a negative and append triplet
-        for i, anchor_positive in enumerate(anchor_positives):
+        for anchor_positive in anchor_positives:
             anchor_idx = anchor_positive[0]
             pos_idx = anchor_positive[1]
 

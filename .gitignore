@@ -7,3 +7,4 @@ __pycache__/
 nohup.out
 build
 video_similarity_search.egg-info/
+log*.txt

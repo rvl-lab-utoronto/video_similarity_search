@@ -7,4 +7,5 @@ __pycache__/
 nohup.out
 build
 video_similarity_search.egg-info/
+tnet_checkpoints/val_loss_and_acc.txt
 log*.txt

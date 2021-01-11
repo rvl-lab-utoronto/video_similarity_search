@@ -20,24 +20,41 @@ def validate(val_loader, tripletnet, criterion, epoch, cfg, cuda, device, is_mas
     top5_accs = AverageMeter()
 
     world_size = du_helper.get_world_size()
-
     tripletnet.eval()
     with torch.no_grad():
         for batch_idx, (inputs, targets, idx) in enumerate(val_loader):
-            (anchor, positive, negative) = inputs
-            (anchor_target, positive_target, negative_target) = targets
-            batch_size = torch.tensor(anchor.size(0)).to(device)
+            if cfg.DATASET.MODALITY == True:
+                (anchors, positives, negatives) = inputs
+                (anchor_target, positive_target, negative_target) = targets
 
-            if cfg.MODEL.ARCH == 'slowfast':
-                anchor = multipathway_input(anchor, cfg)
-                positive = multipathway_input(positive, cfg)
-                negative = multipathway_input(negative, cfg)
+                anchor_v1, anchor_v2 = anchors
+                positive_v1, positive_v2 = positives
+                negative_v1, negative_v2 = negatives
+
+                batch_size = torch.tensor(anchor_v1.size(0)).to(device)
+
                 if cuda:
-                    for i in range(len(anchor)):
-                        anchor[i], positive[i], negative[i] = anchor[i].to(device), positive[i].to(device), negative[i].to(device)
+                    anchor_v1, positive_v1, negative_v1 = anchor_v1.to(device), positive_v1.to(device), negative_v1.to(device)
+                    anchor_v2, positive_v2, negative_v2 = anchor_v2.to(device), positive_v2.to(device), negative_v2.to(device)
+                anchor = (anchor_v1, anchor_v2)
+                positive = (positive_v1, positive_v2)
+                negative = (negative_v1, negative_v2)
+                
             else:
-                if cuda:
-                    anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
+                (anchor, positive, negative) = inputs
+                (anchor_target, positive_target, negative_target) = targets
+                batch_size = torch.tensor(anchor.size(0)).to(device)
+
+                if cfg.MODEL.ARCH == 'slowfast':
+                    anchor = multipathway_input(anchor, cfg)
+                    positive = multipathway_input(positive, cfg)
+                    negative = multipathway_input(negative, cfg)
+                    if cuda:
+                        for i in range(len(anchor)):
+                            anchor[i], positive[i], negative[i] = anchor[i].to(device), positive[i].to(device), negative[i].to(device)
+                else:
+                    if cuda:
+                        anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
 
             dista, distb, embedded_x, embedded_y, embedded_z = tripletnet(anchor, positive, negative)
             embedded_x = embedded_x.flatten(1)

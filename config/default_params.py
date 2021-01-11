@@ -63,6 +63,7 @@ _C.DATASET.OPTICAL_V_PATH = ''
 
 _C.DATASET.MODALITY=False
 _C.DATASET.POS_CHANNEL_REPLACE = False
+_C.DATASET.RECONSTRUCTION = True
 
 # -----------------------------------------------------------------------------
 # Slowfast options

@@ -17,6 +17,7 @@ import torchvision
 from models.baselines.inflate_src.i3res import I3ResNet
 from models.baselines.simclr_pytorch.resnet_wider import resnet50x1
 from models.multiview import Multiview
+from models.resnet_VAE import ResnetVAE
 
 def create_output_dirs(cfg):
     if not os.path.exists(cfg.OUTPUT_PATH):
@@ -85,7 +86,7 @@ def mocov2_inflated(num_frames, center_init=True):
 
 # Select the appropriate model with the specified cfg parameters
 def model_selector(cfg, projection_head=True, is_master_proc=True):
-    assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast', 'info_nce', "uber_nce", 's3d', 'r3d',
+    assert cfg.MODEL.ARCH in ['3dresnet', 'resnet_vae', 'slowfast', 'info_nce', "uber_nce", 's3d', 'r3d',
             'simclr_pretrained_inflated_res50',
             'imagenet_pretrained_inflated_res50',
             'mocov2_pretrained_inflated_res50']
@@ -116,6 +117,16 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
                         projection_head=projection_head)
                         
             model = Multiview(encoder1, encoder2, cfg.RESNET.OUT_DIM)
+
+    elif cfg.MODEL.ARCH == 'resnet_vae':
+        zdim=10
+        model = ResnetVAE(zdim)
+        # if cfg.DATASET.MODALITY == True:
+        #     encoder1 = model
+        #     encoder2 = ResnetVAE()
+        #     model = Multiview(encoder1, encoder2, cfg.RESNET.)
+
+
 
 
     elif cfg.MODEL.ARCH == 's3d':

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=def-florian7_gpu
-#SBATCH --time=0-20:10:00
+#SBATCH --time=2-20:10:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
 #SBATCH --job-name=resnet_ucf_mask_iterclusterlr0.05

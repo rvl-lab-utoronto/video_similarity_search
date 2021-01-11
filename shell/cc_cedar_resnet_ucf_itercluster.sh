@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --account=def-florian7_gpu
-#SBATCH --time=0-20:10:00
+#SBATCH --time=2-20:10:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=triplet_ucf_itercluster_f/scratch_lr0.05
+#SBATCH --job-name=triplet_ucf_itercluster_f_scratch_lr0.05
 #SBATCH --output=%x-%j.out
 #SBATCH --gres=gpu:v100l:4
 #SBATCH --mem=48G

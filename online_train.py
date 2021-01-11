@@ -225,6 +225,80 @@ def diff(x):
     return ((x - shift_x) + 1) / 2
 
 
+
+def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
+    losses = AverageMeter()
+    accs = AverageMeter()
+    running_n_triplets = AverageMeter()
+    world_size = du_helper.get_world_size()
+    # switching to training mode
+    model.train()
+
+    # Training loop
+    start = time.time()
+    for batch_idx, (inputs, targets, idx) in enumerate(train_loader):
+        # print(len(inputs), len(inputs[0]), inputs[0][0].size())
+        anchors, positives = inputs
+        a_target, p_target = targets
+
+        anchor_v1, anchor_v2 = anchors
+        positive_v1, positive_v2 = positives
+
+        batch_size = torch.tensor(anchor_v1.size(0)).to(device)
+        targets = torch.cat((a_target, p_target), 0)
+
+        if cuda:
+            anchor_v1, positive_v1 = anchor_v1.to(device), positive_v1.to(device)
+            anchor_v2, positive_v2 = anchor_v2.to(device), positive_v2.to(device)
+
+        # Get embeddings of anchors and positives
+        anchor_outputs = model((anchor_v1, anchor_v2))
+        positive_outputs = model((positive_v1, positive_v2))
+
+        outputs = torch.cat((anchor_outputs, positive_outputs), 0)  # dim: [(batch_size * 2), dim_embedding]
+        if cuda:
+            targets = targets.to(device)
+
+        # Sample negatives from batch for each anchor/positive and compute loss
+        loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+
+        # Compute gradient and perform optimization step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # Average loss across all gpu processes
+        if cfg.NUM_GPUS > 1:
+            [loss] = du_helper.all_reduce([loss], avg=True)
+            [batch_size_world] = du_helper.all_reduce([batch_size], avg=False)
+        else:
+            batch_size_world = batch_size
+
+        batch_size_world = batch_size_world.item()
+
+        # Update running loss
+        losses.update(loss.item(), batch_size_world)
+        running_n_triplets.update(n_triplets)
+
+        # Log
+        if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
+            print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
+                  'Loss: {:.4f} ({:.4f}) \t'
+                  'N_Triplets: {:.1f}'.format(epoch, losses.count,
+                    len(train_loader.dataset),
+                    100. * (losses.count / len(train_loader.dataset)),
+                    losses.val, losses.avg, running_n_triplets.avg))
+
+    if (is_master_proc):
+        print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
+        print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
+        with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
+            f.write('epoch:{} runtime:{} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg))
+        print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
+
+
+
+
 def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
@@ -321,6 +395,7 @@ def train(args, cfg):
     if(is_master_proc):
         print('\n==> Generating {} backbone model (for training)...'.format(cfg.MODEL.ARCH))
 
+
     model=model_selector(cfg, is_master_proc=is_master_proc)
 
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
@@ -332,8 +407,8 @@ def train(args, cfg):
     else:
         encoder = model
 
-    # Transfer model to DDP
-    if cuda:
+    def DDP(model):
+        # Transfer model to DDP
         model = model.cuda(device=device)
         if torch.cuda.device_count() > 1:
             #model = nn.DataParallel(model)
@@ -343,17 +418,11 @@ def train(args, cfg):
             else:
                 model = torch.nn.parallel.DistributedDataParallel(module=model,
                     device_ids=[device], broadcast_buffers=False)
+        return model
 
-    # if cuda:
-        encoder = encoder.cuda(device=device)
-        if torch.cuda.device_count() > 1:
-            #model = nn.DataParallel(model)
-            if cfg.MODEL.ARCH == '3dresnet':
-                encoder = torch.nn.parallel.DistributedDataParallel(module=encoder,
-                    device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
-            else:
-                encoder = torch.nn.parallel.DistributedDataParallel(module=encoder,
-                    device_ids=[device], broadcast_buffers=False)
+    if cuda:
+        model = DDP(model)
+        encoder = DDP(encoder)
 
     # Load pretrained backbone if path exists
     if args.pretrain_path is not None:
@@ -380,15 +449,14 @@ def train(args, cfg):
                 tripletnet = torch.nn.parallel.DistributedDataParallel(module=tripletnet, device_ids=[device])
 
     # ======================== Loss and Optimizer Setup ========================
-
     if(is_master_proc):
         print('\n==> Setting criterion...')
-    val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-    criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
-    optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
-    if(is_master_proc):
-        print('Using criterion:{} for training'.format(criterion))
-        print('Using criterion:{} for validation'.format(val_criterion))
+        val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
+        criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
+        optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+        if(is_master_proc):
+            print('Using criterion:{} for training'.format(criterion))
+            print('Using criterion:{} for validation'.format(val_criterion))
 
     # ============================== Data Loaders ==============================
 
@@ -485,10 +553,15 @@ def train(args, cfg):
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
+        acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
+
         # Train 
         if cfg.LOSS.TYPE == 'triplet':
             if (is_master_proc): print('==> training with Triplet Loss')
-            triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+            if cfg.DATASET.MODALITY==True:
+                triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+            else:
+                triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
 
         elif cfg.LOSS.TYPE == 'contrastive':
             if (is_master_proc): print('==> training with Contrastive Loss')
@@ -517,6 +590,7 @@ def train(args, cfg):
         # Validate
         if is_master_proc:
             print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
+        
         acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
         if epoch % 10 == 0:
             if is_master_proc:
@@ -524,9 +598,9 @@ def train(args, cfg):
             topk_acc = k_nearest_embeddings(args, encoder, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg,
                                         plot=False, epoch=epoch, is_master_proc=is_master_proc)
             embeddings_computed = True
-            #if is_master_proc:
+            # if is_master_proc:
             #    print('\n=> Validating with global top1/5 retrieval from train set with queries from train set')
-            #top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_train_loader, train_data, train_data, cfg, plot=False,
+            # top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_train_loader, train_data, train_data, cfg, plot=False,
             #                        epoch=epoch, is_master_proc=is_master_proc, out_filename='train_retrieval_acc')
 
         # Update best accuracy and save checkpoint

@@ -18,7 +18,7 @@ source /home/cheny257/projects/def-florian7/cheny257/vidsim_env/bin/activate
 clush -w $(slurm_hl2hl.py --format PDSH) tar -xvf /home/cheny257/projects/def-florian7/datasets/UCF101/jpg.tar.gz -C $SLURM_TMPDIR
 echo 'Extracted jpg.tar.gz'
 
-clush -w $(slurm_hl2hl.py --format PDSH) tar -xvf /home/cheny257/projects/def-florian7/datasets/UCF101/ ucf101_tvl1_flow.tar.gz -C $SLURM_TMPDIR
+clush -w $(slurm_hl2hl.py --format PDSH) tar -xvf /home/cheny257/projects/def-florian7/datasets/UCF101/ucf101_tvl1_flow.tar.gz -C $SLURM_TMPDIR
 echo 'Extracted ucf101_tvl1_flow.zip'
 
 cd $SLURM_TMPDIR

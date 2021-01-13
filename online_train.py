@@ -420,6 +420,10 @@ def train(args, cfg):
                     device_ids=[device], broadcast_buffers=False)
         return model
 
+    # Load similarity network checkpoint if path exists
+    if args.checkpoint_path is not None:
+        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
+
     if cuda:
         model = DDP(model)
         encoder = DDP(encoder)
@@ -427,10 +431,6 @@ def train(args, cfg):
     # Load pretrained backbone if path exists
     if args.pretrain_path is not None:
         model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
-
-    # Load similarity network checkpoint if path exists
-    if args.checkpoint_path is not None:
-        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
 
     # Setup tripletnet used for validation
     if(is_master_proc):
@@ -451,12 +451,12 @@ def train(args, cfg):
     # ======================== Loss and Optimizer Setup ========================
     if(is_master_proc):
         print('\n==> Setting criterion...')
-        val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-        criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
-        optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
-        if(is_master_proc):
-            print('Using criterion:{} for training'.format(criterion))
-            print('Using criterion:{} for validation'.format(val_criterion))
+    val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
+    criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
+    optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+    if(is_master_proc):
+        print('Using criterion:{} for training'.format(criterion))
+        print('Using criterion:{} for validation'.format(val_criterion))
 
     # ============================== Data Loaders ==============================
 
@@ -553,11 +553,10 @@ def train(args, cfg):
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
-        acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
-
         # Train 
         if cfg.LOSS.TYPE == 'triplet':
-            if (is_master_proc): print('==> training with Triplet Loss')
+            if (is_master_proc): 
+                print('==> training with Triplet Loss with criterion:{}'.format(criterion))
             if cfg.DATASET.MODALITY==True:
                 triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
             else:
@@ -580,17 +579,21 @@ def train(args, cfg):
                 print('Using criterion:{} for training'.format(criterion_1, criterion_2))
                 print('Using criterion:{} for validation'.format(val_criterion))
             contrastive_train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        
         elif cfg.LOSS.TYPE == 'UberNCE':
             criterion = nn.CrossEntropyLoss().to(device)
             UberNCE_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+        
         else:
             assert False, 'Loss Type:{} not recognized'.format(cfg.LOSS.TYPE)
 
         embeddings_computed = False
+        
         # Validate
         if is_master_proc:
             print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
-        
+            print('=> Using criterion:{} for validation'.format(val_criterion))
+
         acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
         if epoch % 10 == 0:
             if is_master_proc:
@@ -598,19 +601,22 @@ def train(args, cfg):
             topk_acc = k_nearest_embeddings(args, encoder, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg,
                                         plot=False, epoch=epoch, is_master_proc=is_master_proc)
             embeddings_computed = True
-            # if is_master_proc:
-            #    print('\n=> Validating with global top1/5 retrieval from train set with queries from train set')
-            # top1_acc, _ = k_nearest_embeddings(args, model, cuda, device, eval_train_loader, eval_train_loader, train_data, train_data, cfg, plot=False,
-            #                        epoch=epoch, is_master_proc=is_master_proc, out_filename='train_retrieval_acc')
 
         # Update best accuracy and save checkpoint
         is_best = acc > best_acc
         best_acc = max(acc, best_acc)
-        save_checkpoint({
-            'epoch': epoch+1,
-            'state_dict':model.state_dict(),
-            'best_prec1': best_acc,
-        }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
+        if torch.cuda.device_count() > 1:
+            save_checkpoint({
+                'epoch': epoch+1,
+                'state_dict':model.module.state_dict(),
+                'best_prec1': best_acc,
+            }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
+        else:
+            save_checkpoint({
+                'epoch': epoch+1,
+                'state_dict':model.state_dict(),
+                'best_prec1': best_acc,
+            }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
 
 
 if __name__ == '__main__':

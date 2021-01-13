@@ -1,161 +1,319 @@
+"""
+Pulled from https://github.com/kenshohara/3D-ResNets-PyTorch
+"""
+import math
+from functools import partial
+
 import torch
-from torch import nn, optim
+import torch.nn as nn
 import torch.nn.functional as F
 
-class ResizeConv2d(nn.Module):
+def conv3x3x3(in_planes, out_planes, stride=1):
+    return nn.Conv3d(in_planes,
+                     out_planes,
+                     kernel_size=3,
+                     stride=stride,
+                     padding=1,
+                     bias=False)
 
-    def __init__(self, in_channels, out_channels, kernel_size, scale_factor, mode='nearest'):
-        super().__init__()
-        self.scale_factor = scale_factor
-        self.mode = mode
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=1)
 
-    def forward(self, x):
-        x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
-        x = self.conv(x)
-        return x
+def conv1x1x1(in_planes, out_planes, stride=1):
+    return nn.Conv3d(in_planes,
+                     out_planes,
+                     kernel_size=1,
+                     stride=stride,
+                     bias=False)
 
 class BasicBlockEnc(nn.Module):
+    expansion = 1
 
-    def __init__(self, in_planes, stride=1):
+    def __init__(self, in_planes, planes, stride=1, downsample=None):
         super().__init__()
 
-        planes = in_planes*stride
-
-        self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes)
-
-        if stride == 1:
-            self.shortcut = nn.Sequential()
-        else:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, planes, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(planes)
-            )
+        self.conv1 = conv3x3x3(in_planes, planes, stride)
+        self.bn1 = nn.BatchNorm3d(planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = conv3x3x3(planes, planes)
+        self.bn2 = nn.BatchNorm3d(planes)
+        self.downsample = downsample
+        self.stride = stride
 
     def forward(self, x):
-        out = torch.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
-        out += self.shortcut(x)
-        out = torch.relu(out)
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
         return out
 
 class BasicBlockDec(nn.Module):
+    expansion = 1
 
-    def __init__(self, in_planes, stride=1):
+    def __init__(self, in_planes, planes, stride=1, downsample=None):
         super().__init__()
 
-        planes = int(in_planes/stride)
+        self.conv2 = conv3x3x3(in_planes, in_planes)
+        self.bn2 = nn.BatchNorm3d(in_planes)
 
-        self.conv2 = nn.Conv2d(in_planes, in_planes, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(in_planes)
-        # self.bn1 could have been placed here, but that messes up the order of the layers when printing the class
+        self.downsample = 
 
-        if stride == 1:
-            self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
-            self.bn1 = nn.BatchNorm2d(planes)
-            self.shortcut = nn.Sequential()
-        else:
-            self.conv1 = ResizeConv2d(in_planes, planes, kernel_size=3, scale_factor=stride)
-            self.bn1 = nn.BatchNorm2d(planes)
-            self.shortcut = nn.Sequential(
-                ResizeConv2d(in_planes, planes, kernel_size=3, scale_factor=stride),
-                nn.BatchNorm2d(planes)
-            )
 
     def forward(self, x):
-        out = torch.relu(self.bn2(self.conv2(x)))
-        out = self.bn1(self.conv1(out))
-        out += self.shortcut(x)
-        out = torch.relu(out)
+
+
+class ResNetEnc(nn.Module):
+
+    def __init__(self,
+                 block,
+                 layers,
+                 block_inplanes,
+                 n_input_channels=3,
+                 conv1_t_size=7,
+                 conv1_t_stride=1,
+                 no_max_pool=False,
+                 shortcut_type='B',
+                 widen_factor=1.0,
+                 hidden_layer= 2048,
+                 out_dim = 128,
+                 projection_head=True):
+        super().__init__()
+
+        block_inplanes = [int(x * widen_factor) for x in block_inplanes]
+
+        self.in_planes = block_inplanes[0] #64
+        self.no_max_pool = no_max_pool
+
+        self.conv1 = nn.Conv3d(n_input_channels,
+                               self.in_planes,
+                               kernel_size=(conv1_t_size, 7, 7),
+                               stride=(conv1_t_stride, 2, 2),
+                               padding=(conv1_t_size // 2, 3, 3),
+                               bias=False)
+        self.bn1 = nn.BatchNorm3d(self.in_planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool3d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, block_inplanes[0], layers[0],
+                                       shortcut_type)
+        self.layer2 = self._make_layer(block,
+                                       block_inplanes[1],
+                                       layers[1],
+                                       shortcut_type,
+                                       stride=2)
+        self.layer3 = self._make_layer(block,
+                                       block_inplanes[2],
+                                       layers[2],
+                                       shortcut_type,
+                                       stride=2)
+        self.layer4 = self._make_layer(block,
+                                       block_inplanes[3],
+                                       layers[3],
+                                       shortcut_type,
+                                       stride=2)
+
+        self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
+        self.projection_head = projection_head
+        if projection_head:
+            print('==> setting up non-linear project heads')
+            self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
+            self.fc2 = nn.Linear(hidden_layer, out_dim)
+        else:
+            self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
+
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv3d):
+                nn.init.kaiming_normal_(m.weight,
+                                        mode='fan_out',
+                                        nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm3d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def _downsample_basic_block(self, x, planes, stride):
+        out = F.avg_pool3d(x, kernel_size=1, stride=stride)
+        zero_pads = torch.zeros(out.size(0), planes - out.size(1), out.size(2),
+                                out.size(3), out.size(4))
+        if isinstance(out.data, torch.cuda.FloatTensor):
+            zero_pads = zero_pads.cuda()
+
+        out = torch.cat([out.data, zero_pads], dim=1)
+
         return out
 
-class ResNet18Enc(nn.Module):
+    def _make_layer(self, block, planes, blocks, shortcut_type, stride=1):
+        downsample = None
+        if stride != 1 or self.in_planes != planes * block.expansion:
+            if shortcut_type == 'A':
+                downsample = partial(self._downsample_basic_block,
+                                     planes=planes * block.expansion,
+                                     stride=stride)
+            else:
+                downsample = nn.Sequential(
+                    conv1x1x1(self.in_planes, planes * block.expansion, stride),
+                    nn.BatchNorm3d(planes * block.expansion))
 
-    def __init__(self, num_Blocks=[2,2,2,2], z_dim=10, nc=3):
-        super().__init__()
-        self.in_planes = 64
-        self.z_dim = z_dim
-        self.conv1 = nn.Conv2d(nc, 64, kernel_size=3, stride=2, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
-        self.layer1 = self._make_layer(BasicBlockEnc, 64, num_Blocks[0], stride=1)
-        self.layer2 = self._make_layer(BasicBlockEnc, 128, num_Blocks[1], stride=2)
-        self.layer3 = self._make_layer(BasicBlockEnc, 256, num_Blocks[2], stride=2)
-        self.layer4 = self._make_layer(BasicBlockEnc, 512, num_Blocks[3], stride=2)
-        self.linear = nn.Linear(512, 2 * z_dim)
-
-    def _make_layer(self, BasicBlockEnc, planes, num_Blocks, stride):
-        strides = [stride] + [1]*(num_Blocks-1)
         layers = []
-        for stride in strides:
-            layers += [BasicBlockEnc(self.in_planes, stride)]
-            self.in_planes = planes
+        layers.append(
+            block(in_planes=self.in_planes,
+                  planes=planes,
+                  stride=stride,
+                  downsample=downsample))
+        self.in_planes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.in_planes, planes))
+
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        x = torch.relu(self.bn1(self.conv1(x)))
+        # print('forwarding in resnet module')
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        if not self.no_max_pool:
+            x = self.maxpool(x)
+
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        x = F.adaptive_avg_pool2d(x, 1)
+
+        x = self.avgpool(x)
+
         x = x.view(x.size(0), -1)
-        x = self.linear(x)
-        mu = x[:, :self.z_dim]
-        logvar = x[:, self.z_dim:]
-        return mu, logvar
+        # x = self.fc(x)
+        #add projection head
+        if self.projection_head:
+            x = self.fc1(x)
+            # print('after fc1', x.size())
+            x = self.relu(x)
+            # print('after relu', x.size())
+            x = self.fc2(x)
+            # print('after fc2', x.size())
 
-class ResNet18Dec(nn.Module):
-
-    def __init__(self, num_Blocks=[2,2,2,2], z_dim=10, nc=3):
-        super().__init__()
-        self.in_planes = 512
-
-        self.linear = nn.Linear(z_dim, 512)
-
-        self.layer4 = self._make_layer(BasicBlockDec, 256, num_Blocks[3], stride=2)
-        self.layer3 = self._make_layer(BasicBlockDec, 128, num_Blocks[2], stride=2)
-        self.layer2 = self._make_layer(BasicBlockDec, 64, num_Blocks[1], stride=2)
-        self.layer1 = self._make_layer(BasicBlockDec, 64, num_Blocks[0], stride=1)
-        self.conv1 = ResizeConv2d(64, nc, kernel_size=3, scale_factor=2)
-
-    def _make_layer(self, BasicBlockDec, planes, num_Blocks, stride):
-        strides = [stride] + [1]*(num_Blocks-1)
-        layers = []
-        for stride in reversed(strides):
-            layers += [BasicBlockDec(self.in_planes, stride)]
-        self.in_planes = planes
-        return nn.Sequential(*layers)
-
-    def forward(self, z):
-        x = self.linear(z)
-        x = x.view(z.size(0), 512, 1, 1)
-        x = F.interpolate(x, scale_factor=4)
-        x = self.layer4(x)
-        x = self.layer3(x)
-        x = self.layer2(x)
-        x = self.layer1(x)
-        x = torch.sigmoid(self.conv1(x))
-        x = x.view(x.size(0), 3, 64, 64)
         return x
 
-class ResnetVAE(nn.Module):
+class ResNetDec(nn.Module):
 
-    def __init__(self, z_dim):
+    def __init__(self,
+                 block,
+                 layers,
+                 block_inplanes,
+                 n_input_channels=3,
+                 conv1_t_size=7,
+                 conv1_t_stride=1,
+                 no_max_pool=False,
+                 shortcut_type='B',
+                 widen_factor=1.0,
+                 hidden_layer= 2048,
+                 out_dim = 128,
+                 projection_head=True):
         super().__init__()
-        self.encoder = ResNet18Enc(z_dim=z_dim)
-        self.decoder = ResNet18Dec(z_dim=z_dim)
 
-    def forward(self, x):
-        mean, logvar = self.encoder(x)
-        z = self.reparameterize(mean, logvar)
-        x = self.decoder(z)
-        return x, z
-    
-    @staticmethod
-    def reparameterize(mean, logvar):
-        std = torch.exp(logvar / 2) # in log-space, squareroot is divide by two
-        epsilon = torch.randn_like(std)
-        return epsilon * std + mean
+        block_inplanes = [int(x * widen_factor) for x in block_inplanes]
+
+        self.in_planes = block_inplanes[-1] #512
+        self.no_max_pool = no_max_pool
+
+        if projection_head:
+            print('==> setting up non-linear project heads')
+            self.fc2 = nn.Linear(out_dim, hidden_layer)
+            self.fc1 = nn.Linear(hidden_layer, block_inplanes[3] * block.expansion)
+        else:
+            self.fc = nn.Linear(hidden_layer, block_inplanes[3] * block.expansion)
+
+
+        self.layer4 = self._make_layer(BasicBlockDec, 
+                                       block_inplanes[2], 
+                                       layers[3],
+                                       shortcut_type,
+                                       stride=2)
+        self.layer3 = self._make_layer(BasicBlockDec, 
+                                       block_inplanes[1],
+                                       layers[2],
+                                       shortcut_type,
+                                       stride=2)
+        self.layer2 = self._make_layer(BasicBlockDec,
+                                       block_inplanes[0])
+
+
+
+        self.conv1 = nn.Conv3d(n_input_channels,
+                               self.in_planes,
+                               kernel_size=(conv1_t_size, 7, 7),
+                               stride=(conv1_t_stride, 2, 2),
+                               padding=(conv1_t_size // 2, 3, 3),
+                               bias=False)
+        self.bn1 = nn.BatchNorm3d(self.in_planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool3d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, block_inplanes[0], layers[0],
+                                       shortcut_type)
+        self.layer2 = self._make_layer(block,
+                                       block_inplanes[1],
+                                       layers[1],
+                                       shortcut_type,
+                                       stride=2)
+        self.layer3 = self._make_layer(block,
+                                       block_inplanes[2],
+                                       layers[2],
+                                       shortcut_type,
+                                       stride=2)
+        self.layer4 = self._make_layer(block,
+                                       block_inplanes[3],
+                                       layers[3],
+                                       shortcut_type,
+                                       stride=2)
+
+        
+
+
+
+def generate_model(model_depth, **kwargs):
+    def get_inplanes():
+        return [64, 128, 256, 512]
+
+    assert model_depth in [10, 18, 34, 50, 101, 152, 200]
+
+    if model_depth == 10:
+        model = ResNet(BasicBlock, [1, 1, 1, 1], get_inplanes(), **kwargs)
+    elif model_depth == 18:
+        model = ResNet(BasicBlock, [2, 2, 2, 2], get_inplanes(), **kwargs)
+    elif model_depth == 34:
+        model = ResNet(BasicBlock, [3, 4, 6, 3], get_inplanes(), **kwargs)
+    else:
+        print('Not yet supported...')
+    return model
+
+
+
+
+if __name__ == '__main__':
+
+    model_depth=200
+    n_classes=1039
+    n_input_channels=3
+    resnet_shortcut = 'B'
+    conv1_t_size = 7 #kernel size in t dim of conv1
+    conv1_t_stride = 1 #stride in t dim of conv1
+    no_max_pool = False #max pooling after conv1 is removed
+    resnet_widen_factor = 1 #number of feature maps of resnet is multiplied by this value
+
+
+    model=generate_model(model_depth=model_depth, n_classes=n_classes,
+                        n_input_channels=n_input_channels, shortcut_type=resnet_shortcut,
+                        conv1_t_size=conv1_t_size,
+                        conv1_t_stride=conv1_t_stride,
+                        no_max_pool=no_max_pool,
+                        widen_factor=resnet_widen_factor)
+
+    print(model)

@@ -146,11 +146,24 @@ class ResNet(nn.Module):
                                        shortcut_type,
                                        stride=2)
 
+        #self.attention = SpatialAttention(in_channels=(block_inplanes[3] * block.expansion))
+
+        self.channel_temporal_attention1 = ChannelTemporalAttention(in_channels = block_inplanes[0] * block.expansion)
+        self.channel_temporal_attention2 = ChannelTemporalAttention(in_channels = block_inplanes[1] * block.expansion)
+        self.channel_temporal_attention3 = ChannelTemporalAttention(in_channels = block_inplanes[2] * block.expansion)
+        self.channel_temporal_attention4 = ChannelTemporalAttention(in_channels = block_inplanes[3] * block.expansion)
+
+        self.spatio_temporal_attention1 = SpatioTemporalAttention(in_channels = block_inplanes[0] * block.expansion)
+        self.spatio_temporal_attention2 = SpatioTemporalAttention(in_channels = block_inplanes[1] * block.expansion)
+        self.spatio_temporal_attention3 = SpatioTemporalAttention(in_channels = block_inplanes[2] * block.expansion)
+        self.spatio_temporal_attention4 = SpatioTemporalAttention(in_channels = block_inplanes[3] * block.expansion)
+
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
         self.projection_head = projection_head
         if projection_head:
             print('==> setting up non-linear project heads')
             self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
+            self.bn_proj = m = nn.BatchNorm1d(hidden_layer)
             self.fc2 = nn.Linear(hidden_layer, out_dim)
         else:
             self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
@@ -209,9 +222,23 @@ class ResNet(nn.Module):
             x = self.maxpool(x)
 
         x = self.layer1(x)
+        x = self.channel_temporal_attention1(x)
+        x = self.spatio_temporal_attention1(x)
+
         x = self.layer2(x)
+        x = self.channel_temporal_attention2(x)
+        x = self.spatio_temporal_attention2(x)
+
         x = self.layer3(x)
+        x = self.channel_temporal_attention3(x)
+        x = self.spatio_temporal_attention3(x)
+
         x = self.layer4(x)
+        x = self.channel_temporal_attention4(x)
+        x = self.spatio_temporal_attention4(x)
+
+        ## spatial attention
+        #x = self.attention(x)
 
         x = self.avgpool(x)
 
@@ -220,6 +247,7 @@ class ResNet(nn.Module):
         #add projection head
         if self.projection_head:
             x = self.fc1(x)
+            x = self.bn_proj(x)
             # print('after fc1', x.size())
             x = self.relu(x)
             # print('after relu', x.size())
@@ -229,6 +257,172 @@ class ResNet(nn.Module):
         return x
 
 
+## channel-temporal + spatio-temporal attention
+
+class ChannelTemporalAttention(torch.nn.Module):
+
+    def __init__(self, in_channels):
+        super().__init__()
+
+        self.spatial_avgpool = nn.AdaptiveAvgPool3d((None, 1, 1))
+        self.spatial_maxpool = nn.AdaptiveMaxPool3d((None, 1, 1))
+
+        # MLP - channel reasoning
+        r = 4  # reduction
+        hidden_layer = in_channels // r
+        self.fc1 = nn.Linear(in_channels, hidden_layer)
+        self.fc2 = nn.Linear(hidden_layer, in_channels)
+        self.sigmoid = nn.Sigmoid()
+
+        # CNN with two 1d convs - temporal reasoning
+        # TODO channels should be separate?
+
+        k=3
+        self.conv1d_1 = nn.Conv1d(in_channels=in_channels,
+                                out_channels=in_channels,
+                                kernel_size=k,
+                                stride=1,
+                                padding=k//2)
+        self.conv1d_2 = nn.Conv1d(in_channels=in_channels,
+                                out_channels=in_channels,
+                                kernel_size=k,
+                                stride=1,
+                                padding=k//2)
+
+    def forward(self, x):
+        x = x.transpose(1,2)  # TxCxHxW
+
+        # Channel descriptors
+        d_avgc = self.spatial_avgpool(x)  # TxCx1x1
+        d_maxc = self.spatial_maxpool(x)  # TxCx1x1
+        d_avgc = d_avgc.squeeze(4).squeeze(3)  # TxC
+        d_maxc = d_maxc.squeeze(4).squeeze(3)  # TxC
+
+        # MLP, to produce two channel frame attention descriptors
+        d_avgc = self.fc2(self.fc1(d_avgc))  # TxC
+        d_maxc = self.fc2(self.fc1(d_maxc))  # TxC
+
+        # Elem-wise sum of channel frame descriptors + sigmoid
+        M_c = self.sigmoid(d_avgc + d_maxc)  # TxC
+        M_c = M_c.transpose(1,2)  # CxT
+
+        # CNN with two 1D convs
+        M_c = self.conv1d_1(M_c)  # CxT
+        M_c = self.conv1d_2(M_c)  # CxT
+        M_c = self.sigmoid(M_c)
+
+        # Apply channel-temporal mask
+        M_c = M_c.unsqueeze(-1).unsqueeze(-1)  #CxTx1x1
+        x = x.transpose(1,2)  # CxTxHxW
+        x = M_c * x
+
+        return x
+
+
+class SpatioTemporalAttention(torch.nn.Module):
+
+    def __init__(self, in_channels):
+        super().__init__()
+
+        self.channel_avgpool = nn.AdaptiveAvgPool3d((1, None, None))
+        self.channel_maxpool = nn.AdaptiveMaxPool3d((1, None, None))
+
+        # CNN with one 2d conv - spatial reasoning
+        k=7
+        self.conv2d = nn.Conv3d(in_channels=2,
+                                out_channels=1,
+                                kernel_size=(1,k,k),
+                                stride=(1,1,1),
+                                padding=(0,k//2,k//2))
+        self.sigmoid = nn.Sigmoid()
+
+        # CNN with two 3d convs - temporal reasoning
+        self.conv3d_1 = nn.Conv3d(in_channels=1,
+                               out_channels=1,
+                               kernel_size=(3, 3, 3),
+                               stride=(1, 1, 1),
+                               padding=(1, 1, 1))
+        self.conv3d_2 = nn.Conv3d(in_channels=1,
+                               out_channels=1,
+                               kernel_size=(3, 3, 3),
+                               stride=(1, 1, 1),
+                               padding=(1, 1, 1))
+
+    def forward(self, x):
+
+        x = x.transpose(1,2)  # TxCxHxW
+
+        # Spatial feature maps
+        d_avgs = self.channel_avgpool(x)  #Tx1xHxW
+        d_maxs = self.channel_avgpool(x)  #Tx1xHxW
+
+        # CNN with one 2d conv
+        M_s = torch.cat((d_avgs, d_maxs), dim=2)  #Tx2xHxW
+        M_s = M_s.transpose(1,2)  # 2xTxHxW
+        M_s = self.conv2d(M_s)  # 1xTxHxW
+        M_s = self.sigmoid(M_s)
+
+        # CNN with two 3d convs
+        M_s = self.conv3d_1(M_s)
+        M_s = self.conv3d_2(M_s)
+        M_s = self.sigmoid(M_s)  # 1xTxHxW
+
+        # Apply spatio-temporal mask
+        x = x.transpose(1,2)
+        x = M_s * x
+
+        return x
+
+##
+
+
+class SpatialAttention(torch.nn.Module):
+
+    def __init__(self, in_channels=512):
+        super().__init__()
+
+        conv_t_size = 1
+        conv_t_stride = 1
+        self.conv1 = nn.Conv3d(in_channels=in_channels,
+                               out_channels=1024,
+                               kernel_size=(conv_t_size, 3, 3),
+                               stride=(conv_t_stride, 1, 1),
+                               padding=(conv_t_size // 2, 1, 1),
+                               bias=False)
+        self.bn1 = nn.BatchNorm3d(1024)
+
+        self.conv2 = nn.Conv3d(in_channels=1024,
+                               out_channels=512,
+                               kernel_size=(conv_t_size, 3, 3),
+                               stride=(conv_t_stride, 1, 1),
+                               padding=(conv_t_size // 2, 1, 1),
+                               bias=False)
+        self.bn2 = nn.BatchNorm3d(512)
+
+        self.conv3 = nn.Conv3d(in_channels=512,
+                               out_channels=1,
+                               kernel_size=(conv_t_size, 3, 3),
+                               stride=(conv_t_stride, 1, 1),
+                               padding=(conv_t_size // 2, 1, 1),
+                               bias=False)
+
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        mask = self.conv1(x)
+        mask = self.bn1(mask)
+        mask = self.relu(mask)
+
+        mask = self.conv2(mask)
+        mask = self.bn2(mask)
+        mask = self.relu(mask)
+
+        mask = self.conv3(mask)
+        mask = self.sigmoid(mask)
+
+        x = x * mask
+        return x
 
 
 def generate_model(model_depth, **kwargs):

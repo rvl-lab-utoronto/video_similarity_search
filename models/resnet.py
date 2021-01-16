@@ -148,15 +148,24 @@ class ResNet(nn.Module):
 
         #self.attention = SpatialAttention(in_channels=(block_inplanes[3] * block.expansion))
 
+        # Spatio temporal attention
         self.channel_temporal_attention1 = ChannelTemporalAttention(in_channels = block_inplanes[0] * block.expansion)
         self.channel_temporal_attention2 = ChannelTemporalAttention(in_channels = block_inplanes[1] * block.expansion)
         self.channel_temporal_attention3 = ChannelTemporalAttention(in_channels = block_inplanes[2] * block.expansion)
         self.channel_temporal_attention4 = ChannelTemporalAttention(in_channels = block_inplanes[3] * block.expansion)
-
         self.spatio_temporal_attention1 = SpatioTemporalAttention(in_channels = block_inplanes[0] * block.expansion)
         self.spatio_temporal_attention2 = SpatioTemporalAttention(in_channels = block_inplanes[1] * block.expansion)
         self.spatio_temporal_attention3 = SpatioTemporalAttention(in_channels = block_inplanes[2] * block.expansion)
         self.spatio_temporal_attention4 = SpatioTemporalAttention(in_channels = block_inplanes[3] * block.expansion)
+
+        # TODO: don't use fixed numbers
+        self.attention_mask_avgpool = nn.AdaptiveAvgPool3d((2, 8, 8))
+        self.conv_attention_feature_refinement = nn.Conv3d(in_channels=4,
+                                                   out_channels = block_inplanes[3] * block.expansion,
+                                                   kernel_size=(1, 1, 1),
+                                                   stride=(1, 1, 1),
+                                                   padding=(0, 0, 0),
+                                                   bias=False)
 
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
         self.projection_head = projection_head
@@ -223,19 +232,28 @@ class ResNet(nn.Module):
 
         x = self.layer1(x)
         x = self.channel_temporal_attention1(x)
-        x = self.spatio_temporal_attention1(x)
+        x, M_s1 = self.spatio_temporal_attention1(x)
 
         x = self.layer2(x)
         x = self.channel_temporal_attention2(x)
-        x = self.spatio_temporal_attention2(x)
+        x, M_s2 = self.spatio_temporal_attention2(x)
 
         x = self.layer3(x)
         x = self.channel_temporal_attention3(x)
-        x = self.spatio_temporal_attention3(x)
+        x, M_s3 = self.spatio_temporal_attention3(x)
 
         x = self.layer4(x)
         x = self.channel_temporal_attention4(x)
-        x = self.spatio_temporal_attention4(x)
+        x, M_s4 = self.spatio_temporal_attention4(x)
+
+        # attention guided feature refinement
+        M_s1 = self.attention_mask_avgpool(M_s1)
+        M_s2 = self.attention_mask_avgpool(M_s2)
+        M_s3 = self.attention_mask_avgpool(M_s3)
+        M_ms = torch.cat((M_s1, M_s2, M_s3, M_s4), dim=1)  # 4xTxHxW
+        M_ms = self.conv_attention_feature_refinement(M_ms)
+
+        x = x + M_ms
 
         ## spatial attention
         #x = self.attention(x)
@@ -371,7 +389,7 @@ class SpatioTemporalAttention(torch.nn.Module):
         x = x.transpose(1,2)
         x = M_s * x
 
-        return x
+        return x, M_s
 
 ##
 

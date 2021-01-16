@@ -430,10 +430,12 @@ def train(args, cfg):
                 print('\n=> Computing embeddings')
 
             if is_master_proc or not embeddings_computed:
+                start_time = time.time()
                 embeddings, true_labels, idxs = get_embeddings_and_labels(args, cfg,
                         encoder, cuda, device, eval_train_loader, split='train',
                         is_master_proc=is_master_proc,
                         load_pkl=embeddings_computed, save_pkl=False)
+                print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
 
             if is_master_proc:
                 # Cluster

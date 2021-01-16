@@ -261,7 +261,10 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
             shuffle=(False if sampler else True)
 
         if split == 'train':
-            batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS)
+            if triplets:
+                batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS)
+            else:  # if not in train mode can support a larger batch size
+                batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
         else:
             batch_size = int(cfg.VAL.BATCH_SIZE)
         if is_master_proc:

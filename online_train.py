@@ -224,54 +224,6 @@ def diff(x):
     shift_x = torch.roll(x, 1, 2)
     return ((x - shift_x) + 1) / 2
 
-def reconstruction_train_epoch(train_loader, model, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
-    criterion = torch.nn.MSEloss().to(device)
-    
-    losses = AverageMeter()
-    accs = AverageMeter()
-    running_n_triplets = AverageMeter()
-    world_size = du_helper.get_world_size()
-    # switching to training mode
-    model.train()
-    
-    # Training loop
-    start = time.time()
-    for batch_idx, (inputs, targets, idx) in enumerate(train_loader):
-        # print(len(inputs), len(inputs[0]), inputs[0][0].size())
-        anchors, positives = inputs
-        a_target, p_target = targets
-
-        anchor_v1, anchor_v2 = anchors
-        positive_v1, positive_v2 = positives
-
-        batch_size = torch.tensor(anchor_v1.size(0)).to(device)
-        targets = torch.cat((a_target, p_target), 0)
-
-        if cuda:
-            anchor_v1, positive_v1 = anchor_v1.to(device), positive_v1.to(device)
-            anchor_v2, positive_v2 = anchor_v2.to(device), positive_v2.to(device)
-
-        output_v1 = model(anchor_v1)
-        print(output_v1.size())
-        # # Get embeddings of anchors and positives
-        # anchor_outputs = model((anchor_v1, anchor_v2))
-        # positive_outputs = model((positive_v1, positive_v2))
-
-        # outputs = torch.cat((anchor_outputs, positive_outputs), 0)  # dim: [(batch_size * 2), dim_embedding]
-        # if cuda:
-        #     targets = targets.to(device)
-
-        # Sample negatives from batch for each anchor/positive and compute loss
-        loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
-
-        # Compute gradient and perform optimization step
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-
-
-
 
 def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True, reconstruction=True):
     losses = AverageMeter()
@@ -635,9 +587,6 @@ def train(args, cfg):
             if cfg.DATASET.MODALITY==True:
                 triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
             
-            elif cfg.DATASET.RECONSTRUCTION == True:
-                reconstruction_train_epoch(train_loader, model, optimizer, epoch, cfg, cuda, device, is_master_proc)
-
             else:
                 triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
 

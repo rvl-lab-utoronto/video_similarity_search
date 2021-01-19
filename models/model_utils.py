@@ -86,7 +86,7 @@ def mocov2_inflated(num_frames, center_init=True):
 
 # Select the appropriate model with the specified cfg parameters
 def model_selector(cfg, projection_head=True, is_master_proc=True):
-    assert cfg.MODEL.ARCH in ['3dresnet', 'resnet_vae', 'slowfast', 'info_nce', "uber_nce", 's3d', 'r3d',
+    assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast', 'info_nce', "uber_nce", 's3d', 'r3d',
             'simclr_pretrained_inflated_res50',
             'imagenet_pretrained_inflated_res50',
             'mocov2_pretrained_inflated_res50']
@@ -117,16 +117,6 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
                         projection_head=projection_head)
                         
             model = Multiview(encoder1, encoder2, cfg.RESNET.OUT_DIM)
-
-    elif cfg.MODEL.ARCH == 'resnet_vae':
-        zdim=10
-        model = ResnetVAE(zdim)
-        # if cfg.DATASET.MODALITY == True:
-        #     encoder1 = model
-        #     encoder2 = ResnetVAE()
-        #     model = Multiview(encoder1, encoder2, cfg.RESNET.)
-
-
 
 
     elif cfg.MODEL.ARCH == 's3d':

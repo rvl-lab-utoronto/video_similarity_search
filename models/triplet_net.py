@@ -20,6 +20,13 @@ class Tripletnet(nn.Module):
         embedded_x = self.embeddingnet(x)
         embedded_y = self.embeddingnet(y)
         embedded_z = self.embeddingnet(z)
+        if isinstance(embedded_x,tuple):
+            embedded_x = embedded_x[0]
+        if isinstance(embedded_y, tuple):
+            embedded_y = embedded_y[0]
+        if isinstance(embedded_z, tuple):
+            embedded_z = embedded_z[0]
+
         if self.dist_metric == 'euclidean':
             dist_a = F.pairwise_distance(embedded_x, embedded_y, 2)
             dist_b = F.pairwise_distance(embedded_x, embedded_z, 2)

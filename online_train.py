@@ -273,18 +273,22 @@ def reconstruction_train_epoch(train_loader, model, optimizer, epoch, cfg, cuda,
 
 
 
-def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
+def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True, reconstruction=True):
     losses = AverageMeter()
+    triplet_losses = AverageMeter()
+    reconstruction_losses = AverageMeter()
     accs = AverageMeter()
     running_n_triplets = AverageMeter()
     world_size = du_helper.get_world_size()
     # switching to training mode
     model.train()
 
+    if reconstruction:
+        reconstruction_criterion = nn.MSELoss().to(device)
+
     # Training loop
     start = time.time()
     for batch_idx, (inputs, targets, idx) in enumerate(train_loader):
-        # print(len(inputs), len(inputs[0]), inputs[0][0].size())
         anchors, positives = inputs
         a_target, p_target = targets
 
@@ -299,16 +303,30 @@ def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epo
             anchor_v2, positive_v2 = anchor_v2.to(device), positive_v2.to(device)
 
         # Get embeddings of anchors and positives
-        anchor_outputs = model((anchor_v1, anchor_v2))
-        positive_outputs = model((positive_v1, positive_v2))
+        anchor_outputs, anchor_embeddings, anchor_decoded = model((anchor_v1, anchor_v2))
+        positive_outputs, positive_embeddings, positive_decoded = model((positive_v1, positive_v2))
 
         outputs = torch.cat((anchor_outputs, positive_outputs), 0)  # dim: [(batch_size * 2), dim_embedding]
         if cuda:
             targets = targets.to(device)
 
         # Sample negatives from batch for each anchor/positive and compute loss
-        loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+        triplet_loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
 
+        if reconstruction:
+            anchor_v1_embed, anchor_v2_embed = anchor_embeddings
+            anchor_v1_decod, anchor_v2_decod = anchor_decoded
+
+            pos_v1_embed, pos_v2_embed = positive_embeddings
+            pos_v1_decod, pos_v2_decod = positive_decoded
+
+            embedded = torch.cat((anchor_v1_embed, anchor_v2_embed, pos_v1_embed, pos_v2_embed), 0)
+            decoded = torch.cat((anchor_v1_decod, anchor_v2_decod, pos_v1_decod, pos_v2_decod), 0)
+            reconstruction_loss = reconstruction_criterion(embedded, decoded)
+            loss = triplet_loss + reconstruction_loss
+        else:
+            loss = triplet_loss
+        
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
         loss.backward()
@@ -317,6 +335,8 @@ def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epo
         # Average loss across all gpu processes
         if cfg.NUM_GPUS > 1:
             [loss] = du_helper.all_reduce([loss], avg=True)
+            [triplet_loss] = du_helper.all_reduce([triplet_loss], avg=True)
+            if reconstruction: [reconstruction_loss] = du_helper.all_reduce([reconstruction_loss], avg=True)
             [batch_size_world] = du_helper.all_reduce([batch_size], avg=False)
         else:
             batch_size_world = batch_size
@@ -325,22 +345,28 @@ def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epo
 
         # Update running loss
         losses.update(loss.item(), batch_size_world)
+        triplet_losses.update(triplet_loss.item(), batch_size_world)
+        if reconstruction: reconstruction_losses.update(reconstruction_loss.item(), batch_size_world)
         running_n_triplets.update(n_triplets)
 
         # Log
         if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
             print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                   'Loss: {:.4f} ({:.4f}) \t'
+                  'T Loss: {:.4f}, R Loss: {:.4f} \t'
                   'N_Triplets: {:.1f}'.format(epoch, losses.count,
                     len(train_loader.dataset),
                     100. * (losses.count / len(train_loader.dataset)),
-                    losses.val, losses.avg, running_n_triplets.avg))
+                    losses.val, losses.avg, 
+                    triplet_losses.val, reconstruction_losses.val,
+                    running_n_triplets.avg))
 
     if (is_master_proc):
         print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
         print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
-            f.write('epoch:{} runtime:{} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg))
+            f.write('epoch:{} runtime:{} {:.4f} {:.4f} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), 
+                                    losses.avg, triplet_losses.avg, reconstruction_losses.avg))
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
@@ -376,6 +402,8 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         anchor_outputs = model(anchor)
         positive_outputs = model(positive)
         outputs = torch.cat((anchor_outputs, positive_outputs), 0)  # dim: [(batch_size * 2), dim_embedding]
+
+        print(anchor_embeddings[0].shape)
         if cuda:
             targets = targets.to(device)
 
@@ -498,12 +526,12 @@ def train(args, cfg):
     # ======================== Loss and Optimizer Setup ========================
     if(is_master_proc):
         print('\n==> Setting criterion...')
-        val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-        criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
-        optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
-        if(is_master_proc):
-            print('Using criterion:{} for training'.format(criterion))
-            print('Using criterion:{} for validation'.format(val_criterion))
+    val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
+    criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
+    optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+    if(is_master_proc):
+        print('Using criterion:{} for training'.format(criterion))
+        print('Using criterion:{} for validation'.format(val_criterion))
 
     # ============================== Data Loaders ==============================
 
@@ -599,8 +627,6 @@ def train(args, cfg):
         # Call set_epoch on the distributed sampler so the data is shuffled
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
-
-        acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
 
         # Train 
         if cfg.LOSS.TYPE == 'triplet':

@@ -114,7 +114,11 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
                 targets = targets.to(device)
                 indexes = indexes.to(device)
 
-            embedd = model(input).flatten(1)
+            embedd = model(input)
+            if isinstance(embedd, tuple): #for multiview
+                embedd = embedd[0]
+            embedd = embedd.flatten(1)
+
             
             if cfg.NUM_GPUS > 1:
                 embedd, targets, indexes = du_helper.all_gather([embedd, targets, indexes])
@@ -341,6 +345,8 @@ def temporal_heat_map(model, data, cfg, evaluate_output, exemplar_idx=455,
             if cuda:
                 test_video_in = test_video_in.to(device)
         test_embedding = model(test_video_in)
+        if isinstance(test_embedding, tuple):
+            test_embedding = test_embedding[0]
         #print('Test embed size:', test_embedding.size())
 
         # Loop across exemplar video, use [i-cfg.DATA.SAMPLE_SIZE,...,i] as the frames for the temporal crop
@@ -359,8 +365,9 @@ def temporal_heat_map(model, data, cfg, evaluate_output, exemplar_idx=455,
                     exemplar_video_in = exemplar_video_in.to(device)
 
             exemplar_embedding = model(exemplar_video_in)
-            #print('Exemplar input size:', exemplar_video.size())
-            #print('Exemplar embed size:', exemplar_embedding.size())
+            if isinstance(exemplar_embedding, tuple):
+                exemplar_embedding = exemplar_embedding[0]
+
             dist = F.pairwise_distance(exemplar_embedding, test_embedding, 2)
             dists.append(dist.item())
 

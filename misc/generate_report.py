@@ -174,9 +174,9 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
         plt.show()
 
 def write_to_google_sheet(result_dir, client, worksheet_name):
-    epoch, runtime, train_losses, _, _, _, _, _= parse_file(result_dir, 'train')
+    epoch, runtime, train_losses, _, _, _, _, _ = parse_file(result_dir, 'train')
     _, _, val_losses, val_acc, top1_acc, top5_acc, _, _ = parse_file(result_dir, 'val')
-    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc, _,_ = parse_file(result_dir, 'global_retrieval')
+    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc, _, _ = parse_file(result_dir, 'global_retrieval')
 
 
     # best_idx = np.argmax(np.array(top1_acc))

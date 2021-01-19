@@ -1,10 +1,9 @@
-
 TRAIN:
     DATASET: "ucf101"
 
 DATASET:
-    VID_PATH: ./jpg
-    ANNOTATION_PATH: /home/cheny257/projects/def-florian7/datasets/UCF101/json/ucf101_01.json
+    VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
+    ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/UCF101_Flow/json/ucf101_01.json' #optical flow
     #CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
@@ -13,8 +12,10 @@ DATASET:
     SAMPLING_STRATEGY: 'random_semi_hard'
     POSITIVE_SAMPLING_P: 0.2
 
-    CHANNEL_EXTENSIONS: 'salient'
-    SALIENT_PATH: ./poolnet_new
+    # POS_CHANNEL_REPLACE: False
+    MODALITY: True
+    CHANNEL_EXTENSIONS: 'optical_u'
+    OPTICAL_U_PATH: /media/diskstation/datasets/UCF101/UCF101_Flow/tvl1_flow/u
 
 MODEL:
     ARCH: '3dresnet'
@@ -32,11 +33,11 @@ RESNET:
 DATA:
     SAMPLE_SIZE: 128
     SAMPLE_DURATION: 16
-    INPUT_CHANNEL_NUM: 4
+    INPUT_CHANNEL_NUM: 3
 
 LOSS:
     MARGIN: 0.2
 
 OPTIM:
-    LR: 0.05
+    LR: 0.1
     MOMENTUM: 0.5

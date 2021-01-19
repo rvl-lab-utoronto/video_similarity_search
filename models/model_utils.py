@@ -250,7 +250,20 @@ def load_checkpoint(model, checkpoint_path, is_master_proc=True):
         checkpoint = torch.load(checkpoint_path)
         start_epoch = checkpoint['epoch']
         best_prec1 = checkpoint['best_prec1']
-        model.load_state_dict(checkpoint['state_dict'])
+        state_dict = checkpoint['state_dict']
+
+        # create new OrderedDict that does not contain `module.`
+        from collections import OrderedDict
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items(): #edit
+            if 'module.' in k:
+                name = k[7:] # remove `module.`
+                new_state_dict[name] = v
+            else:
+                new_state_dict[k] = v
+        # load params
+        model.load_state_dict(new_state_dict)
+        
         if (is_master_proc):
             print("=> loaded checkpoint '{}' (epoch {})".format(checkpoint_path, checkpoint['epoch']))
     else:

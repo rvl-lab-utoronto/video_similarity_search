@@ -321,6 +321,13 @@ def train(args, cfg):
 
     model=model_selector(cfg, is_master_proc=is_master_proc)
 
+    ## SYNCBATCHNORM
+
+    print('Converting BatchNorm*D to SyncBatchNorm!')
+    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+
+    ##
+
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
         print('Number of params: {}'.format(n_parameters))
@@ -341,10 +348,15 @@ def train(args, cfg):
             #model = nn.DataParallel(model)
             if cfg.MODEL.ARCH == '3dresnet':
                 model = torch.nn.parallel.DistributedDataParallel(module=model,
-                    device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
+                    device_ids=[device],
+                    #find_unused_parameters=True,
+                    #broadcast_buffers=False)
+                    )
             else:
                 model = torch.nn.parallel.DistributedDataParallel(module=model,
-                    device_ids=[device], broadcast_buffers=False)
+                    device_ids=[device],
+                    #broadcast_buffers=False)
+                    )
 
     # if cuda:
         encoder = encoder.cuda(device=device)
@@ -352,10 +364,15 @@ def train(args, cfg):
             #model = nn.DataParallel(model)
             if cfg.MODEL.ARCH == '3dresnet':
                 encoder = torch.nn.parallel.DistributedDataParallel(module=encoder,
-                    device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
+                    device_ids=[device],
+                    #find_unused_parameters=True,
+                    #broadcast_buffers=False)
+                    )
             else:
                 encoder = torch.nn.parallel.DistributedDataParallel(module=encoder,
-                    device_ids=[device], broadcast_buffers=False)
+                    device_ids=[device],
+                    #broadcast_buffers=False)
+                    )
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:

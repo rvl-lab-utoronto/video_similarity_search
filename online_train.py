@@ -321,12 +321,10 @@ def train(args, cfg):
 
     model=model_selector(cfg, is_master_proc=is_master_proc)
 
-    ## SYNCBATCHNORM
-
-    print('Converting BatchNorm*D to SyncBatchNorm!')
-    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-
-    ##
+    ## SyncBatchNorm
+    if cfg.SYNC_BATCH_NORM:
+        print('Converting BatchNorm*D to SyncBatchNorm!')
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
@@ -585,6 +583,7 @@ if __name__ == '__main__':
 
     print('Multiview positives ({}% chance replace): {}'.format(cfg.DATASET.PROB_POS_CHANNEL_REPLACE*100,
         cfg.DATASET.POS_CHANNEL_REPLACE))
+    print('Spatio-temporal-attention?: {}'.format(cfg.RESNET.ATTENTION))
 
     # Set shard_id to $SLURM_NODEID if running on compute canada
     shard_id = args.shard_id
@@ -613,6 +612,8 @@ if __name__ == '__main__':
     print('ITERCLUSTER.INTERVAL is set to: {}'.format(cfg.ITERCLUSTER.INTERVAL))
     print('ITERCLUSTER.ADAPTIVEP is set to: {}'.format(cfg.ITERCLUSTER.ADAPTIVEP))
     print('Learning rate is set to {}'.format(cfg.OPTIM.LR))
+    print('Momentum set to {}'.format(cfg.OPTIM.MOMENTUM))
+    print('Margin set to {}'.format(cfg.LOSS.MARGIN))
 
     # Launch processes for all gpus
     print('\n==> Launching gpu processes...')

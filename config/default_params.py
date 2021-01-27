@@ -9,11 +9,11 @@ _C = CfgNode()
 # Training options
 # -----------------------------------------------------------------------------
 _C.TRAIN = CfgNode()
-_C.TRAIN.EPOCHS = 241
+_C.TRAIN.EPOCHS = 300
 _C.TRAIN.BATCH_SIZE = 16
-#_C.TRAIN.DATASET = "ucf101"
-_C.TRAIN.DATASET = "kinetics"
-_C.TRAIN.NUM_DATA_WORKERS = 8
+_C.TRAIN.DATASET = "ucf101"
+#_C.TRAIN.DATASET = "kinetics"
+_C.TRAIN.NUM_DATA_WORKERS = 4
 _C.TRAIN.LOG_INTERVAL = 5 #for print statements
 
 # -----------------------------------------------------------------------------
@@ -88,6 +88,8 @@ _C.RESNET.CONV1_T_STRIDE = 1
 _C.RESNET.NO_MAX_POOl = True
 _C.RESNET.WIDEN_FACTOR = 1
 
+_C.RESNET.ATTENTION = False
+
 # -----------------------------------------------------------------------------
 # Data options
 # -----------------------------------------------------------------------------
@@ -138,6 +140,7 @@ _C.ITERCLUSTER.ADAPTIVEP = False
 # -----------------------------------------------------------------------------
 _C.NUM_GPUS = 1
 _C.OUTPUT_PATH = "."
+_C.SYNC_BATCH_NORM = True
 
 
 # -----------------------------------------------------------------------------

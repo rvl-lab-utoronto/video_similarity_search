@@ -100,7 +100,8 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
                         conv1_t_stride=cfg.RESNET.CONV1_T_STRIDE,
                         no_max_pool=cfg.RESNET.NO_MAX_POOl,
                         widen_factor=cfg.RESNET.WIDEN_FACTOR,
-                        projection_head=projection_head)
+                        projection_head=projection_head,
+                        spatio_temporal_attention=cfg.RESNET.ATTENTION)
 
     elif cfg.MODEL.ARCH == 's3d':
         dim = 128

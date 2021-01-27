@@ -17,6 +17,7 @@ from spatial_transforms import (Compose, Normalize, Resize, CenterCrop,
                                 ToTensor, ScaleValue, ColorJitter, ColorDrop,
                                 PickFirstChannels, RandomApply, GaussianBlur)
 from temporal_transforms import (LoopPadding, TemporalRandomCrop,
+                                 TemporalRandomCrop2xSpeed,
                                  TemporalCenterCrop, TemporalEvenCrop,
                                  TemporalEndCrop, TemporalBeginCrop,
                                  SlidingWindow, TemporalSubsampling)
@@ -129,6 +130,12 @@ def build_temporal_transformation(cfg, triplets=True):
         positive_temporal_transform = TemporalCompose(positive_temporal_transform)
         TempTransform['positive'] = positive_temporal_transform
 
+        if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
+            fast_positive_temporal_transform = []
+            fast_positive_temporal_transform.append(TemporalRandomCrop2xSpeed(cfg.DATA.SAMPLE_DURATION, start_index=cfg.DATA.SAMPLE_DURATION))
+            fast_positive_temporal_transform = TemporalCompose(fast_positive_temporal_transform)
+            TempTransform['fast_positive'] = fast_positive_temporal_transform
+
         #negative
         temporal_transform = []
         temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
@@ -238,6 +245,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 positive_sampling_p=cfg.DATASET.POSITIVE_SAMPLING_P,
                 pos_channel_replace=cfg.DATASET.POS_CHANNEL_REPLACE,
                 prob_pos_channel_replace=cfg.DATASET.PROB_POS_CHANNEL_REPLACE,
+                relative_speed_perception=cfg.LOSS.RELATIVE_SPEED_PERCEPTION,
                 is_master_proc=is_master_proc)
     if (is_master_proc):
         print ('Single video input size:', data[1][0][0].size())

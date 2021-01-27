@@ -119,6 +119,10 @@ _C.LOSS.K = 1024 #num of negatives
 _C.LOSS.T = 0.07 #temperature
 _C.LOSS.M = 0.5 #momentum
 _C.LOSS.FEAT_DIM = 128
+
+#Relative speed perception
+_C.LOSS.RELATIVE_SPEED_PERCEPTION = True
+
 # -----------------------------------------------------------------------------
 # Optimizer options
 # -----------------------------------------------------------------------------

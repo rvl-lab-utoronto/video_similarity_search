@@ -21,12 +21,21 @@ class Multiview(nn.Module):
         self.decoder2 = self.get_decoder(embed_dim)
 
     def get_decoder(self, embed_dim): #modified the output to be embed_dim
+        # return torch.nn.Sequential(
+        #             torch.nn.Linear(embed_dim, 2*embed_dim),
+        #             torch.nn.Dropout(0.1),
+        #             torch.nn.ReLU(),
+        #             torch.nn.BatchNorm1d(2*embed_dim), 
+        #             torch.nn.Linear(2*embed_dim, embed_dim),
+        #             torch.nn.ReLU(),
+        #             torch.nn.BatchNorm1d(embed_dim))
+
         return torch.nn.Sequential(
-                    torch.nn.Linear(embed_dim, 2*embed_dim),
+                    torch.nn.Linear(embed_dim, embed_dim),
                     torch.nn.Dropout(0.1),
                     torch.nn.ReLU(),
-                    torch.nn.BatchNorm1d(2*embed_dim), 
-                    torch.nn.Linear(2*embed_dim, embed_dim),
+                    torch.nn.BatchNorm1d(embed_dim), 
+                    torch.nn.Linear(embed_dim, embed_dim),
                     torch.nn.ReLU(),
                     torch.nn.BatchNorm1d(embed_dim))
 

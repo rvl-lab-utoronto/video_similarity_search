@@ -23,7 +23,7 @@ from models.model_utils import (model_selector, multipathway_input,
                             AverageMeter, accuracy, create_output_dirs)
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
-from loss.triplet_loss import OnlineTripleLoss
+from loss.triplet_loss import OnlineTripletLoss, MemTripletLoss
 from loss.NCE_loss import NCEAverage, NCEAverage_intra_neg, NCESoftmaxLoss
 from clustering.cluster_masks import fit_cluster
 from sklearn.metrics import normalized_mutual_info_score, adjusted_mutual_info_score
@@ -275,7 +275,7 @@ def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epo
             embedded = torch.cat((anchor_v1_embed, anchor_v2_embed, pos_v1_embed, pos_v2_embed), 0)
             decoded = torch.cat((anchor_v1_decod, anchor_v2_decod, pos_v1_decod, pos_v2_decod), 0)
             reconstruction_loss = reconstruction_criterion(embedded, decoded)
-            loss = triplet_loss + reconstruction_loss
+            loss = triplet_loss + 0.5*reconstruction_loss
         else:
             loss = triplet_loss
         
@@ -355,7 +355,6 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         positive_outputs = model(positive)
         outputs = torch.cat((anchor_outputs, positive_outputs), 0)  # dim: [(batch_size * 2), dim_embedding]
 
-        print(anchor_embeddings[0].shape)
         if cuda:
             targets = targets.to(device)
 
@@ -479,7 +478,9 @@ def train(args, cfg):
     if(is_master_proc):
         print('\n==> Setting criterion...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-    criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
+    criterion = OnlineTripletLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device) #MemTripletLoss
+    # criterion = MemTripletLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device) #MemTripletLoss
+
     optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
     if(is_master_proc):
         print('Using criterion:{} for training'.format(criterion))

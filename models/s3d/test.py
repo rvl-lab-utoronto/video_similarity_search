@@ -31,7 +31,10 @@ def test():
                           nn.Conv3d(feature_size, dim, kernel_size=1, bias=True),
                           Flatten())
 
+
     print(model)
+    n_parameters = sum([p.data.nelement() for p in model.parameters()])
+    print('Number of params: {}'.format(n_parameters))
 
     #cur_device = torch.cuda.current_device()
     #model = model.cuda(device=cur_device)

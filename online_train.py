@@ -236,10 +236,25 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
     # Training loop
     start = time.time()
     for batch_idx, (inputs, targets, idx) in enumerate(train_loader):
-        anchor, positive = inputs
+
+        if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
+            anchor, positive, fast_positive = inputs
+
+            if cfg.MODEL.ARCH == 'slowfast':
+                fast_positive = multipathway_input(fast_positive, cfg)
+                if cuda:
+                    for i in range(len(anchor)):
+                        fast_positive[i]= fast_positive[i].to(device)
+            elif cuda:
+                fast_positive = fast_positive.to(device)
+        else:
+            anchor, positive = inputs
+
         a_target, p_target = targets
         batch_size = torch.tensor(anchor.size(0)).to(device)
         targets = torch.cat((a_target, p_target), 0)
+        if cuda:
+            targets = targets.to(device)
 
         # Prepare input and send to gpu
         if cfg.MODEL.ARCH == 'slowfast':
@@ -252,12 +267,40 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
             anchor, positive = anchor.to(device), positive.to(device)
 
         # Get embeddings of anchors and positives
-        outputs = model(torch.cat((anchor, positive), 0))  # dim: [(batch_size * 2), dim_embedding]
-        if cuda:
-            targets = targets.to(device)
+        if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
+            outputs = model(torch.cat((anchor, positive, fast_positive), 0))
 
-        # Sample negatives from batch for each anchor/positive and compute loss
-        loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+            out_anchor_positive = outputs[:batch_size*2]
+            out_anc = outputs[:batch_size]
+            out_pos = outputs[batch_size:batch_size*2]
+            out_fast_pos = outputs[batch_size*2:batch_size*3]
+
+            # Regular loss
+            triplet_loss, n_triplets = criterion(out_anchor_positive, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+
+            # Relative speed perception loss
+
+            if cfg.LOSS.DIST_METRIC == 'euclidean':
+                dist_ap = F.pairwise_distance(out_anc, out_pos, 2)
+                dist_an = F.pairwise_distance(out_anc, out_fast_pos, 2)
+            elif cfg.LOSS.DIST_METRIC == 'cosine':
+                dist_ap = 1 - F.cosine_similarity(out_anc, out_pos, dim=1)
+                dist_an = 1 - F.cosine_similarity(out_anc, out_fast_pos, dim=1)
+
+            rsp_criterion = torch.nn.MarginRankingLoss(margin=0.1).to(device)
+            target_rsp = torch.FloatTensor(dist_ap.size()).fill_(-1)
+            if cuda:
+                target_rsp = target_rsp.to(device)
+            rsp_loss = rsp_criterion(dist_ap, dist_an, target_rsp)
+
+            # Combined loss
+            rsp_lambda = 1.0
+            loss = triplet_loss + rsp_loss * rsp_lambda
+
+        else:
+            outputs = model(torch.cat((anchor, positive), 0))  # dim: [(batch_size * 2), dim_embedding]
+            # Sample negatives from batch for each anchor/positive and compute loss
+            loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
 
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
@@ -279,12 +322,25 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
 
         # Log
         if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
-            print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
-                  'Loss: {:.4f} ({:.4f}) \t'
-                  'N_Triplets: {:.1f}'.format(epoch, losses.count,
-                    len(train_loader.dataset),
-                    100. * (losses.count / len(train_loader.dataset)),
-                    losses.val, losses.avg, running_n_triplets.avg))
+            if not cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
+                print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
+                      'Loss: {:.4f} ({:.4f}) \t'
+                      'N_Triplets: {:.1f}'.format(epoch, losses.count,
+                        len(train_loader.dataset),
+                        100. * (losses.count / len(train_loader.dataset)),
+                        losses.val, losses.avg, running_n_triplets.avg))
+            else:
+                print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
+                      'Loss: {:.4f} ({:.4f}) \t'
+                      'Triplet loss: {:.4f} \t'
+                      'RSP loss: {:.4f} \t'
+                      'N_Triplets: {:.1f}'.format(epoch, losses.count,
+                        len(train_loader.dataset),
+                        100. * (losses.count / len(train_loader.dataset)),
+                        losses.val, losses.avg,
+                        triplet_loss, rsp_loss,
+                        running_n_triplets.avg))
+
 
     if (is_master_proc):
         print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
@@ -321,8 +377,10 @@ def train(args, cfg):
 
     model=model_selector(cfg, is_master_proc=is_master_proc)
 
-    print('Converting BatchNorm*D to SyncBatchNorm!')
-    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+    ## SyncBatchNorm
+    if cfg.SYNC_BATCH_NORM:
+        print('Converting BatchNorm*D to SyncBatchNorm!')
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
@@ -344,10 +402,15 @@ def train(args, cfg):
             #model = nn.DataParallel(model)
             if cfg.MODEL.ARCH == '3dresnet':
                 model = torch.nn.parallel.DistributedDataParallel(module=model,
-                    device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
+                    device_ids=[device],
+                    #find_unused_parameters=True,
+                    #broadcast_buffers=False)
+                    )
             else:
                 model = torch.nn.parallel.DistributedDataParallel(module=model,
-                    device_ids=[device], broadcast_buffers=False)
+                    device_ids=[device],
+                    #broadcast_buffers=False)
+                    )
 
     # if cuda:
         encoder = encoder.cuda(device=device)
@@ -355,10 +418,15 @@ def train(args, cfg):
             #model = nn.DataParallel(model)
             if cfg.MODEL.ARCH == '3dresnet':
                 encoder = torch.nn.parallel.DistributedDataParallel(module=encoder,
-                    device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
+                    device_ids=[device],
+                    #find_unused_parameters=True,
+                    #broadcast_buffers=False)
+                    )
             else:
                 encoder = torch.nn.parallel.DistributedDataParallel(module=encoder,
-                    device_ids=[device], broadcast_buffers=False)
+                    device_ids=[device],
+                    #broadcast_buffers=False)
+                    )
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
@@ -386,8 +454,19 @@ def train(args, cfg):
         print('\n==> Setting criterion...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
     criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
-    optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+    if cfg.OPTIM.OPTIMIZER == 'adam':
+        optimizer = optim.Adam(model.parameters(), lr=cfg.OPTIM.LR, weight_decay=cfg.OPTIM.WD)
+    elif cfg.OPTIM.OPTIMIZER == 'sgd':
+        optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+    else:
+        print('{} optimizer not supported'.format(cfg.OPTIM.OPTIMIZER))
+
     if(is_master_proc):
+        print('Using {} optimizer with lr={}'.format(cfg.OPTIM.OPTIMIZER, cfg.OPTIM.LR))
+        if cfg.OPTIM.OPTIMIZER == 'adam':
+            print('Weight decay = {}'.format(cfg.OPTIM.WD))
+        elif cfg.OPTIM.OPTIMIZER == 'sgd':
+            print('Momentum = {}'.format(cfg.OPTIM.MOMENTUM))
         print('Using criterion:{} for training'.format(criterion))
         print('Using criterion:{} for validation'.format(val_criterion))
 
@@ -577,11 +656,13 @@ if __name__ == '__main__':
     # If iteratively clustering, overwrite the cluster_path
     print('Iteratively clustering?: {}, warmup epochs = {}'.format(args.iterative_cluster,
         cfg.ITERCLUSTER.WARMUP_EPOCHS))
+    print('Relative speed perception loss?:', cfg.LOSS.RELATIVE_SPEED_PERCEPTION)
     if args.iterative_cluster:
         assert(cfg.DATASET.TARGET_TYPE_T == 'cluster_label' and cfg.DATASET.POSITIVE_SAMPLING_P != 1.0)
 
     print('Multiview positives ({}% chance replace): {}'.format(cfg.DATASET.PROB_POS_CHANNEL_REPLACE*100,
         cfg.DATASET.POS_CHANNEL_REPLACE))
+    print('Spatio-temporal-attention?: {}'.format(cfg.RESNET.ATTENTION))
 
     # Set shard_id to $SLURM_NODEID if running on compute canada
     shard_id = args.shard_id
@@ -610,6 +691,8 @@ if __name__ == '__main__':
     print('ITERCLUSTER.INTERVAL is set to: {}'.format(cfg.ITERCLUSTER.INTERVAL))
     print('ITERCLUSTER.ADAPTIVEP is set to: {}'.format(cfg.ITERCLUSTER.ADAPTIVEP))
     print('Learning rate is set to {}'.format(cfg.OPTIM.LR))
+    print('Momentum set to {}'.format(cfg.OPTIM.MOMENTUM))
+    print('Margin set to {}'.format(cfg.LOSS.MARGIN))
 
     # Launch processes for all gpus
     print('\n==> Launching gpu processes...')

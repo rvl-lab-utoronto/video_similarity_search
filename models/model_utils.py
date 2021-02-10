@@ -104,7 +104,7 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
 
     elif cfg.MODEL.ARCH == 's3d':
         dim = 128
-        backbone, param = select_backbone('s3d')
+        backbone, param = select_backbone('s3d', first_channel=cfg.DATA.INPUT_CHANNEL_NUM)
         feature_size = param['feature_size']
         model = nn.Sequential(backbone,
                               nn.AdaptiveAvgPool3d((1,1,1)),

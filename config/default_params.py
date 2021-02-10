@@ -21,7 +21,7 @@ _C.TRAIN.LOG_INTERVAL = 5 #for print statements
 # -----------------------------------------------------------------------------
 _C.VAL = CfgNode()
 _C.VAL.METRIC = 'global' #local_batch
-_C.VAL.BATCH_SIZE = 70 #note that local_batch metric is sensitive to the batch_size
+_C.VAL.BATCH_SIZE = 80 #note that local_batch metric is sensitive to the batch_size
 _C.VAL.LOG_INTERVAL = 5
 
 # -----------------------------------------------------------------------------
@@ -132,6 +132,7 @@ _C.ITERCLUSTER = CfgNode()
 _C.ITERCLUSTER.INTERVAL = 5
 _C.ITERCLUSTER.K = 1000
 _C.ITERCLUSTER.ADAPTIVEP = False
+_C.ITERCLUSTER.WARMUP_EPOCHS = 0
 
 # -----------------------------------------------------------------------------
 # Misc options

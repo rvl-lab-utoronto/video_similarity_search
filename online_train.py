@@ -321,6 +321,9 @@ def train(args, cfg):
 
     model=model_selector(cfg, is_master_proc=is_master_proc)
 
+    print('Converting BatchNorm*D to SyncBatchNorm!')
+    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
         print('Number of params: {}'.format(n_parameters))
@@ -390,7 +393,13 @@ def train(args, cfg):
 
     # ============================== Data Loaders ==============================
 
-    if not args.iterative_cluster or start_epoch != 0:
+    m_iter_cluster = False
+    if args.iterative_cluster:
+        if start_epoch >= cfg.ITERCLUSTER.WARMUP_EPOCHS:
+            m_iter_cluster = True
+            cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
+
+    if not m_iter_cluster or start_epoch != 0:
         if(is_master_proc):
             print('\n==> Building training data loader (triplet)...')
         train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
@@ -424,7 +433,11 @@ def train(args, cfg):
 
         # =================== Compute embeddings and cluster ===================
 
-        if args.iterative_cluster and epoch % cfg.ITERCLUSTER.INTERVAL == 0:
+        if args.iterative_cluster and epoch == cfg.ITERCLUSTER.WARMUP_EPOCHS:
+            m_iter_cluster = True
+            cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
+
+        if m_iter_cluster and epoch % cfg.ITERCLUSTER.INTERVAL == 0:
             # Get embeddings using current model
             if is_master_proc:
                 print('\n=> Computing embeddings')
@@ -435,7 +448,8 @@ def train(args, cfg):
                         encoder, cuda, device, eval_train_loader, split='train',
                         is_master_proc=is_master_proc,
                         load_pkl=embeddings_computed, save_pkl=False)
-                print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
+                if is_master_proc:
+                    print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
 
             if is_master_proc:
                 # Cluster
@@ -561,10 +575,10 @@ if __name__ == '__main__':
     cfg = load_config(args)
 
     # If iteratively clustering, overwrite the cluster_path
-    print('Iteratively clustering?:', args.iterative_cluster)
+    print('Iteratively clustering?: {}, warmup epochs = {}'.format(args.iterative_cluster,
+        cfg.ITERCLUSTER.WARMUP_EPOCHS))
     if args.iterative_cluster:
         assert(cfg.DATASET.TARGET_TYPE_T == 'cluster_label' and cfg.DATASET.POSITIVE_SAMPLING_P != 1.0)
-        cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
 
     print('Multiview positives ({}% chance replace): {}'.format(cfg.DATASET.PROB_POS_CHANNEL_REPLACE*100,
         cfg.DATASET.POS_CHANNEL_REPLACE))

@@ -121,13 +121,15 @@ _C.LOSS.M = 0.5 #momentum
 _C.LOSS.FEAT_DIM = 128
 
 #Relative speed perception
-_C.LOSS.RELATIVE_SPEED_PERCEPTION = True
+_C.LOSS.RELATIVE_SPEED_PERCEPTION = False
 
 # -----------------------------------------------------------------------------
 # Optimizer options
 # -----------------------------------------------------------------------------
 _C.OPTIM = CfgNode()
-_C.OPTIM.LR = 0.05
+_C.OPTIM.OPTIMIZER = 'adam'
+_C.OPTIM.WD = 0.00001
+_C.OPTIM.LR = 0.01
 _C.OPTIM.MOMENTUM = 0.5
 _C.OPTIM.SCHEDULE = []
 

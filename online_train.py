@@ -454,8 +454,19 @@ def train(args, cfg):
         print('\n==> Setting criterion...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
     criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
-    optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+    if cfg.OPTIM.OPTIMIZER == 'adam':
+        optimizer = optim.Adam(model.parameters(), lr=cfg.OPTIM.LR, weight_decay=cfg.OPTIM.WD)
+    elif cfg.OPTIM.OPTIMIZER == 'sgd':
+        optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+    else:
+        print('{} optimizer not supported'.format(cfg.OPTIM.OPTIMIZER))
+
     if(is_master_proc):
+        print('Using {} optimizer with lr={}'.format(cfg.OPTIM.OPTIMIZER, cfg.OPTIM.LR))
+        if cfg.OPTIM.OPTIMIZER == 'adam':
+            print('Weight decay = {}'.format(cfg.OPTIM.WD))
+        elif cfg.OPTIM.OPTIMIZER == 'sgd':
+            print('Momentum = {}'.format(cfg.OPTIM.MOMENTUM))
         print('Using criterion:{} for training'.format(criterion))
         print('Using criterion:{} for validation'.format(val_criterion))
 
@@ -633,6 +644,7 @@ if __name__ == '__main__':
 
     # If iteratively clustering, overwrite the cluster_path
     print('Iteratively clustering?:', args.iterative_cluster)
+    print('Relative speed perception loss?:', cfg.LOSS.RELATIVE_SPEED_PERCEPTION)
     if args.iterative_cluster:
         assert(cfg.DATASET.TARGET_TYPE_T == 'cluster_label' and cfg.DATASET.POSITIVE_SAMPLING_P != 1.0)
         cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)

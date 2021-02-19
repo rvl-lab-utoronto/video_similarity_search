@@ -84,11 +84,19 @@ class OnlineTripleLoss(nn.Module):
 
                     # all random semi hard indices (or hardest easy if not enough semi hard)
                     neg_list_idx = all_semi_hard(ap_dist, an_dists, self.margin)
-                    num_missing_negatives = NUM_NEGATIVES - neg_list_idx.shape[0]
+                    if neg_list_idx is None:
+                        num_missing_negatives = NUM_NEGATIVES
+                        num_picked_negatives = 0
+                    else:
+                        num_picked_negatives = neg_list_idx.shape[0]
+                        num_missing_negatives = NUM_NEGATIVES - num_picked_negatives
                     if num_missing_negatives > 0:
                         hardest_easy_neg_idx = torch.topk(an_dists, NUM_NEGATIVES, largest=False)[1]
-                        added_negs = hardest_easy_neg_idx[neg_list_idx.shape[0]:NUM_NEGATIVES]
-                        neg_list_idx = torch.cat((neg_list_idx, added_negs), 0)
+                        added_negs = hardest_easy_neg_idx[num_picked_negatives:NUM_NEGATIVES]
+                        if neg_list_idx is not None:
+                            neg_list_idx = torch.cat((neg_list_idx, added_negs), 0)
+                        else:
+                            neg_list_idx = added_negs
 
                     # randomly pick NUM_NEGATIVES of the neg_list_idx
                     neg_list_idx_val = random.sample(list(enumerate(neg_list_idx)), k=NUM_NEGATIVES)
@@ -100,9 +108,12 @@ class OnlineTripleLoss(nn.Module):
                     # Use ap_dist and an_dists_selected to compute info nce loss
 
                     temperature = 0.5
-                    # TODO: this only works for cosine dist
-                    ap_sim = (1 - ap_dist) / temperature
-                    an_sim = (1 - an_dists_selected) / temperature
+                    if self.dist_metric == 'cosine':
+                        ap_sim = torch.exp((1 - ap_dist) / temperature)
+                        an_sim = torch.exp((1 - an_dists_selected) / temperature)
+                    else:
+                        print('Euclidean dist not supported with infonce loss')
+                        assert(0)
 
                     loss_info_nce = -torch.log(ap_sim / (torch.sum(an_sim) + ap_sim))
                     loss += loss_info_nce

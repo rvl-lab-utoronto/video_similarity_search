@@ -127,7 +127,7 @@ _C.LOSS.RELATIVE_SPEED_PERCEPTION = False
 # Optimizer options
 # -----------------------------------------------------------------------------
 _C.OPTIM = CfgNode()
-_C.OPTIM.OPTIMIZER = 'adam'
+_C.OPTIM.OPTIMIZER = 'sgd'
 _C.OPTIM.WD = 0.00001
 _C.OPTIM.LR = 0.01
 _C.OPTIM.MOMENTUM = 0.5

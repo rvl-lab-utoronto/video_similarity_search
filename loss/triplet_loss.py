@@ -21,7 +21,6 @@ class MemTripletLoss(nn.Module):
         self.register_buffer("queue", torch.randn(self.K, self.dim))
         self.register_buffer("label_q", torch.empty(self.K).fill_(-1))
         self.queue = nn.functional.normalize(self.queue, dim=1)
-
         self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
 
 
@@ -33,17 +32,16 @@ class MemTripletLoss(nn.Module):
             labels = concat_all_gather(labels)
         batch_size = keys.shape[0]
         ptr = int(self.queue_ptr)
-        assert self.K % batch_size == 0, 'self.k needs to be integer multiple of K {}'.format(self.K, batch_size)  # for simplicity
+        assert self.K % batch_size == 0, 'self.k needs to be integer multiple of K {}, {}'.format(self.K, batch_size)  # for simplicity
         # replace the keys at ptr (dequeue and enqueue)
         self.queue[ptr:ptr + batch_size, :] = keys
         self.label_q[ptr:ptr + batch_size] = labels 
         ptr = (ptr + batch_size) % self.K  # move pointer
-        # print('current_ptr', ptr)
         self.queue_ptr[0] = ptr
 
     # embeddings: tensor containing concatenated embeddings of anchors and positives with dim: [(batch_size * 2), dim_embedding]
     # labels: tensor containing concatenated labels of anchors and positives with dim: [(batch_size * 2)]
-    def forward(self, embeddings, labels, sampling_strategy="random_negative"):
+    def forward(self, embeddings, labels, sampling_strategy="adapted_hard"):
         # Get list of (anchor idx, postitive idx, negative idx) triplets
         self.triplet_selector = NegativeTripletSelector(self.margin, sampling_strategy, self.dist_metric, embeddings=embeddings, queue=self.queue, label_q = self.label_q)
         # print('\n\n')
@@ -111,7 +109,7 @@ class OnlineTripletLoss(nn.Module):
             for i in range (0, embeddings.size(0)):
                 pos_idx_targets[i] = (num_anchors + i) % embeddings.size(0)
             pos_idx_targets = pos_idx_targets.cuda()
-            #print(pos_idx_targets)
+            # print(pos_idx_targets)
 
             # Compute normalized temperature-scaled cross entropy loss (InfoNCE)
             loss = F.cross_entropy(sim_matrix, pos_idx_targets)
@@ -261,6 +259,9 @@ class NegativeTripletSelector:
             elif self.sampling_strategy == "random_semi_hard":
                 neg_list_idx = random_semi_hard_sampling(ap_dist, an_dists, self.margin)
                 neg_idx = negative_indices[neg_list_idx] if neg_list_idx is not None else None
+            elif self.sampling_strategy == 'adapted_hard':
+                neg_list_idx = adapted_hard_sampling(ap_dist, an_dists, self.margin)
+                neg_idx = negative_indices[neg_list_idx] if neg_list_idx is not None else None
             elif self.sampling_strategy == "fixed_semi_hard":
                 neg_list_idx = fixed_semi_hard_sampling(ap_dist, an_dists, self.margin)
                 neg_idx = negative_indices[neg_list_idx] if neg_list_idx is not None else None
@@ -309,6 +310,26 @@ def fixed_semi_hard_sampling(ap_dist, an_dists, margin):
     else:
         neg_idx = None
     return neg_idx
+
+def adapted_hard_sampling(ap_dist, an_dists, margin):
+    ap_margin_dist = ap_dist + margin
+    loss = ap_margin_dist - an_dists
+    
+    k = max(int(0.05*len(loss)), 1)
+    # print('k:', k)
+    possible_negs = loss.argsort()[-k:]
+    if possible_negs.nelement() != 0:
+        start = int(0.001 * len(loss))
+        if possible_negs[:-start].nelement() !=0:
+            # print('start:', start)
+            # print('possible_negs: ',possible_negs[:-start])
+            neg_idx = random.choice(possible_negs[:-start])
+            # print('neg_idx: ', neg_idx, loss[neg_idx])
+        else:
+            neg_idx = None
+    else:
+        neg_idx = None
+
 
 
 # Return neg_idx with the smallest anchor/negative distance

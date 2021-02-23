@@ -446,8 +446,8 @@ if __name__ == '__main__':
     # Select appropriate model
     if(is_master_proc):
         print('\n==> Generating {} backbone model...'.format(cfg.MODEL.ARCH))
-    model=model_selector(cfg, projection_head=False)
-
+    model=model_selector(cfg, projection_head=True)
+    print(model)
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
         print('Number of params: {}'.format(n_parameters))

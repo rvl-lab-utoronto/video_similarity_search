@@ -35,7 +35,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
              temporal_transform=None, normalize=None, target_transform=None, channel_ext={},
              cluster_path=None, target_type=None, val_sample=1,
              negative_sampling=False, positive_sampling_p=1.0,
-             pos_channel_replace=False, modality=False, is_master_proc=True):
+             pos_channel_replace=False, modality=False, predict_temporal_ds=False, is_master_proc=True):
 
     assert split in ['train', 'val', 'test']
     assert dataset_name in ['kinetics', 'ucf101']
@@ -52,7 +52,8 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                         label + '/' + video_id)
 
     if dataset_name == 'ucf101':
-        Dataset = UCF101(video_path, annotation_path, split, sample_duration,
+        split2 = split if split!='test' else 'val'
+        Dataset = UCF101(video_path, annotation_path, split2, sample_duration,
                         channel_ext, cluster_path,
                         is_master_proc, video_path_formatter, val_sample)
 
@@ -98,7 +99,9 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                             negative_sampling=negative_sampling,
                             positive_sampling_p=positive_sampling_p,
                             pos_channel_replace=pos_channel_replace,
-                            modality=modality)
+                            modality=modality,
+                            sample_duration=sample_duration,
+                            predict_temporal_ds=predict_temporal_ds)
     else:
         if (is_master_proc):
             print('Using single video dataset...')
@@ -112,7 +115,8 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                             target_transform=target_transform,
                             normalize=normalize,
                             video_loader=loader,
-                            image_name_formatter=Dataset.image_name_formatter)
+                            image_name_formatter=Dataset.image_name_formatter,
+                            sample_duration=sample_duration)
 
     if (is_master_proc):
         print('{}_data: {}'.format(split, len(data)))

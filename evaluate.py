@@ -43,13 +43,13 @@ def m_arg_parser(parser):
     parser.add_argument(
         '--name',
         type=str,
-        default=None,
+        default="test", #None,
         help='Please specify the name (e.g. ResNet18_K, SlowFast_U): '
     )
     parser.add_argument(
         '--num_exemplar',
         type=int,
-        default=None,
+        default=10,
         help='Please specify number of exemplar videos: '
     )
     parser.add_argument(
@@ -81,6 +81,71 @@ def m_arg_parser(parser):
         help='load computed embeddings from the pickle file'
     )
     return parser
+
+def test_evaluate(cfg, model, cuda, device, data_loader, split='test', is_master_proc=True):
+    log_interval = 5
+    model.eval()
+    embedding = []
+    # vid_info = []
+    labels = []
+    idxs = []
+    world_size = du_helper.get_world_size()
+
+    def tr(x):
+        batch_size = x.size(0); assert batch_size ==1 
+        num_test_sample = x.size(2)//cfg.DATA.SAMPLE_DURATION
+        # print(x.size())
+        return x.view(cfg.DATA.INPUT_CHANNEL_NUM, num_test_sample, 1, cfg.DATA.SAMPLE_DURATION, cfg.DATA.SAMPLE_SIZE, cfg.DATA.SAMPLE_SIZE).permute(1,2,0,3,4,5)
+
+
+    with torch.no_grad():
+        # print(data_loader)
+        for batch_idx, (input_seq, targets, info, indexes) in enumerate(data_loader):
+            # print("imhere", input_seq.size())
+            if cfg.DATASET.MODALITY == True:
+                batch_size = input_seq[0].size(0)
+                if cuda:
+                    for i in range(len(input_seq)):
+                        input_seq[i] = input_seq[i].to(device)
+            else:
+                batch_size = input_seq.size(0)
+                if cuda:
+                    input_seq= input_seq.to(device)
+
+            if cuda:
+                targets = targets.to(device)
+                indexes = indexes.to(device)
+
+            input_seq = tr(input_seq)
+            test_sample = input_seq.size(0)
+            input_seq = input_seq.squeeze(1)
+            # print('input seq', input_seq.size())
+            embedd = model(input_seq)
+            if isinstance(embedd, tuple): #for multiview
+                embedd = embedd[0]
+            # print(embedd.size())
+            # embedd = embedd.flatten(1)
+
+            if cfg.NUM_GPUS > 1:
+                embedd, targets, indexes = du_helper.all_gather([embedd, targets, indexes])
+            embedd = embedd.detach().cpu()
+            # print(embedd.mean(0).size())
+            embedding.append(embedd.mean(0))
+            # print("embedding: ", len(embedding), embedding[0].size())
+            labels.append(targets.detach().cpu())
+            idxs.append(indexes.detach().cpu())
+            # vid_info.extend(info)
+            # print('embedd size', embedd.size())
+            batch_size_world = batch_size * world_size
+            if ((batch_idx + 1) * world_size) % log_interval == 0 and is_master_proc:
+                print('{} [{}/{} | {:.1f}%]'.format(split, (batch_idx+1)*batch_size_world, len(data_loader.dataset), 
+                    ((batch_idx+1)*100.*batch_size_world/len(data_loader.dataset))))
+
+    embeddings = torch.cat(embedding, dim=0)
+    labels = torch.cat(labels, dim=0).tolist()
+    idxs = torch.cat(idxs, dim=0).tolist()
+    # if is_master_proc: print('embeddings size', embeddings.size())
+    return embeddings, labels, idxs
 
 
 def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_proc=True):
@@ -258,9 +323,16 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
             labels = torch.load(handle)
         with open(idxs_pkl, 'rb') as handle:
             idxs = torch.load(handle)
+        
+        if split=="test":
+            embeddings = embeddings.reshape((3781, 128))
         print('retrieved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
-    else:
-        embeddings, labels, idxs = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
+
+    else:      
+        if split =="test":
+            embeddings, labels, idxs = test_evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
+        else:
+            embeddings, labels, idxs = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
         if save_pkl and is_master_proc:
             with open(embeddings_pkl, 'wb') as handle:
                 torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
@@ -279,16 +351,16 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
                         load_pkl=False, out_filename='global_retrieval_acc'):
     if is_master_proc:
         print ('Getting embeddings...')
-    val_embeddings, val_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader,
-                                                        split='val', is_master_proc=is_master_proc, load_pkl=load_pkl)
+    test_embeddings, test_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader,
+                                                        split='test', is_master_proc=is_master_proc, load_pkl=load_pkl)
     train_embeddings, train_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader,
                                                         split='train', is_master_proc=is_master_proc, load_pkl=load_pkl)
     acc = []
 
     print ('Computing top1/5/10/20 Acc...')
     if (is_master_proc):
-        distance_matrix = get_distance_matrix(val_embeddings, train_embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
-        acc = get_topk_acc(distance_matrix, val_labels, y_labels=train_labels)
+        distance_matrix = get_distance_matrix(test_embeddings, train_embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
+        acc = get_topk_acc(distance_matrix, test_labels, y_labels=train_labels)
         if epoch is not None:
             to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
             msg = '\nTest Set: Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%, Top10 Acc: {:.2f}%, Top20 Acc: {:.2f}%'.format(100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
@@ -504,7 +576,7 @@ if __name__ == '__main__':
     # ============================== Data Loaders ==============================
 
     train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False)
-    test_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, triplets=False, val_sample=None)
+    test_loader, (val_data, _) = data_loader.build_data_loader('test', cfg, triplets=False, val_sample=None)
 
     # ================================ Evaluate ================================
 

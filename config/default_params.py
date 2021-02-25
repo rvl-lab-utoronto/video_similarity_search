@@ -38,6 +38,7 @@ _C.TEST = CfgNode()
 _C.MODEL = CfgNode()
 _C.MODEL.ARCH = "slowfast"
 #_C.MODEL.ARCH = "3dresnet"
+_C.MODEL.PREDICT_TEMPORAL_DS = False
 
 # -----------------------------------------------------------------------------
 # Dataset options

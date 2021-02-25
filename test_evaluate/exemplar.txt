@@ -1,0 +1,10 @@
+2732, /media/diskstation/datasets/UCF101/jpg/Rafting/v_Rafting_g05_c02/image_00061.jpg
+2607, /media/diskstation/datasets/UCF101/jpg/PommelHorse/v_PommelHorse_g06_c01/image_00150.jpg
+1653, /media/diskstation/datasets/UCF101/jpg/IceDancing/v_IceDancing_g04_c02/image_00124.jpg
+3264, /media/diskstation/datasets/UCF101/jpg/Surfing/v_Surfing_g01_c03/image_00109.jpg
+835, /media/diskstation/datasets/UCF101/jpg/CricketBowling/v_CricketBowling_g01_c04/image_00066.jpg
+763, /media/diskstation/datasets/UCF101/jpg/CleanAndJerk/v_CleanAndJerk_g01_c04/image_00059.jpg
+1731, /media/diskstation/datasets/UCF101/jpg/JugglingBalls/v_JugglingBalls_g05_c01/image_00121.jpg
+3431, /media/diskstation/datasets/UCF101/jpg/TennisSwing/v_TennisSwing_g04_c07/image_00065.jpg
+1033, /media/diskstation/datasets/UCF101/jpg/Drumming/v_Drumming_g07_c01/image_00149.jpg
+277, /media/diskstation/datasets/UCF101/jpg/Basketball/v_Basketball_g02_c02/image_00027.jpg

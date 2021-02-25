@@ -111,6 +111,7 @@ class ResNet(nn.Module):
                  widen_factor=1.0,
                  hidden_layer= 2048,
                  out_dim = 128,
+                 predict_temporal_ds =False,
                  projection_head=True):
         super().__init__()
 
@@ -118,7 +119,6 @@ class ResNet(nn.Module):
 
         self.in_planes = block_inplanes[0] #64
         self.no_max_pool = no_max_pool
-
         self.conv1 = nn.Conv3d(n_input_channels,
                                self.in_planes,
                                kernel_size=(conv1_t_size, 7, 7),
@@ -147,13 +147,19 @@ class ResNet(nn.Module):
                                        stride=2)
 
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
+        self.predict_temporal_ds = predict_temporal_ds
         self.projection_head = projection_head
+
         if projection_head:
             print('==> setting up non-linear project heads')
             self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
+            self.bn_proj = nn.BatchNorm1d(hidden_layer) #add batch norm 1d 
             self.fc2 = nn.Linear(hidden_layer, out_dim)
         else:
             self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
+
+        if self.predict_temporal_ds:
+            self.temporal_ds_linear = nn.Linear(block_inplanes[3] * block.expansionm, 4)
 
 
         for m in self.modules():
@@ -219,13 +225,24 @@ class ResNet(nn.Module):
         # x = self.fc(x)
         #add projection head
         if self.projection_head:
-            x = self.fc1(x)
-            # print('after fc1', x.size())
-            x = self.relu(x)
-            # print('after relu', x.size())
-            x = self.fc2(x)
-            # print('after fc2', x.size())
+            # x = self.fc1(x)
+            # # print('after fc1', x.size())
+            # x = self.relu(x)
+            # # print('after relu', x.size())
+            # x = self.fc2(x)
+            # # print('after fc2', x.size())
 
+
+            #add batchnorm layer
+            x = self.fc1(x)
+            x = self.bn_proj(x)
+            x = self.relu(x)
+            x = self.fc2(x)
+        
+        if self.predict_temporal_ds:
+            predicted_ds = self.temporal_ds_linear(x)
+            return x, predicted_ds
+            
         return x
 
 

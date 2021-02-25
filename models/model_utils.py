@@ -90,7 +90,7 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
             'simclr_pretrained_inflated_res50',
             'imagenet_pretrained_inflated_res50',
             'mocov2_pretrained_inflated_res50']
-
+    print('n input channel: ', cfg.DATA.INPUT_CHANNEL_NUM)
     if cfg.MODEL.ARCH == '3dresnet':
         model=generate_model(model_depth=cfg.RESNET.MODEL_DEPTH,
                         hidden_layer=cfg.RESNET.HIDDEN_LAYER,

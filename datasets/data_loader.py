@@ -74,6 +74,8 @@ def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3, i
     extra_num_channel = num_channels-3
     mean.extend([0] * extra_num_channel)
     std.extend([1] * extra_num_channel)
+
+    print(extra_num_channel, mean, std)
     if (is_master_proc):
         print('Normalize mean:{}, std:{}'.format(mean, std))
     return Normalize(mean, std)
@@ -114,7 +116,7 @@ def build_spatial_transformation(cfg, split, is_master_proc=True):
 
 
 # Return transformation transformations used per set of video frames
-def build_temporal_transformation(cfg, triplets=True):
+def build_temporal_transformation(cfg, triplets=True, split=None):
     if triplets:
         TempTransform = {}
         #anchor
@@ -134,6 +136,8 @@ def build_temporal_transformation(cfg, triplets=True):
         temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
         temporal_transform = TemporalCompose(temporal_transform)
         TempTransform['negative'] = temporal_transform
+    # elif split=='test':
+    #     temporal_transform = []
 
     else:
         temporal_transform = []
@@ -192,17 +196,20 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
             print('Using requested spatial transforms')
 
     # Get temporal transforms
-    TempTransform = build_temporal_transformation(cfg, triplets)
+    TempTransform = None
+    if split != "test":
+        TempTransform = build_temporal_transformation(cfg, triplets, split=split)
 
     # Get input channel extension (e.g. salient object mask, keypoint channel)
     # dictionary and assert that the specified input_channel_num is valid
+    
     channel_ext = {}
     if (triplets and cfg.DATASET.POS_CHANNEL_REPLACE and split == 'train') or not cfg.DATASET.POS_CHANNEL_REPLACE:
         channel_ext = get_channel_extension(cfg)
         assert (cfg.DATASET.MODALITY or cfg.DATASET.POS_CHANNEL_REPLACE or len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
         if (is_master_proc):
             print('Channel ext:', channel_ext)
-
+  
     # Set the target type and path to clustering information
     if split == 'train':
         target_type = cfg.DATASET.TARGET_TYPE_T
@@ -229,6 +236,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
     if (is_master_proc):
         print ('Loading', cfg.TRAIN.DATASET, split, 'split...')
+
     data, (collate_fn, _) = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, normalize=normalize,
@@ -238,9 +246,8 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 positive_sampling_p=cfg.DATASET.POSITIVE_SAMPLING_P,
                 pos_channel_replace=cfg.DATASET.POS_CHANNEL_REPLACE,
                 modality=cfg.DATASET.MODALITY,
+                predict_temporal_ds=cfg.MODEL.PREDICT_TEMPORAL_DS,
                 is_master_proc=is_master_proc)
-    # if (is_master_proc):
-    #     print ('Single video input size:', data.size())
 
     # ============================ Build DataLoader ============================
 
@@ -283,13 +290,12 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
     else: #test split
         data_loader = torch.utils.data.DataLoader(data,
-                                                  batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS),
+                                                  batch_size = 1, #batch_size 1 #int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS),
                                                   shuffle=False,
                                                   num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
                                                   pin_memory=True,
                                                   sampler=sampler,
                                                   worker_init_fn=worker_init_fn
-                                                  # collate_fn=collate_fn)
                                                   )
     return data_loader, (data, sampler)
 

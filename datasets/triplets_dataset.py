@@ -32,7 +32,9 @@ class TripletsData(data.Dataset):
                  positive_sampling_p=1.0,
                  negative_sampling=False,
                  pos_channel_replace=False,
+                 sample_duration=None,
                  modality=False,
+                 predict_temporal_ds=False,
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
                  target_type='label'):
 
@@ -47,7 +49,11 @@ class TripletsData(data.Dataset):
         self.normalize=normalize
         self.positive_types = ['same_inst', 'diff_inst']
         self.pos_channel_replace = pos_channel_replace
+        self.sample_duration = sample_duration
         self.modality = modality
+        self.predict_temporal_ds = predict_temporal_ds
+        self.max_sr = 4
+        
 
         if temporal_transform is not None:
             self.anchor_temporal_transform = temporal_transform['anchor']
@@ -94,6 +100,15 @@ class TripletsData(data.Dataset):
 
         p_target = positive[self.target_type]
 
+        if self.predict_temporal_ds:
+            ds_label = random.randint(1, 4) #TODO: make it configurable
+            a_clip = self._load_clip(anchor, self.anchor_temporal_transform,
+                        use_channel_ext=(False if self.pos_channel_replace else True), ds=ds_label)
+            p_clip = self._load_clip(positive, self.positive_temporal_transform,
+                        pos_channel_replace=self.pos_channel_replace, ds=ds_label)
+            return (a_clip, p_clip), (a_target, p_target), ds_label, index
+
+
         a_clip = self._load_clip(anchor, self.anchor_temporal_transform,
                 use_channel_ext=(False if self.pos_channel_replace else True))
         p_clip = self._load_clip(positive, self.positive_temporal_transform,
@@ -106,14 +121,19 @@ class TripletsData(data.Dataset):
             negative = self.data[negative_idx]
             n_target = negative[self.target_type]
             n_clip = self._load_clip(negative, self.negative_temporal_transform)
-            return (a_clip, p_clip, n_clip), (a_target, p_target, n_target), (index, negative_idx)
+            return (a_clip, p_clip, n_clip), (a_target, p_target, n_target), (index, negative_idx)        
         else:
             return (a_clip, p_clip), (a_target, p_target), index
 
-    def _load_clip(self, data, temporal_transform, use_channel_ext=True, pos_channel_replace=False):
+    def _load_clip(self, data, temporal_transform, use_channel_ext=True, pos_channel_replace=False, ds=1):
         path = data['video']
         frame_indices = list(range(1, data['num_frames'] + 1))
-        frame_id = temporal_transform(frame_indices)
+        if self.predict_temporal_ds:
+            total_frame_len = len(frame_indices)
+            start_frame = random.randint(1, total_frame_len)
+            frame_id = self.get_temporal_ds_frame_indices(self.sample_duration, total_frame_len, start_frame, ds=ds)
+        else:
+            frame_id = temporal_transform(frame_indices) #EDIT 
 
         channel_paths = {}
         if use_channel_ext:
@@ -129,3 +149,10 @@ class TripletsData(data.Dataset):
 
     def __len__(self):
         return len(self.data)
+
+    def get_temporal_ds_frame_indices(self, sample_duration, total_frame_len, start_frame, ds=1):
+        frame_indices = []
+        for i in range(sample_duration):
+            cur_frame_idx = (start_frame_idx + i*ds) % total_frame_len
+            frame_indices.append(cur_frame_idx)
+        return frame_indices

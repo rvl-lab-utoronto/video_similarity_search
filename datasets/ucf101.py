@@ -95,6 +95,9 @@ class UCF101():
             if self.is_master_proc and val_sample is not None:
                 print('Randomly sampling 1 clip from each group for the validation set')
             subset = 'validation'
+        else:
+            subset = 'test'
+
 
         self.channel_ext = channel_ext
         self.cluster_path = cluster_path

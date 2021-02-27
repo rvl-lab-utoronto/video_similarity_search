@@ -212,7 +212,7 @@ class NegativeTripletSelector:
             ap_dist = dist_mat[anchor_idx, pos_idx]
             an_dists = dist_mat[anchor_idx, negative_indices]
 
-            print(an_dists.shape)
+            #print(an_dists.shape)
 
             # Sample negative index according to sampling strategy
             if self.sampling_strategy == 'random_negative':

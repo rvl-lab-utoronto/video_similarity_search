@@ -471,6 +471,9 @@ def train(args, cfg):
         print('Using criterion:{} for validation'.format(val_criterion))
 
     # ============================== Data Loaders ==============================
+    
+    if args.start_epoch != None:
+        start_epoch = args.start_epoch
 
     m_iter_cluster = False
     if args.iterative_cluster:
@@ -535,7 +538,8 @@ def train(args, cfg):
                 print('\n=> Clustering')
                 start_time = time.time()
                 print('embeddings shape', embeddings.size())
-                trained_clustering_obj = fit_cluster(embeddings, 'kmeans', cfg.ITERCLUSTER.K)
+                trained_clustering_obj = fit_cluster(embeddings, 'kmeans',
+                        cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE)
                 print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
                 # Calculate NMI for true labels vs cluster assignments

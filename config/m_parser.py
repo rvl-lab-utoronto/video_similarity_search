@@ -10,6 +10,12 @@ from default_params import get_cfg
 def arg_parser():
     parser = argparse.ArgumentParser("Video Similarity Search Training Script")
     parser.add_argument(
+        "--start_epoch",
+        default=None,
+        type=int,
+        help='overwrite start epoch'
+    )
+    parser.add_argument(
         '--pretrain_path',
         default=None,
         type=str, action='store',

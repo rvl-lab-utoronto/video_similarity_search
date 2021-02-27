@@ -56,8 +56,10 @@ def get_mean_std(value_scale, dataset):
         mean = [0.4345, 0.4051, 0.3775]
         std = [0.2768, 0.2713, 0.2737]
     else:
-        mean = [0.5, 0.5, 0.5]
-        std = [0.5, 0.5, 0.5]
+        #mean = [0.5, 0.5, 0.5]
+        #std = [0.5, 0.5, 0.5]
+        mean=[0.485, 0.456, 0.406]
+        std=[0.229, 0.224, 0.225]
 
     mean = [x * value_scale for x in mean]
     std = [x * value_scale for x in std]
@@ -272,7 +274,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
             if triplets:
                 batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS)
             else:  # if not in train mode can support a larger batch size
-                batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 7
+                batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
         else:
             batch_size = int(cfg.VAL.BATCH_SIZE)
         if is_master_proc:

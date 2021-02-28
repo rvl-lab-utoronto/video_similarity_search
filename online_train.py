@@ -702,6 +702,9 @@ def train(args, cfg):
 
         acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda,
                        device, is_master_proc)
+
+        is_best = False
+
         if epoch % 10 == 0:
             if is_master_proc:
                 print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
@@ -710,9 +713,12 @@ def train(args, cfg):
                                             plot=False, epoch=epoch, is_master_proc=is_master_proc)
             embeddings_computed = True
 
-        # Update best accuracy and save checkpoint
-        is_best = acc > best_acc
-        best_acc = max(acc, best_acc)
+            # Update best accuracy
+            top1_acc = topk_acc[0]
+            is_best = top1_acc > best_acc
+            best_acc = max(top1_acc, best_acc)
+
+        # Save checkpoint
         if torch.cuda.device_count() > 1:
             save_checkpoint({
                 'epoch': epoch+1,

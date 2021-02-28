@@ -482,22 +482,7 @@ def train(args, cfg):
                     device_ids=[device],
                     #broadcast_buffers=False)
                     )
-
-    # if cuda:
-        encoder = encoder.cuda(device=device)
-        if torch.cuda.device_count() > 1:
-            #model = nn.DataParallel(model)
-            if cfg.MODEL.ARCH == '3dresnet':
-                encoder = torch.nn.parallel.DistributedDataParallel(module=encoder,
-                    device_ids=[device],
-                    #find_unused_parameters=True,
-                    #broadcast_buffers=False)
-                    )
-            else:
-                encoder = torch.nn.parallel.DistributedDataParallel(module=encoder,
-                    device_ids=[device],
-                    #broadcast_buffers=False)
-                    )
+        return model
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:

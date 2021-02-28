@@ -16,7 +16,7 @@ import copy
 import torchvision
 from models.baselines.inflate_src.i3res import I3ResNet
 from models.baselines.simclr_pytorch.resnet_wider import resnet50x1
-
+from models.multiview import Multiview
 
 def create_output_dirs(cfg):
     if not os.path.exists(cfg.OUTPUT_PATH):
@@ -103,6 +103,24 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
                         projection_head=projection_head,
                         spatio_temporal_attention=cfg.RESNET.ATTENTION)
 
+        #only resnet supports multiview for now
+        if cfg.DATASET.MODALITY == True:
+            encoder1 = model
+            encoder2 = generate_model(model_depth=cfg.RESNET.MODEL_DEPTH,
+                        hidden_layer=cfg.RESNET.HIDDEN_LAYER,
+                        out_dim=cfg.RESNET.OUT_DIM,
+                        n_input_channels=cfg.DATA.INPUT_CHANNEL_NUM,
+                        shortcut_type=cfg.RESNET.SHORTCUT,
+                        conv1_t_size=cfg.RESNET.CONV1_T_SIZE,
+                        conv1_t_stride=cfg.RESNET.CONV1_T_STRIDE,
+                        no_max_pool=cfg.RESNET.NO_MAX_POOl,
+                        widen_factor=cfg.RESNET.WIDEN_FACTOR,
+                        projection_head=projection_head,
+                        spatio_temporal_attention=cfg.RESNET.ATTENTION)
+
+            model = Multiview(encoder1, encoder2, cfg.RESNET.OUT_DIM)
+
+
     elif cfg.MODEL.ARCH == 's3d':
         dim = 128
         backbone, param = select_backbone('s3d', first_channel=cfg.DATA.INPUT_CHANNEL_NUM)
@@ -162,6 +180,7 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
 
     elif cfg.MODEL.ARCH == 'mocov2_pretrained_inflated_res50':
         model = mocov2_inflated(cfg.DATA.SAMPLE_DURATION)
+    
 
     return model
 
@@ -223,14 +242,27 @@ def load_checkpoint(model, checkpoint_path, is_master_proc=True):
         checkpoint = torch.load(checkpoint_path)
         start_epoch = checkpoint['epoch']
         best_prec1 = checkpoint['best_prec1']
-        model.load_state_dict(checkpoint['state_dict'])
+        state_dict = checkpoint['state_dict']
+
+        # create new OrderedDict that does not contain `module.`
+        from collections import OrderedDict
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items(): #edit
+            if 'module.' in k:
+                name = k[7:] # remove `module.`
+                new_state_dict[name] = v
+            else:
+                new_state_dict[k] = v
+        # load params
+        model.load_state_dict(new_state_dict)
+
         if (is_master_proc):
             print("=> loaded checkpoint '{}' (epoch {})".format(checkpoint_path, checkpoint['epoch']))
     else:
         if (is_master_proc):
             print("=> no checkpoint found at '{}'".format(checkpoint_path))
     return start_epoch, best_prec1
-    
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""

@@ -34,6 +34,7 @@ class TripletsData(data.Dataset):
                  pos_channel_replace=False,
                  prob_pos_channel_replace=None,
                  relative_speed_perception=False,
+                 modality=False,
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
                  target_type='label'):
 
@@ -50,6 +51,7 @@ class TripletsData(data.Dataset):
         self.pos_channel_replace = pos_channel_replace
         self.prob_pos_channel_replace = prob_pos_channel_replace
         self.relative_speed_perception = relative_speed_perception
+        self.modality = modality
 
         if temporal_transform is not None:
             self.anchor_temporal_transform = temporal_transform['anchor']
@@ -135,7 +137,8 @@ class TripletsData(data.Dataset):
                 self.spatial_transform, self.normalize, path, frame_id,
                 channel_paths=channel_paths,
                 pos_channel_replace=pos_channel_replace,
-                prob_pos_channel_replace=self.prob_pos_channel_replace)
+                prob_pos_channel_replace=self.prob_pos_channel_replace,
+                modality=self.modality)
         return clip
 
     def __len__(self):

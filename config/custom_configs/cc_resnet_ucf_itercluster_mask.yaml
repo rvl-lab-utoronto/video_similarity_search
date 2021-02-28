@@ -5,17 +5,24 @@ TRAIN:
 DATASET:
     VID_PATH: ./jpg
     ANNOTATION_PATH: /home/cheny257/projects/def-florian7/datasets/UCF101/json/ucf101_01.json
-    CHANNEL_EXTENSIONS: 'keypoint'
-    KEYPOINT_PATH: ./alphapose
+    #CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
 
+    TARGET_TYPE_T: 'cluster_label'
+    TARGET_TYPE_V: 'label'
+
+    SAMPLING_STRATEGY: 'random_semi_hard'
+    POSITIVE_SAMPLING_P: 0.2
+
+    CHANNEL_EXTENSIONS: 'salient'
+    SALIENT_PATH: ./poolnet_new
 
 MODEL:
     ARCH: '3dresnet'
 
 RESNET:
     MODEL_DEPTH: 18
-    N_CLASSES: 2048
-    N_INPUT_CHANNELS: 4 #RGB + keypoint
+    N_CLASSES: 2048 #512
+    # N_INPUT_CHANNELS: 3
     SHORTCUT: 'B'
     CONV1_T_SIZE: 7
     CONV1_T_STRIDE: 1
@@ -28,8 +35,8 @@ DATA:
     INPUT_CHANNEL_NUM: 4
 
 LOSS:
-    MARGIN: 0.1
+    MARGIN: 0.2
 
 OPTIM:
-    LR: 0.01
+    LR: 0.1
     MOMENTUM: 0.5

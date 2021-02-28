@@ -4,17 +4,25 @@ TRAIN:
 DATASET:
     VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
     ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
+    # CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt' #todelete
+
+    TARGET_TYPE_T: 'cluster_label'
+    TARGET_TYPE_V: 'label'
+
+    SAMPLING_STRATEGY: 'random_semi_hard'
+    POSITIVE_SAMPLING_P: 0.2
+
+    POS_CHANNEL_REPLACE: False
     CHANNEL_EXTENSIONS: 'keypoint'
     KEYPOINT_PATH: /media/diskstation/datasets/UCF101/alphapose
-
 
 MODEL:
     ARCH: '3dresnet'
 
 RESNET:
     MODEL_DEPTH: 18
-    N_CLASSES: 1039
-    # N_INPUT_CHANNELS: 4 #RGB + keypoint
+    N_CLASSES: 2048 #512
+    # N_INPUT_CHANNELS: 3
     SHORTCUT: 'B'
     CONV1_T_SIZE: 7
     CONV1_T_STRIDE: 1
@@ -22,12 +30,12 @@ RESNET:
     WIDEN_FACTOR: 1
 
 DATA:
-    SAMPLE_SIZE: 224
-    SAMPLE_DURATION: 32
+    SAMPLE_SIZE: 128
+    SAMPLE_DURATION: 16
     INPUT_CHANNEL_NUM: 4
 
 LOSS:
-    MARGIN: 0.1
+    MARGIN: 0.2
 
 OPTIM:
     LR: 0.05

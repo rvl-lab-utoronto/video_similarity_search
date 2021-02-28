@@ -155,7 +155,7 @@ def build_temporal_transformation(cfg, triplets=True):
 
 # Return dictionary of channel extension information, with each key containing
 # an array: [<mask root path>, VideoLoader object for loading the mask]
-def get_channel_extention(cfg):
+def get_channel_extension(cfg):
     channel_ext = {}
 
     assert cfg.TRAIN.DATASET in ['kinetics', 'ucf101']
@@ -207,8 +207,8 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     # dictionary and assert that the specified input_channel_num is valid
     channel_ext = {}
     if (triplets and cfg.DATASET.POS_CHANNEL_REPLACE and split == 'train') or not cfg.DATASET.POS_CHANNEL_REPLACE:
-        channel_ext = get_channel_extention(cfg)
-        assert (cfg.DATASET.POS_CHANNEL_REPLACE or len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
+        channel_ext = get_channel_extension(cfg)
+        assert (cfg.DATASET.MODALITY or cfg.DATASET.POS_CHANNEL_REPLACE or len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
         if (is_master_proc):
             print('Channel ext:', channel_ext)
 
@@ -248,10 +248,10 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 pos_channel_replace=cfg.DATASET.POS_CHANNEL_REPLACE,
                 prob_pos_channel_replace=cfg.DATASET.PROB_POS_CHANNEL_REPLACE,
                 relative_speed_perception=cfg.LOSS.RELATIVE_SPEED_PERCEPTION,
+                modality=cfg.DATASET.MODALITY,
                 is_master_proc=is_master_proc)
-    if (is_master_proc):
-        print ('Single video input size:', data[1][0][0].size())
-
+    # if (is_master_proc):
+    #     print ('Single video input size:', data.size())
 
     # ============================ Build DataLoader ============================
 

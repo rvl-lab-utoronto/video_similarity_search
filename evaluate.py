@@ -324,8 +324,7 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
         with open(idxs_pkl, 'rb') as handle:
             idxs = torch.load(handle)
         
-        if split=="test":
-            embeddings = embeddings.reshape((3781, 128))
+
         print('retrieved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
 
     else:      
@@ -341,6 +340,9 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
             with open(idxs_pkl, 'wb') as handle:
                 torch.save(idxs, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
             print('saved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
+
+    if split=="test": #EDIT
+        embeddings = embeddings.reshape((3781, 128))
 
     return embeddings, labels, idxs
 

@@ -100,7 +100,7 @@ class TripletsData(data.Dataset):
 
         p_target = positive[self.target_type]
 
-        if self.predict_temporal_ds:
+        if self.split == 'train' and self.predict_temporal_ds: #only applied to train split
             ds_label = random.randint(1, 4) #TODO: make it configurable
             a_clip = self._load_clip(anchor, self.anchor_temporal_transform,
                         use_channel_ext=(False if self.pos_channel_replace else True), ds=ds_label)
@@ -153,6 +153,6 @@ class TripletsData(data.Dataset):
     def get_temporal_ds_frame_indices(self, sample_duration, total_frame_len, start_frame, ds=1):
         frame_indices = []
         for i in range(sample_duration):
-            cur_frame_idx = (start_frame_idx + i*ds) % total_frame_len
+            cur_frame_idx = (start_frame + i*ds) % total_frame_len + 1
             frame_indices.append(cur_frame_idx)
         return frame_indices

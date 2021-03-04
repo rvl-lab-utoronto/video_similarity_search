@@ -159,7 +159,8 @@ class ResNet(nn.Module):
             self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
 
         if self.predict_temporal_ds:
-            self.temporal_ds_linear = nn.Linear(block_inplanes[3] * block.expansionm, 4)
+            print('==> setting up temporal ds prediction heads')
+            self.temporal_ds_linear = nn.Linear(block_inplanes[3] * block.expansion, 4)
 
 
         for m in self.modules():
@@ -234,16 +235,18 @@ class ResNet(nn.Module):
 
 
             #add batchnorm layer
-            x = self.fc1(x)
-            x = self.bn_proj(x)
-            x = self.relu(x)
-            x = self.fc2(x)
+            h = self.fc1(x)
+            h = self.bn_proj(h)
+            h = self.relu(h)
+            h = self.fc2(h)
         
         if self.predict_temporal_ds:
+            # print("x: ", x.size())
+
             predicted_ds = self.temporal_ds_linear(x)
-            return x, predicted_ds
-            
-        return x
+            return h, predicted_ds
+
+        return h
 
 
 

@@ -255,16 +255,14 @@ def triplet_temporal_train_epoch(train_loader, model, criterion, optimizer, epoc
 
         if cuda:
             targets = targets.to(device)
+            ds_label = ds_label.to(device)
 
         # Sample negatives from batch for each anchor/positive and compute loss
         triplet_loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
-        a_temporal_loss = temporal_criterion(a_predicted_ds, ds_label)
-        p_temporal_loss = temporal_criterion(p_predicted_ds, ds_label)
+        a_temporal_loss = temporal_criterion(a_predicted_ds, ds_label-1)
+        p_temporal_loss = temporal_criterion(p_predicted_ds, ds_label-1)
         temporal_loss = a_temporal_loss + p_temporal_loss
-        
         total_loss = triplet_loss + 0.5*temporal_loss
-
-        # Compute gradient and perform optimization step
         optimizer.zero_grad()
         total_loss.backward()
         optimizer.step()
@@ -292,7 +290,7 @@ def triplet_temporal_train_epoch(train_loader, model, criterion, optimizer, epoc
                   'Total Loss: {:.4f} ({:.4f}) \t'
                   'Triplet Loss: {:.4f} ({:.4f}) \t'
                   'Temporal Loss: {:.4f} ({:.4f}) \t'
-                  'N_Triplets: {:.1f}'.format(epoch, losses.count, len(train_loader.dataset),100. * (losses.count / len(train_loader.dataset)),
+                  'N_Triplets: {:.1f}'.format(epoch, total_losses.count, len(train_loader.dataset),100. * (total_losses.count / len(train_loader.dataset)),
                     total_losses.val, total_losses.avg,
                     triplet_losses.val, triplet_losses.avg,
                     temporal_losses.val, temporal_losses.avg,
@@ -591,7 +589,7 @@ def train(args, cfg):
         print('\n==> Building validation data loader (single video)...')
     eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg,
             is_master_proc=False, triplets=False, val_sample=None,
-            drop_last=False)
+            drop_last=False, batch_size=1)
 
     # ============================= Training loop ==============================
 

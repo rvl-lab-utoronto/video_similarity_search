@@ -101,7 +101,8 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
                         conv1_t_stride=cfg.RESNET.CONV1_T_STRIDE,
                         no_max_pool=cfg.RESNET.NO_MAX_POOl,
                         widen_factor=cfg.RESNET.WIDEN_FACTOR,
-                        projection_head=projection_head)
+                        projection_head=projection_head,
+                        predict_temporal_ds=cfg.MODEL.PREDICT_TEMPORAL_DS)
         #only resnet supports multiview for now
         if cfg.DATASET.MODALITY == True:
             encoder1 = model
@@ -114,7 +115,8 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
                         conv1_t_stride=cfg.RESNET.CONV1_T_STRIDE,
                         no_max_pool=cfg.RESNET.NO_MAX_POOl,
                         widen_factor=cfg.RESNET.WIDEN_FACTOR,
-                        projection_head=projection_head)
+                        projection_head=projection_head,
+                        predict_temporal_ds=cfg.MODEL.PREDICT_TEMPORAL_DS)
                         
             model = Multiview(encoder1, encoder2, cfg.RESNET.OUT_DIM)
 

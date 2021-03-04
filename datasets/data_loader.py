@@ -181,7 +181,7 @@ def get_channel_extension(cfg):
 # Return a pytorch DataLoader
 def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                       negative_sampling=False, req_spatial_transform=None,
-                      req_train_shuffle=None, val_sample=1, drop_last=True):
+                      req_train_shuffle=None, val_sample=1, drop_last=True, batch_size=None):
 
     # ==================== Transforms and parameter Setup ======================
 
@@ -266,10 +266,12 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
         else:
             shuffle=(False if sampler else True)
 
-        if split == 'train':
-            batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS)
-        else:
-            batch_size = int(cfg.VAL.BATCH_SIZE)
+        if batch_size is None:
+            if split == 'train':
+                batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS)
+            else:
+                batch_size = int(cfg.VAL.BATCH_SIZE)
+                
         if is_master_proc:
             print (split, 'batch size for this process:', batch_size)
 

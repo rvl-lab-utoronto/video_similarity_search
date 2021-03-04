@@ -17,6 +17,8 @@ DATASET:
 MODEL:
     ARCH: '3dresnet'
 
+    PREDICT_TEMPORAL_DS: True
+
 RESNET:
     MODEL_DEPTH: 18
     N_CLASSES: 2048 #512
@@ -27,7 +29,6 @@ RESNET:
     NO_MAX_POOl: true
     WIDEN_FACTOR: 1
 
-    PREDICT_TEMPORAL_DS: True
 
 DATA:
     SAMPLE_SIZE: 112

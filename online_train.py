@@ -310,10 +310,25 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
     # Training loop
     start = time.time()
     for batch_idx, (inputs, targets, idx) in enumerate(train_loader):
-        anchor, positive = inputs
+
+        if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
+            anchor, positive, fast_positive = inputs
+
+            if cfg.MODEL.ARCH == 'slowfast':
+                fast_positive = multipathway_input(fast_positive, cfg)
+                if cuda:
+                    for i in range(len(anchor)):
+                        fast_positive[i]= fast_positive[i].to(device)
+            elif cuda:
+                fast_positive = fast_positive.to(device)
+        else:
+            anchor, positive = inputs
+
         a_target, p_target = targets
         batch_size = torch.tensor(anchor.size(0)).to(device)
         targets = torch.cat((a_target, p_target), 0)
+        if cuda:
+            targets = targets.to(device)
 
         # Prepare input and send to gpu
         if cfg.MODEL.ARCH == 'slowfast':
@@ -326,14 +341,40 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
             anchor, positive = anchor.to(device), positive.to(device)
 
         # Get embeddings of anchors and positives
-        anchor_outputs = model(anchor)
-        positive_outputs = model(positive)
-        outputs = torch.cat((anchor_outputs, positive_outputs), 0)  # dim: [(batch_size * 2), dim_embedding]
-        if cuda:
-            targets = targets.to(device)
+        if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
+            outputs = model(torch.cat((anchor, positive, fast_positive), 0))
 
-        # Sample negatives from batch for each anchor/positive and compute loss
-        loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+            out_anchor_positive = outputs[:batch_size*2]
+            out_anc = outputs[:batch_size]
+            out_pos = outputs[batch_size:batch_size*2]
+            out_fast_pos = outputs[batch_size*2:batch_size*3]
+
+            # Regular loss
+            triplet_loss, n_triplets = criterion(out_anchor_positive, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+
+            # Relative speed perception loss
+
+            if cfg.LOSS.DIST_METRIC == 'euclidean':
+                dist_ap = F.pairwise_distance(out_anc, out_pos, 2)
+                dist_an = F.pairwise_distance(out_anc, out_fast_pos, 2)
+            elif cfg.LOSS.DIST_METRIC == 'cosine':
+                dist_ap = 1 - F.cosine_similarity(out_anc, out_pos, dim=1)
+                dist_an = 1 - F.cosine_similarity(out_anc, out_fast_pos, dim=1)
+
+            rsp_criterion = torch.nn.MarginRankingLoss(margin=0.1).to(device)
+            target_rsp = torch.FloatTensor(dist_ap.size()).fill_(-1)
+            if cuda:
+                target_rsp = target_rsp.to(device)
+            rsp_loss = rsp_criterion(dist_ap, dist_an, target_rsp)
+
+            # Combined loss
+            rsp_lambda = 1.0
+            loss = triplet_loss + rsp_loss * rsp_lambda
+
+        else:
+            outputs = model(torch.cat((anchor, positive), 0))  # dim: [(batch_size * 2), dim_embedding]
+            # Sample negatives from batch for each anchor/positive and compute loss
+            loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
 
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
@@ -355,12 +396,25 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
 
         # Log
         if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
-            print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
-                  'Loss: {:.4f} ({:.4f}) \t'
-                  'N_Triplets: {:.1f}'.format(epoch, losses.count,
-                    len(train_loader.dataset),
-                    100. * (losses.count / len(train_loader.dataset)),
-                    losses.val, losses.avg, running_n_triplets.avg))
+            if not cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
+                print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
+                      'Loss: {:.4f} ({:.4f}) \t'
+                      'N_Triplets: {:.1f}'.format(epoch, losses.count,
+                        len(train_loader.dataset),
+                        100. * (losses.count / len(train_loader.dataset)),
+                        losses.val, losses.avg, running_n_triplets.avg))
+            else:
+                print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
+                      'Loss: {:.4f} ({:.4f}) \t'
+                      'Triplet loss: {:.4f} \t'
+                      'RSP loss: {:.4f} \t'
+                      'N_Triplets: {:.1f}'.format(epoch, losses.count,
+                        len(train_loader.dataset),
+                        100. * (losses.count / len(train_loader.dataset)),
+                        losses.val, losses.avg,
+                        triplet_loss, rsp_loss,
+                        running_n_triplets.avg))
+
 
     if (is_master_proc):
         print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
@@ -398,6 +452,11 @@ def train(args, cfg):
 
     model=model_selector(cfg, is_master_proc=is_master_proc)
 
+    ## SyncBatchNorm
+    if cfg.SYNC_BATCH_NORM:
+        print('Converting BatchNorm*D to SyncBatchNorm!')
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
         print('Number of params: {}'.format(n_parameters))
@@ -414,10 +473,15 @@ def train(args, cfg):
             #model = nn.DataParallel(model)
             if cfg.MODEL.ARCH == '3dresnet':
                 model = torch.nn.parallel.DistributedDataParallel(module=model,
-                    device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
+                    device_ids=[device],
+                    #find_unused_parameters=True,
+                    #broadcast_buffers=False)
+                    )
             else:
                 model = torch.nn.parallel.DistributedDataParallel(module=model,
-                    device_ids=[device], broadcast_buffers=False)
+                    device_ids=[device],
+                    #broadcast_buffers=False)
+                    )
         return model
 
     # Load similarity network checkpoint if path exists
@@ -453,14 +517,34 @@ def train(args, cfg):
         print('\n==> Setting criterion...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
     criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
-    optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+    if cfg.OPTIM.OPTIMIZER == 'adam':
+        optimizer = optim.Adam(model.parameters(), lr=cfg.OPTIM.LR, weight_decay=cfg.OPTIM.WD)
+    elif cfg.OPTIM.OPTIMIZER == 'sgd':
+        optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
+    else:
+        print('{} optimizer not supported'.format(cfg.OPTIM.OPTIMIZER))
+
     if(is_master_proc):
+        print('Using {} optimizer with lr={}'.format(cfg.OPTIM.OPTIMIZER, cfg.OPTIM.LR))
+        if cfg.OPTIM.OPTIMIZER == 'adam':
+            print('Weight decay = {}'.format(cfg.OPTIM.WD))
+        elif cfg.OPTIM.OPTIMIZER == 'sgd':
+            print('Momentum = {}'.format(cfg.OPTIM.MOMENTUM))
         print('Using criterion:{} for training'.format(criterion))
         print('Using criterion:{} for validation'.format(val_criterion))
 
     # ============================== Data Loaders ==============================
+    
+    if args.start_epoch != None:
+        start_epoch = args.start_epoch
 
-    if not args.iterative_cluster or start_epoch != 0:
+    m_iter_cluster = False
+    if args.iterative_cluster:
+        if start_epoch >= cfg.ITERCLUSTER.WARMUP_EPOCHS:
+            m_iter_cluster = True
+            cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
+
+    if not m_iter_cluster or start_epoch != 0:
         if(is_master_proc):
             print('\n==> Building training data loader (triplet)...')
         train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
@@ -492,29 +576,39 @@ def train(args, cfg):
         if (is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
 
-        if args.iterative_cluster and epoch % cfg.ITERCLUSTER.INTERVAL == 0:
+        # =================== Compute embeddings and cluster ===================
+
+        if args.iterative_cluster and epoch == cfg.ITERCLUSTER.WARMUP_EPOCHS:
+            m_iter_cluster = True
+            cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
+
+        if m_iter_cluster and epoch % cfg.ITERCLUSTER.INTERVAL == 0:
             # Get embeddings using current model
             if is_master_proc:
                 print('\n=> Computing embeddings')
 
             if is_master_proc or not embeddings_computed:
+                start_time = time.time()
                 embeddings, true_labels, idxs = get_embeddings_and_labels(args, cfg,
                         encoder, cuda, device, eval_train_loader, split='train',
                         is_master_proc=is_master_proc,
                         load_pkl=embeddings_computed, save_pkl=False)
+                if is_master_proc:
+                    print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
 
             if is_master_proc:
                 # Cluster
                 print('\n=> Clustering')
                 start_time = time.time()
                 print('embeddings shape', embeddings.size())
-                trained_clustering_obj = fit_cluster(embeddings, 'kmeans', cfg.ITERCLUSTER.K)
+                trained_clustering_obj = fit_cluster(embeddings, 'kmeans',
+                        cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE)
                 print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
                 # Calculate NMI for true labels vs cluster assignments
                 #true_labels = train_data.get_total_labels()
                 NMI = normalized_mutual_info_score(true_labels, trained_clustering_obj.labels_)
-                print('NMI between true labels and cluster assignments: {:.3f}\n'.format(NMI))
+                print('NMI between true labels and cluster assignments: {:.3f}'.format(NMI))
                 with open('{}/tnet_checkpoints/NMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
                     f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
 
@@ -549,57 +643,71 @@ def train(args, cfg):
                 print('\n==> Building training data loader (triplet)...')
             train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
 
+        # ====================== Training for this epoch =======================
+
         # Call set_epoch on the distributed sampler so the data is shuffled
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
         # Train 
         if cfg.LOSS.TYPE == 'triplet':
-            if (is_master_proc): 
+            if (is_master_proc):
                 print('==> training with Triplet Loss with criterion:{}'.format(criterion))
             if cfg.DATASET.MODALITY==True:
-                triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+                triplet_multiview_train_epoch(train_loader, model, criterion, optimizer,
+                                              epoch, cfg, cuda, device, is_master_proc)
             else:
-                triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+                triplet_train_epoch(train_loader, model, criterion, optimizer, epoch,
+                                    cfg, cuda, device, is_master_proc)
 
         elif cfg.LOSS.TYPE == 'contrastive':
-            if (is_master_proc): print('==> training with Contrastive Loss')
+            if (is_master_proc): print('\n==> Training with Contrastive Loss')
             n_data = len(train_loader.dataset)
             # n_data = len(cluster_labels) #n_labels
             if intra_neg:
-                contrast = NCEAverage_intra_neg(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
+                contrast = NCEAverage_intra_neg(cfg.LOSS.FEAT_DIM, n_data,
+                        cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
             elif moco:
-                contrast = MemoryMoCo(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T).to(device)
+                contrast = MemoryMoCo(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K,
+                        cfg.LOSS.T).to(device)
             else:
-                contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K, cfg.LOSS.T, cfg.LOSS.M).to(device)
+                contrast = NCEAverage(cfg.LOSS.FEAT_DIM, n_data, cfg.LOSS.K,
+                        cfg.LOSS.T, cfg.LOSS.M).to(device)
 
             criterion_1 = NCESoftmaxLoss().to(device)
             criterion_2 = NCESoftmaxLoss().to(device)
             if(is_master_proc):
                 print('Using criterion:{} for training'.format(criterion_1, criterion_2))
                 print('Using criterion:{} for validation'.format(val_criterion))
-            contrastive_train_epoch(train_loader, model, criterion_1, criterion_2, contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
-        
+            contrastive_train_epoch(train_loader, model, criterion_1, criterion_2,
+                    contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
+
         elif cfg.LOSS.TYPE == 'UberNCE':
             criterion = nn.CrossEntropyLoss().to(device)
-            UberNCE_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
-        
+            UberNCE_train_epoch(train_loader, model, criterion, optimizer,
+                    epoch, cfg, cuda, device, is_master_proc)
+
         else:
             assert False, 'Loss Type:{} not recognized'.format(cfg.LOSS.TYPE)
 
+        # Old embeddings are now obsolete
         embeddings_computed = False
-        
-        # Validate
+
+        # ============================= Evaluation =============================
+
+        # Validate with triplet loss and retrieval on val set with query from val set 
         if is_master_proc:
             print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
             print('=> Using criterion:{} for validation'.format(val_criterion))
 
-        acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda, device, is_master_proc)
+        acc = validate(val_loader, tripletnet, val_criterion, epoch, cfg, cuda,
+                       device, is_master_proc)
         if epoch % 10 == 0:
             if is_master_proc:
                 print('\n=> Validating with global top1/5 retrieval from train set with queries from val set')
-            topk_acc = k_nearest_embeddings(args, encoder, cuda, device, eval_train_loader, eval_val_loader, train_data, val_data, cfg,
-                                        plot=False, epoch=epoch, is_master_proc=is_master_proc)
+            topk_acc = k_nearest_embeddings(args, encoder, cuda, device, eval_train_loader,
+                                            eval_val_loader, train_data, val_data, cfg,
+                                            plot=False, epoch=epoch, is_master_proc=is_master_proc)
             embeddings_computed = True
 
         # Update best accuracy and save checkpoint
@@ -625,12 +733,15 @@ if __name__ == '__main__':
     cfg = load_config(args)
 
     # If iteratively clustering, overwrite the cluster_path
-    print('Iteratively clustering?:', args.iterative_cluster)
+    print('Iteratively clustering?: {}, warmup epochs = {}'.format(args.iterative_cluster,
+        cfg.ITERCLUSTER.WARMUP_EPOCHS))
+    print('Relative speed perception loss?:', cfg.LOSS.RELATIVE_SPEED_PERCEPTION)
     if args.iterative_cluster:
         assert(cfg.DATASET.TARGET_TYPE_T == 'cluster_label' and cfg.DATASET.POSITIVE_SAMPLING_P != 1.0)
-        cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
 
-    print('Multiview positives (25% chance replace): {}'.format(cfg.DATASET.POS_CHANNEL_REPLACE))
+    print('Multiview positives ({}% chance replace): {}'.format(cfg.DATASET.PROB_POS_CHANNEL_REPLACE*100,
+        cfg.DATASET.POS_CHANNEL_REPLACE))
+    print('Spatio-temporal-attention?: {}'.format(cfg.RESNET.ATTENTION))
 
     # Set shard_id to $SLURM_NODEID if running on compute canada
     shard_id = args.shard_id
@@ -659,6 +770,8 @@ if __name__ == '__main__':
     print('ITERCLUSTER.INTERVAL is set to: {}'.format(cfg.ITERCLUSTER.INTERVAL))
     print('ITERCLUSTER.ADAPTIVEP is set to: {}'.format(cfg.ITERCLUSTER.ADAPTIVEP))
     print('Learning rate is set to {}'.format(cfg.OPTIM.LR))
+    print('Momentum set to {}'.format(cfg.OPTIM.MOMENTUM))
+    print('Margin set to {}'.format(cfg.LOSS.MARGIN))
 
     # Launch processes for all gpus
     print('\n==> Launching gpu processes...')

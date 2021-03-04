@@ -100,7 +100,9 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
                         conv1_t_stride=cfg.RESNET.CONV1_T_STRIDE,
                         no_max_pool=cfg.RESNET.NO_MAX_POOl,
                         widen_factor=cfg.RESNET.WIDEN_FACTOR,
-                        projection_head=projection_head)
+                        projection_head=projection_head,
+                        spatio_temporal_attention=cfg.RESNET.ATTENTION)
+
         #only resnet supports multiview for now
         if cfg.DATASET.MODALITY == True:
             encoder1 = model
@@ -113,14 +115,15 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
                         conv1_t_stride=cfg.RESNET.CONV1_T_STRIDE,
                         no_max_pool=cfg.RESNET.NO_MAX_POOl,
                         widen_factor=cfg.RESNET.WIDEN_FACTOR,
-                        projection_head=projection_head)
-                        
+                        projection_head=projection_head,
+                        spatio_temporal_attention=cfg.RESNET.ATTENTION)
+
             model = Multiview(encoder1, encoder2, cfg.RESNET.OUT_DIM)
 
 
     elif cfg.MODEL.ARCH == 's3d':
         dim = 128
-        backbone, param = select_backbone('s3d')
+        backbone, param = select_backbone('s3d', first_channel=cfg.DATA.INPUT_CHANNEL_NUM)
         feature_size = param['feature_size']
         model = nn.Sequential(backbone,
                               nn.AdaptiveAvgPool3d((1,1,1)),
@@ -252,14 +255,14 @@ def load_checkpoint(model, checkpoint_path, is_master_proc=True):
                 new_state_dict[k] = v
         # load params
         model.load_state_dict(new_state_dict)
-        
+
         if (is_master_proc):
             print("=> loaded checkpoint '{}' (epoch {})".format(checkpoint_path, checkpoint['epoch']))
     else:
         if (is_master_proc):
             print("=> no checkpoint found at '{}'".format(checkpoint_path))
     return start_epoch, best_prec1
-    
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""

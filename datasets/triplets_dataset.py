@@ -32,6 +32,8 @@ class TripletsData(data.Dataset):
                  positive_sampling_p=1.0,
                  negative_sampling=False,
                  pos_channel_replace=False,
+                 prob_pos_channel_replace=None,
+                 relative_speed_perception=False,
                  modality=False,
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
                  target_type='label'):
@@ -47,12 +49,17 @@ class TripletsData(data.Dataset):
         self.normalize=normalize
         self.positive_types = ['same_inst', 'diff_inst']
         self.pos_channel_replace = pos_channel_replace
+        self.prob_pos_channel_replace = prob_pos_channel_replace
+        self.relative_speed_perception = relative_speed_perception
         self.modality = modality
 
         if temporal_transform is not None:
             self.anchor_temporal_transform = temporal_transform['anchor']
             self.positive_temporal_transform = temporal_transform['positive']
             self.negative_temporal_transform = temporal_transform['negative']
+
+            if self.relative_speed_perception:
+                self.fast_positive_temporal_transform = temporal_transform['fast_positive']
         else:
             self.anchor_temporal_transform= None
             self.positive_temporal_transform = None
@@ -99,6 +106,10 @@ class TripletsData(data.Dataset):
         p_clip = self._load_clip(positive, self.positive_temporal_transform,
                 pos_channel_replace=self.pos_channel_replace)
 
+        if self.relative_speed_perception:
+            p_fast_clip = self._load_clip(positive, self.fast_positive_temporal_transform,
+                    pos_channel_replace=self.pos_channel_replace)
+
         if self.negative_sampling:
             while True:
                 negative_idx = np.random.randint(self.__len__())
@@ -107,6 +118,8 @@ class TripletsData(data.Dataset):
             n_target = negative[self.target_type]
             n_clip = self._load_clip(negative, self.negative_temporal_transform)
             return (a_clip, p_clip, n_clip), (a_target, p_target, n_target), (index, negative_idx)
+        elif self.relative_speed_perception:
+            return (a_clip, p_clip, p_fast_clip), (a_target, p_target), index
         else:
             return (a_clip, p_clip), (a_target, p_target), index
 
@@ -124,6 +137,7 @@ class TripletsData(data.Dataset):
                 self.spatial_transform, self.normalize, path, frame_id,
                 channel_paths=channel_paths,
                 pos_channel_replace=pos_channel_replace,
+                prob_pos_channel_replace=self.prob_pos_channel_replace,
                 modality=self.modality)
         return clip
 

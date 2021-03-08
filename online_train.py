@@ -714,9 +714,10 @@ def train(args, cfg):
             embeddings_computed = True
 
             # Update best accuracy
-            top1_acc = topk_acc[0]
-            is_best = top1_acc > best_acc
-            best_acc = max(top1_acc, best_acc)
+            if is_master_proc:
+                top1_acc = topk_acc[0]
+                is_best = top1_acc > best_acc
+                best_acc = max(top1_acc, best_acc)
 
         # Save checkpoint
         if torch.cuda.device_count() > 1:

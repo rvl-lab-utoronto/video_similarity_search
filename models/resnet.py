@@ -153,7 +153,7 @@ class ResNet(nn.Module):
         if projection_head:
             print('==> setting up non-linear project heads')
             self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
-            self.bn_proj = nn.BatchNorm1d(hidden_layer) #add batch norm 1d 
+            # self.bn_proj = nn.BatchNorm1d(hidden_layer) #add batch norm 1d 
             self.fc2 = nn.Linear(hidden_layer, out_dim)
         else:
             self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
@@ -236,7 +236,7 @@ class ResNet(nn.Module):
 
             #add batchnorm layer
             h = self.fc1(x)
-            h = self.bn_proj(h)
+            # h = self.bn_proj(h)
             h = self.relu(h)
             h = self.fc2(h)
         

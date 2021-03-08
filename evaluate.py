@@ -377,9 +377,9 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
             fig = plt.figure()
             for i in range(num_exemplar):
                 exemplar_idx = np.random.randint(0, distance_matrix.shape[0]-1)
-                print('exemplar video id: {}'.format(exemplar_idx))
+                print('exemplar video id: {}, label:{}'.format(exemplar_idx, test_labels[exemplar_idx]))
                 k_idx = get_closest_data(distance_matrix, exemplar_idx, top_k)
-                print(k_idx, len(train_data))
+                print([train_labels[x] for x in k_idx], len(train_data))
                 k_nearest_data = [train_data[i] for i in k_idx]
                 plot_img(cfg, fig, val_data, train_data, num_exemplar, i, exemplar_idx, k_idx, spatial_transform, temporal_transform, output=evaluate_output)
             # plt.show()
@@ -558,6 +558,7 @@ if __name__ == '__main__':
             from collections import OrderedDict
             new_state_dict = OrderedDict()
             checkpoint = torch.load(args.checkpoint_path)
+            # print('checkpoint', checkpoint)
             state_dict = checkpoint['state_dict']
             for k, v in state_dict.items():
                 name = k[7:] # remove `module.`
@@ -577,7 +578,7 @@ if __name__ == '__main__':
 
     # ============================== Data Loaders ==============================
 
-    train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False)
+    train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False, req_train_shuffle=False)
     test_loader, (val_data, _) = data_loader.build_data_loader('test', cfg, triplets=False, val_sample=None)
 
     # ================================ Evaluate ================================

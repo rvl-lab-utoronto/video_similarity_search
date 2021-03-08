@@ -615,7 +615,7 @@ def train(args, cfg):
                 print('\n=> Clustering')
                 start_time = time.time()
                 print('embeddings shape', embeddings.size())
-                trained_clustering_obj = fit_cluster(embeddings, 'kmeans', cfg.ITERCLUSTER.K)
+                trained_clustering_obj = fit_cluster(embeddings, 'sphere', cfg.ITERCLUSTER.K) #EDIT: change it back to kmeans
                 print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
                 # Calculate NMI for true labels vs cluster assignments

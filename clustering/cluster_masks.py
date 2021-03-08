@@ -19,6 +19,7 @@ import pickle as pkl
 from config.m_parser import load_config, arg_parser
 from datasets import data_loader
 from datasets.spatial_transforms import (Compose, Resize, CenterCrop, ToTensor)
+from spherecluster import SphericalKMeans
 
 
 np.random.seed(1)
@@ -166,7 +167,7 @@ def preprocess_features_kmeans(data):
 # Perform clustering 
 def fit_cluster(embeddings, method='Agglomerative', k=1000):
 
-    assert(method in ['DBSCAN', 'Agglomerative', 'OPTICS', 'kmeans'])
+    assert(method in ['DBSCAN', 'Agglomerative', 'OPTICS', 'kmeans', 'sphere'])
 
     print("Clustering with {}...".format(method))
     if method == 'kmeans':
@@ -194,6 +195,10 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000):
                                      n_init=10).fit(embeddings)
     elif method == 'OPTICS':
         trained_cluster_obj = OPTICS(min_samples=3, max_eps=0.20, cluster_method='dbscan', metric='cosine', n_jobs=-1).fit(embeddings)
+
+    elif method == 'sphere':
+        trained_cluster_obj = SphericalKMeans(n_clusters=k)
+        trained_cluster_obj.fit(embeddings)
 
     labels = trained_cluster_obj.labels_
     n_clusters = len(set(labels)) - (1 if -1 in labels else 0)

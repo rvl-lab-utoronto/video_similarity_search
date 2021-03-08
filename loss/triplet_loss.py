@@ -39,6 +39,93 @@ class OnlineTripleLoss(nn.Module):
 
             return loss, 0
 
+        elif sampling_strategy == 'all_semi_hard':
+
+            NUM_NEGATIVES = 5
+
+            distance_matrix = pdist(embeddings, eps=0, dist_metric=self.dist_metric)
+
+            # Get tensor with unique labels (<= (batch_size * 2))
+            unique_labels, counts = torch.unique(labels, return_counts=True)
+
+            # Assert that there is no -1 (noise) label
+            assert(-1 not in unique_labels)
+
+            loss = torch.zeros(1).cuda()
+            anchor_pos_count = 0
+
+            for label in unique_labels:
+
+                # Get embeddings indices with current label
+                label_mask = labels == label
+                label_indices = torch.where(label_mask)[0]
+                if label_indices.shape[0] < 2:  # must have at least anchor and positive with same label
+                    continue
+
+                # Get embeddings indices without current label
+                negative_indices = torch.where(torch.logical_not(label_mask))[0] 
+                if negative_indices.shape[0] == 0:  # must have at least one negative
+                    continue
+
+                pos_indices = label_indices
+
+                # Get combinations of possible anchor/positive pairs
+                # TODO: If there's > 2 pos_indices, what if 2 embeddings are from the same video?
+                anchor_positives = list(combinations(pos_indices, 2))
+
+                # For each anchor/positive pair, pick a negative and append triplet
+                for anchor_positive in anchor_positives:
+                    anchor_idx = anchor_positive[0]
+                    pos_idx = anchor_positive[1]
+
+                    # Compute anchor/postive dist (dim: []) and anchor/negative dists (dim: [negatives_indices.shape[0]])
+                    ap_dist = distance_matrix[anchor_idx, pos_idx]
+                    an_dists = distance_matrix[anchor_idx, negative_indices]
+
+                    # all random semi hard indices (or hardest easy if not enough semi hard)
+                    neg_list_idx = all_semi_hard(ap_dist, an_dists, self.margin)
+                    if neg_list_idx is None:
+                        num_missing_negatives = NUM_NEGATIVES
+                        num_picked_negatives = 0
+                    else:
+                        num_picked_negatives = neg_list_idx.shape[0]
+                        num_missing_negatives = NUM_NEGATIVES - num_picked_negatives
+                    if num_missing_negatives > 0:
+                        hardest_easy_neg_idx = torch.topk(an_dists, NUM_NEGATIVES, largest=False)[1]
+                        added_negs = hardest_easy_neg_idx[num_picked_negatives:NUM_NEGATIVES]
+                        if neg_list_idx is not None:
+                            neg_list_idx = torch.cat((neg_list_idx, added_negs), 0)
+                        else:
+                            neg_list_idx = added_negs
+
+                    # randomly pick NUM_NEGATIVES of the neg_list_idx
+                    neg_list_idx_val = random.sample(list(enumerate(neg_list_idx)), k=NUM_NEGATIVES)
+                    neg_list_idx = [idx for idx,val in neg_list_idx_val]
+
+                    # Get selected an_dists 
+                    an_dists_selected = an_dists[neg_list_idx]
+
+                    # Use ap_dist and an_dists_selected to compute info nce loss
+
+                    temperature = 0.5
+                    if self.dist_metric == 'cosine':
+                        ap_sim = torch.exp((1 - ap_dist) / temperature)
+                        an_sim = torch.exp((1 - an_dists_selected) / temperature)
+                    else:
+                        print('Euclidean dist not supported with infonce loss')
+                        assert(0)
+
+                    loss_info_nce = -torch.log(ap_sim / (torch.sum(an_sim) + ap_sim))
+                    loss += loss_info_nce
+                    anchor_pos_count += 1
+
+            if anchor_pos_count != 0:
+                loss /= anchor_pos_count
+            else:
+                loss = torch.zeros(1, requires_grad=True)
+
+            return loss, anchor_pos_count
+
         else:
             # Get list of (anchor idx, postitive idx, negative idx) triplets
             self.triplet_selector = NegativeTripletSelector(self.margin, sampling_strategy, self.dist_metric)
@@ -84,7 +171,7 @@ class NegativeTripletSelector:
         assert(-1 not in unique_labels)
 
         triplets_indices = [[] for i in range(3)]
-        for i, label in enumerate(unique_labels):
+        for label in unique_labels:
 
             # Get embeddings indices with current label
             label_mask = labels == label
@@ -117,13 +204,15 @@ class NegativeTripletSelector:
         anchor_positives = list(combinations(pos_indices, 2))
 
         # For each anchor/positive pair, pick a negative and append triplet
-        for i, anchor_positive in enumerate(anchor_positives):
+        for anchor_positive in anchor_positives:
             anchor_idx = anchor_positive[0]
             pos_idx = anchor_positive[1]
 
             # Compute anchor/postive dist (dim: []) and anchor/negative dists (dim: [negatives_indices.shape[0]])
             ap_dist = dist_mat[anchor_idx, pos_idx]
             an_dists = dist_mat[anchor_idx, negative_indices]
+
+            #print(an_dists.shape)
 
             # Sample negative index according to sampling strategy
             if self.sampling_strategy == 'random_negative':
@@ -163,6 +252,17 @@ def random_semi_hard_sampling(ap_dist, an_dists, margin):
     else:
         neg_idx = None
     return neg_idx
+
+
+def all_semi_hard(ap_dist, an_dists, margin):
+    ap_margin_dist = ap_dist + margin
+    loss = ap_margin_dist - an_dists
+    possible_negs = torch.where(loss > 0)[0]
+
+    if possible_negs.nelement() != 0:
+        return possible_negs
+    else:
+        return None
 
 
 # Return neg_idx giving the hardest hard/semi-hard triplet if exists, else return None.

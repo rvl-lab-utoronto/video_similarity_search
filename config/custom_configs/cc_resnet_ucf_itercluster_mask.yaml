@@ -38,5 +38,5 @@ LOSS:
     MARGIN: 0.2
 
 OPTIM:
-    LR: 0.05
+    LR: 0.1
     MOMENTUM: 0.5

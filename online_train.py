@@ -297,6 +297,16 @@ def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epo
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
+def prepare_input(vid_clip, cfg, cuda):
+    if cfg.MODEL.ARCH == 'slowfast':
+        vid_clip = multipathway_input(vid_clip, cfg)
+        if cuda:
+            for i in range(len(vid_clip)):
+                vid_clip[i]= vid_clip[i].to(device)
+    elif cuda:
+        vid_clip = vid_clip.to(device)
+
+    return vid_clip
 
 
 def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
@@ -313,16 +323,14 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
 
         if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
             anchor, positive, fast_positive = inputs
-
-            if cfg.MODEL.ARCH == 'slowfast':
-                fast_positive = multipathway_input(fast_positive, cfg)
-                if cuda:
-                    for i in range(len(anchor)):
-                        fast_positive[i]= fast_positive[i].to(device)
-            elif cuda:
-                fast_positive = fast_positive.to(device)
+            fast_positive = prepare_input(fast_positive, cfg, cuda)
+        elif cfg.LOSS.LOCAL_LOCAL_CONTRAST:
+            anchor, positive, anchor2 = inputs
+            anchor2 = prepare_input(anchor2, cfg, cuda)
         else:
             anchor, positive = inputs
+        anchor = prepare_input(anchor, cfg, cuda)
+        positive = prepare_input(positive, cfg, cuda)
 
         a_target, p_target = targets
         batch_size = torch.tensor(anchor.size(0)).to(device)
@@ -330,20 +338,9 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         if cuda:
             targets = targets.to(device)
 
-        # Prepare input and send to gpu
-        if cfg.MODEL.ARCH == 'slowfast':
-            anchor = multipathway_input(anchor, cfg)
-            positive = multipathway_input(positive, cfg)
-            if cuda:
-                for i in range(len(anchor)):
-                    anchor[i], positive[i]= anchor[i].to(device), positive[i].to(device)
-        elif cuda:
-            anchor, positive = anchor.to(device), positive.to(device)
-
         # Get embeddings of anchors and positives
         if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
             outputs = model(torch.cat((anchor, positive, fast_positive), 0))
-
             out_anchor_positive = outputs[:batch_size*2]
             out_anc = outputs[:batch_size]
             out_pos = outputs[batch_size:batch_size*2]
@@ -353,7 +350,6 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
             triplet_loss, n_triplets = criterion(out_anchor_positive, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
 
             # Relative speed perception loss
-
             if cfg.LOSS.DIST_METRIC == 'euclidean':
                 dist_ap = F.pairwise_distance(out_anc, out_pos, 2)
                 dist_an = F.pairwise_distance(out_anc, out_fast_pos, 2)
@@ -370,6 +366,34 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
             # Combined loss
             rsp_lambda = 1.0
             loss = triplet_loss + rsp_loss * rsp_lambda
+
+        elif cfg.LOSS.LOCAL_LOCAL_CONTRAST:
+            outputs = model(torch.cat((anchor, positive, anchor2), 0))
+            out_anchor_positive = outputs[:batch_size*2]
+            out_anc = outputs[:batch_size]
+            out_pos = outputs[batch_size:batch_size*2]
+            out_anc2 = outputs[batch_size*2:batch_size*3]
+
+            # Regular loss
+            triplet_loss, n_triplets = criterion(out_anchor_positive, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+
+            # Relative speed perception loss
+            if cfg.LOSS.DIST_METRIC == 'euclidean':
+                dist_ap = F.pairwise_distance(out_anc, out_anc2, 2)
+                dist_an = F.pairwise_distance(out_anc, out_pos, 2)
+            elif cfg.LOSS.DIST_METRIC == 'cosine':
+                dist_ap = 1 - F.cosine_similarity(out_anc, out_anc2, dim=1)
+                dist_an = 1 - F.cosine_similarity(out_anc, out_pos, dim=1)
+
+            llc_criterion = torch.nn.MarginRankingLoss(margin=0.04).to(device)
+            target_llc = torch.FloatTensor(dist_ap.size()).fill_(-1)
+            if cuda:
+                target_llc = target_llc.to(device)
+            llc_loss = llc_criterion(dist_ap, dist_an, target_llc)
+
+            # Combined loss
+            llc_lambda = 1.0
+            loss = triplet_loss + llc_loss * llc_lambda
 
         else:
             outputs = model(torch.cat((anchor, positive), 0))  # dim: [(batch_size * 2), dim_embedding]
@@ -396,14 +420,7 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
 
         # Log
         if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
-            if not cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
-                print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
-                      'Loss: {:.4f} ({:.4f}) \t'
-                      'N_Triplets: {:.1f}'.format(epoch, losses.count,
-                        len(train_loader.dataset),
-                        100. * (losses.count / len(train_loader.dataset)),
-                        losses.val, losses.avg, running_n_triplets.avg))
-            else:
+            if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
                 print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                       'Loss: {:.4f} ({:.4f}) \t'
                       'Triplet loss: {:.4f} \t'
@@ -415,6 +432,25 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
                         triplet_loss, rsp_loss,
                         running_n_triplets.avg))
 
+            elif cfg.LOSS.LOCAL_LOCAL_CONTRAST:
+                print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
+                      'Loss: {:.4f} ({:.4f}) \t'
+                      'Triplet loss: {:.4f} \t'
+                      'llc loss: {:.4f} \t'
+                      'N_Triplets: {:.1f}'.format(epoch, losses.count,
+                        len(train_loader.dataset),
+                        100. * (losses.count / len(train_loader.dataset)),
+                        losses.val, losses.avg,
+                        triplet_loss, llc_loss,
+                        running_n_triplets.avg))
+
+            else:
+                print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
+                      'Loss: {:.4f} ({:.4f}) \t'
+                      'N_Triplets: {:.1f}'.format(epoch, losses.count,
+                        len(train_loader.dataset),
+                        100. * (losses.count / len(train_loader.dataset)),
+                        losses.val, losses.avg, running_n_triplets.avg))
 
     if (is_master_proc):
         print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
@@ -743,6 +779,7 @@ if __name__ == '__main__':
     print('Iteratively clustering?: {}, warmup epochs = {}'.format(args.iterative_cluster,
         cfg.ITERCLUSTER.WARMUP_EPOCHS))
     print('Relative speed perception loss?:', cfg.LOSS.RELATIVE_SPEED_PERCEPTION)
+    print('local local contrast loss?:', cfg.LOSS.LOCAL_LOCAL_CONTRAST)
     if args.iterative_cluster:
         assert(cfg.DATASET.TARGET_TYPE_T == 'cluster_label' and cfg.DATASET.POSITIVE_SAMPLING_P != 1.0)
 

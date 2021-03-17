@@ -36,7 +36,8 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
              cluster_path=None, target_type=None, val_sample=1,
              negative_sampling=False, positive_sampling_p=1.0,
              pos_channel_replace=False, prob_pos_channel_replace=None,
-             modality=False, relative_speed_perception=False, is_master_proc=True):
+             modality=False, relative_speed_perception=False,
+             local_local_contrast=False, is_master_proc=True):
 
     assert split in ['train', 'val', 'test']
     assert dataset_name in ['kinetics', 'ucf101']
@@ -101,6 +102,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                             pos_channel_replace=pos_channel_replace,
                             prob_pos_channel_replace=prob_pos_channel_replace,
                             relative_speed_perception=relative_speed_perception,
+                            local_local_contrast=local_local_contrast,
                             modality=modality)
     else:
         if (is_master_proc):

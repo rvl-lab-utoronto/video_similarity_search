@@ -124,6 +124,9 @@ _C.LOSS.FEAT_DIM = 128
 #Relative speed perception
 _C.LOSS.RELATIVE_SPEED_PERCEPTION = False
 
+#Local local contrast
+_C.LOSS.LOCAL_LOCAL_CONTRAST = False
+
 # -----------------------------------------------------------------------------
 # Optimizer options
 # -----------------------------------------------------------------------------

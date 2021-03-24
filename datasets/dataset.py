@@ -35,12 +35,9 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
              temporal_transform=None, normalize=None, target_transform=None, channel_ext={},
              cluster_path=None, target_type=None, val_sample=1,
              negative_sampling=False, positive_sampling_p=1.0,
-<<<<<<< HEAD
-             pos_channel_replace=False, modality=False, predict_temporal_ds=False, is_master_proc=True):
-=======
-             pos_channel_replace=False, prob_pos_channel_replace=None,
-             modality=False, relative_speed_perception=False, is_master_proc=True):
->>>>>>> master
+             pos_channel_replace=False, modality=False, predict_temporal_ds=False, 
+             prob_pos_channel_replace=None,
+             relative_speed_perception=False, is_master_proc=True):
 
     assert split in ['train', 'val', 'test']
     assert dataset_name in ['kinetics', 'ucf101']

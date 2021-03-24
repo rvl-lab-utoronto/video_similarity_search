@@ -103,7 +103,7 @@ def model_selector(cfg, projection_head=True, hyperbolic=False, is_master_proc=T
                         widen_factor=cfg.RESNET.WIDEN_FACTOR,
                         projection_head=projection_head,
                         predict_temporal_ds=cfg.MODEL.PREDICT_TEMPORAL_DS,
-                        spatio_temporal_attention=cfg.RESNET.ATTENTION
+                        spatio_temporal_attention=cfg.RESNET.ATTENTION,
                         hyperbolic=hyperbolic)
 
         #only resnet supports multiview for now

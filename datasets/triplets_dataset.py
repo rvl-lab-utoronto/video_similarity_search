@@ -32,12 +32,9 @@ class TripletsData(data.Dataset):
                  positive_sampling_p=1.0,
                  negative_sampling=False,
                  pos_channel_replace=False,
-<<<<<<< HEAD
                  sample_duration=None,
-=======
                  prob_pos_channel_replace=None,
                  relative_speed_perception=False,
->>>>>>> master
                  modality=False,
                  predict_temporal_ds=False,
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
@@ -54,12 +51,9 @@ class TripletsData(data.Dataset):
         self.normalize=normalize
         self.positive_types = ['same_inst', 'diff_inst']
         self.pos_channel_replace = pos_channel_replace
-<<<<<<< HEAD
         self.sample_duration = sample_duration
-=======
         self.prob_pos_channel_replace = prob_pos_channel_replace
         self.relative_speed_perception = relative_speed_perception
->>>>>>> master
         self.modality = modality
         self.predict_temporal_ds = predict_temporal_ds
         self.max_sr = 4

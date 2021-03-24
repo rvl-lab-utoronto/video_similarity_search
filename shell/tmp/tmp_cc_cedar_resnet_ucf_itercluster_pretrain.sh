@@ -34,7 +34,7 @@ srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_
 --output '/home/cheny257/projects/def-florian7/cheny257/output/resnet_ucf_itercluster_w_pretrain' \
 --checkpoint_path '/home/cheny257/projects/def-florian7/cheny257/output/resnet_ucf_itercluster_w_pretrain/tnet_checkpoints/3dresnet/checkpoint.pth.tar' \
 --num_shards 2 \
---epoch 800 \
+--epoch 1000 \
 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT \
 --compute_canada \
 --iterative_cluster

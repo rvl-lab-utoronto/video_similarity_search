@@ -128,6 +128,25 @@ class TemporalRandomCrop(object):
         return out
 
 
+class TemporalRandomCrop2xSpeed(object):
+
+    def __init__(self, size, start_index=0):
+        self.size = size
+        self.loop = LoopPadding(size)
+        self.start_index = start_index
+
+    def __call__(self, frame_indices):
+        rand_end = max(0, len(frame_indices) - 2*self.size)
+        rand_start = min(rand_end, self.start_index)
+
+        begin_index = random.randint(rand_start, rand_end)
+        end_index = min(begin_index + 2*self.size, len(frame_indices))
+
+        out = frame_indices[begin_index:end_index:2]
+        # if len(out) < self.size:
+        #     out = self.loop(out)
+        return out
+
 
 class TemporalEvenCrop(object):
 

@@ -195,7 +195,7 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
             # print('embedd size', embedd.size())
             batch_size_world = batch_size * world_size
             if ((batch_idx + 1) * world_size) % log_interval == 0 and is_master_proc:
-                print('{} [{}/{} | {:.1f}%]'.format(split, (batch_idx+1)*batch_size_world, len(data_loader.dataset), 
+                print('{} [{}/{} | {:.1f}%]'.format(split, (batch_idx+1)*batch_size_world, len(data_loader.dataset),
                     ((batch_idx+1)*100.*batch_size_world/len(data_loader.dataset))))
 
     embeddings = torch.cat(embedding, dim=0)
@@ -229,7 +229,6 @@ def get_distance_matrix(x_embeddings, y_embeddings=None, dist_metric='cosine'):
     if y_embeddings is None:
         np.fill_diagonal(distance_matrix, float('inf'))
     return distance_matrix
-
 
 
 def get_closest_data_mat(distance_matrix, top_k):
@@ -300,7 +299,7 @@ def get_topk_acc(distance_matrix, x_labels, y_labels=None, top_ks = [1,5,10,20])
     # print('topk_indices', topk_indices.size())
     if y_labels is None:
         y_labels = x_labels
-    
+
     acc = []
     for i, x_label in enumerate(x_labels):
         cur_acc = []
@@ -314,6 +313,7 @@ def get_topk_acc(distance_matrix, x_labels, y_labels=None, top_ks = [1,5,10,20])
     # print(acc.size())
     acc = np.mean(np.array(acc), axis=0)
     return acc
+
 
 def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
         split='val', is_master_proc=True, load_pkl=False, save_pkl=True):
@@ -358,10 +358,11 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
     return embeddings, labels, idxs
 
 
-def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, train_data, val_data, cfg, plot=True,
-                        epoch=None, is_master_proc=True,
+def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
+        train_data, val_data, cfg, plot=True, epoch=None, is_master_proc=True,
                         evaluate_output=None, num_exemplar=None, service=None,
                         load_pkl=False, out_filename='global_retrieval_acc'):
+
     if is_master_proc:
         print ('Getting embeddings...')
     test_embeddings, test_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader,
@@ -370,6 +371,7 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
                                                         split='train', is_master_proc=is_master_proc, load_pkl=load_pkl)
     acc = []
 
+    acc = []
     print ('Computing top1/5/10/20 Acc...')
     if (is_master_proc):
         distance_matrix = get_distance_matrix(test_embeddings, train_embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
@@ -399,8 +401,10 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader, t
             plt.savefig(png_file, dpi=300)
             service.upload_file_to_gdrive(png_file, 'evaluate')
             print('figure saved to: {}, and uploaded to GoogleDrive'.format(png_file))
+
         # print(acc)
         print('Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%, Top10 Acc: {:.2f}%, Top20 Acc: {:.2f}%'.format(100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3]))
+
     return acc
 
 

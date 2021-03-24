@@ -165,7 +165,7 @@ def preprocess_features_kmeans(data):
 
 
 # Perform clustering 
-def fit_cluster(embeddings, method='Agglomerative', k=1000):
+def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True):
 
     assert(method in ['DBSCAN', 'Agglomerative', 'OPTICS', 'kmeans', 'sphere'])
 
@@ -188,7 +188,8 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000):
                                      n_jobs=-1).fit(embeddings)
     elif method == 'kmeans':
         #pre-process - l2 normalize embeddings
-        embeddings = preprocess_features_kmeans(embeddings)
+        if l2normalize:
+            embeddings = preprocess_features_kmeans(embeddings)
 
         n_clusters = k #2000 for ucf train
         trained_cluster_obj = KMeans(n_clusters=n_clusters,

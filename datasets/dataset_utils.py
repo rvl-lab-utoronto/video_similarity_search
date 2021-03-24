@@ -21,7 +21,11 @@ def cv_f32_to_u8 (img):
 
 def construct_net_input(vid_loader, channel_ext, spatial_transform,
         normalize_fn, path, frame_indices, channel_paths={},
-        pos_channel_replace=False, modality=False, split='train'):
+        pos_channel_replace=False, prob_pos_channel_replace=None,
+        modality=False, split='train'):
+
+    if prob_pos_channel_replace is None:
+        prob_pos_channel_replace = 0.25  # default val
 
     clip = vid_loader(path, frame_indices)
 
@@ -61,7 +65,8 @@ def construct_net_input(vid_loader, channel_ext, spatial_transform,
         # not empty, replace)
         #Fixed % chance to replace rgb positive with another view
         choices = ['replace', 'rgb']
-        choice = np.random.choice(choices, p=[0.25, 0.75])
+        choice = np.random.choice(choices, p=[prob_pos_channel_replace,
+                                              1.0-prob_pos_channel_replace])
 
         if choice == 'replace':
             assert len(channel_paths) == 1, 'Only 1 other view for now'

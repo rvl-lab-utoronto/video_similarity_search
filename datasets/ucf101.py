@@ -123,7 +123,8 @@ class UCF101():
 
     def read_cluster_labels(self):
         if not self.cluster_path:
-            print('cluster_path not defined...')
+            if self.is_master_proc:
+                print('cluster_path not defined....')
             return None
         with open(self.cluster_path, 'r') as f:
             cluster_labels = f.readlines()

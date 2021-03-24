@@ -21,7 +21,7 @@ from datasets import data_loader
 from datasets.spatial_transforms import (Compose, Resize, CenterCrop, ToTensor)
 
 #https://github.com/jasonlaska/spherecluster
-from spherecluster import SphericalKMeans
+#from spherecluster import SphericalKMeans
 
 np.random.seed(1)
 

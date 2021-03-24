@@ -297,7 +297,7 @@ def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epo
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
-def prepare_input(vid_clip, cfg, cuda):
+def prepare_input(vid_clip, cfg, cuda, device):
     if cfg.MODEL.ARCH == 'slowfast':
         vid_clip = multipathway_input(vid_clip, cfg)
         if cuda:
@@ -323,14 +323,14 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
 
         if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
             anchor, positive, fast_positive = inputs
-            fast_positive = prepare_input(fast_positive, cfg, cuda)
+            fast_positive = prepare_input(fast_positive, cfg, cuda, device)
         elif cfg.LOSS.LOCAL_LOCAL_CONTRAST:
             anchor, positive, anchor2 = inputs
-            anchor2 = prepare_input(anchor2, cfg, cuda)
+            anchor2 = prepare_input(anchor2, cfg, cuda, device)
         else:
             anchor, positive = inputs
-        anchor = prepare_input(anchor, cfg, cuda)
-        positive = prepare_input(positive, cfg, cuda)
+        anchor = prepare_input(anchor, cfg, cuda, device)
+        positive = prepare_input(positive, cfg, cuda, device)
 
         a_target, p_target = targets
         batch_size = torch.tensor(anchor.size(0)).to(device)

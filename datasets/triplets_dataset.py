@@ -111,7 +111,7 @@ class TripletsData(data.Dataset):
         if self.relative_speed_perception:
             p_fast_clip = self._load_clip(positive, self.fast_positive_temporal_transform,
                     pos_channel_replace=self.pos_channel_replace)
-        else if self.local_local_contrast:
+        elif self.local_local_contrast:
             a2_clip = self._load_clip(anchor, self.anchor_temporal_transform,
                     pos_channel_replace=self.pos_channel_replace)
 

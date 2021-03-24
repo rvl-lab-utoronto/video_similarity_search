@@ -182,6 +182,9 @@ class VideoSimilarityGradCam:
         grads_val2 = self.extractor2.get_gradients()[-1].cpu().data.numpy()
         print('gradval shape:', grads_val1.shape)
 
+        #grads_val1 = grads_val1 * (grads_val1 > 0)
+        #grads_val2 = grads_val2 * (grads_val2 > 0)
+
         cam1 = self.create_mask(features1, grads_val1, input_3d_shape)
         cam2 = self.create_mask(features2, grads_val2, input_3d_shape)
 
@@ -424,7 +427,8 @@ if __name__ == '__main__':
 
     # ============================== Data Loaders ==============================
 
-    test_loader, (data, _) = data_loader.build_data_loader('val', cfg, triplets=False)
+    test_loader, (data, _) = data_loader.build_data_loader('val', cfg,
+            triplets=False, val_sample=None)
     print()
 
     # ================================ Evaluate ================================

@@ -552,8 +552,12 @@ if __name__ == '__main__':
     # if args.pretrain_path is not None:
     #     model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
 
-    # Transfer model to DDP
+    # Load similarity network checkpoint if path exists
+    if args.checkpoint_path is not None:
+        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
+
     if cuda:
+        #model = DDP(model)
         if torch.cuda.device_count() > 1:
             print("Using DataParallel with {} gpus".format(torch.cuda.device_count()))
             model = nn.DataParallel(model)
@@ -603,7 +607,7 @@ if __name__ == '__main__':
     # ============================== Data Loaders ==============================
 
     train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False, req_train_shuffle=False)
-    test_loader, (val_data, _) = data_loader.build_data_loader('test', cfg, triplets=False, val_sample=None)
+    test_loader, (val_data, _) = data_loader.build_data_loader('test', cfg, triplets=False, val_sample=None, req_train_shuffle=False)
 
     # ================================ Evaluate ================================
 

@@ -85,20 +85,20 @@ def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3, i
 
 
 # Return spatial transformations used per image in a video
-def build_spatial_transformation(cfg, split, is_master_proc=True):
+def build_spatial_transformation(cfg, split, triplets, is_master_proc=True):
     mean, std = get_mean_std(value_scale, dataset=cfg.TRAIN.DATASET)
     normalize = get_normalize_method(mean, std, no_mean_norm,
                                          no_std_norm, num_channels=cfg.DATA.INPUT_CHANNEL_NUM, is_master_proc=is_master_proc)
 
-    if split == 'train':
+    if split == 'train' and triplets:
         spatial_transform = []
         spatial_transform.append(
             RandomResizedCrop(cfg.DATA.SAMPLE_SIZE, (train_crop_min_scale, 1.0),
                             (train_crop_min_ratio, 1.0/train_crop_min_ratio))
             )
         spatial_transform.append(RandomHorizontalFlip(p=0.5))
-
-        spatial_transform.append(RandomApply([ColorJitter()], p=0.8))
+        spatial_transform.append(ColorJitter(brightness=0.5, contrast=0.5,
+                                            saturation=0.5, hue=0.5, p=0.8))
         spatial_transform.append(ColorDrop(p=0.2))
         spatial_transform.append(GaussianBlur(p=0.2))
         spatial_transform.append(ToTensor())
@@ -198,7 +198,8 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     assert (cfg.TRAIN.BATCH_SIZE % cfg.NUM_GPUS == 0)
 
     # Get spatial transforms and overwrite with req_spatial_transform if specified
-    spatial_transform, normalize = build_spatial_transformation(cfg, split, is_master_proc=is_master_proc)
+    spatial_transform, normalize = build_spatial_transformation(cfg, split,
+            triplets, is_master_proc=is_master_proc)
     if req_spatial_transform is not None:
         spatial_transform = req_spatial_transform
         if (is_master_proc):

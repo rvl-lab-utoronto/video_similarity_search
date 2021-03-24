@@ -365,6 +365,7 @@ def show_cams_on_images(vid1, masks1, vid2, masks2, grads1, grads2):
             heatmaps = np.vstack((heatmap1, heatmap2))
             grads = np.vstack((grad1, grad2))
             cam_grads = np.vstack((cam_grad1, cam_grad2))
+
             all_imgs = np.hstack((imgs, cams, heatmaps, grads, cam_grads))
 
             cv2.imshow('Videos and their Similarity Heatmaps', all_imgs)
@@ -427,9 +428,13 @@ if __name__ == '__main__':
 
     # ============================== Data Loaders ==============================
 
-    test_loader, (data, _) = data_loader.build_data_loader('val', cfg,
-            triplets=False, val_sample=None)
-    print()
+    #test_loader, (data, _) = data_loader.build_data_loader('val', cfg,
+    #        triplets=False, val_sample=None)
+    #print()
+
+    train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False, req_train_shuffle=False)
+    test_loader, (val_data, _) = data_loader.build_data_loader('val', cfg,
+            triplets=False, val_sample=None, req_train_shuffle=False)
 
     # ================================ Evaluate ================================
 
@@ -440,14 +445,41 @@ if __name__ == '__main__':
 
     x_idx = args.vid1
     y_idx = args.vid2
-    print('Img 1 path:', data.data[x_idx]['video'])
-    print('Img 2 path:', data.data[y_idx]['video'])
-    x, _, _, _ = data.__getitem__(x_idx)  # cropped size
-    y, _, _, _ = data.__getitem__(y_idx)  # cropped size
+    print('Img 1 path:', val_data.data[x_idx]['video'])
+    print('Img 2 path:', train_data.data[y_idx]['video'])
+    x, _, _, _ = val_data.__getitem__(x_idx)  # cropped size
+    y, _, _, _ = train_data.__getitem__(y_idx)  # cropped size
     vid1 = x.unsqueeze(0)
     vid2 = y.unsqueeze(0)
 
     print(vid1.shape)
+
+    '''
+    ###### debug
+
+    vid1 = vid1[0].permute(1,2,3,0).numpy()
+    vid2 = vid2[0].permute(1,2,3,0).numpy()
+
+    vid1 = vid1[:,:,:,0:3]
+    vid2 = vid2[:,:,:,0:3]
+
+    print(vid1.shape)
+    print(vid2.shape)
+
+    fps = 10.0
+    while (True):
+        for i in range(len(vid1)):
+
+            img1 = cv2.cvtColor(vid1[i], cv2.COLOR_RGB2BGR)
+            img2 = cv2.cvtColor(vid2[i], cv2.COLOR_RGB2BGR)
+            imgs = np.vstack((img1, img2))
+
+            cv2.imshow('Videos and their Similarity Heatmaps', imgs)
+            cv2.waitKey(int(1.0/fps*1000.0))
+        cv2.waitKey(2000)
+
+    ####
+    '''
 
     if cfg.MODEL.ARCH == 'slowfast':
         x = multipathway_input(vid1, cfg)

@@ -256,6 +256,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 pos_channel_replace=cfg.DATASET.POS_CHANNEL_REPLACE,
                 prob_pos_channel_replace=cfg.DATASET.PROB_POS_CHANNEL_REPLACE,
                 relative_speed_perception=cfg.LOSS.RELATIVE_SPEED_PERCEPTION,
+                local_local_contrast=cfg.LOSS.LOCAL_LOCAL_CONTRAST,
                 modality=cfg.DATASET.MODALITY,
                 predict_temporal_ds=cfg.MODEL.PREDICT_TEMPORAL_DS,
                 is_master_proc=is_master_proc)

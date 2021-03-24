@@ -190,36 +190,57 @@ class RandomResizedCrop(transforms.RandomResizedCrop):
         self.randomize = True
 
 
-class ColorJitter(object):
+class ColorJitter(transforms.ColorJitter):
 
-    def __init__(self, brightness=0.8, contrast=0.8, saturation=0.8, hue=0.5):
-        self.brightness = brightness
-        self.contrast = contrast
-        self.saturation = saturation
-        self.hue = hue
-        self.transform = transforms.ColorJitter(self.brightness, self.contrast, self.saturation, self.hue)
+    def __init__(self, brightness=0.8, contrast=0.8, saturation=0.8, hue=0.5, p=0.8):
+        super().__init__(brightness, contrast, saturation, hue)
+        self.p = p
+        self.apply = False
         self.randomize_parameters()
 
     def __call__(self, img):
         if self.randomize:
-            # self.transform = self.get_params(self.brightness, self.contrast,
-            #                                  self.saturation, self.hue)
-            self.transform = transforms.ColorJitter(self.brightness, self.contrast, self.saturation, self.hue)
+            self.apply = self.random_p < self.p
+            self.transform = self.get_params(self.brightness, self.contrast,
+                                              self.saturation, self.hue)
             self.randomize = False
 
-        return self.transform(img)
+        if self.apply:
+            return self.transform(img)
+        else:
+            return img
 
     def randomize_parameters(self):
         self.randomize = True
+        self.random_p = random.random()
 
 
-class ColorDrop(transforms.RandomGrayscale):
+class ColorDrop(object):
 
     def __init__(self, p=0.1):
-        super().__init__(p)
+        super().__init__()
+        self.p = p
+        self.apply = False
+        self.randomize_parameters()
+        self.transform_rgb = transforms.Grayscale(num_output_channels=3)
+        self.transform_gray = transforms.Grayscale(num_output_channels=1)
+
+    def __call__(self, img):
+        if self.randomize:
+            self.apply = self.random_p < self.p
+            self.randomize = False
+
+        if self.apply:
+            if img.mode == "L":
+                return self.transform_gray(img)
+            else:
+                return self.transform_rgb(img)
+        else:
+            return img
 
     def randomize_parameters(self):
-        pass
+        self.randomize=True
+        self.random_p = random.random()
 
 
 class PickFirstChannels(object):

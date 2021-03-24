@@ -501,7 +501,7 @@ def train(args, cfg):
         print('\n==> Generating {} backbone model (for training)...'.format(cfg.MODEL.ARCH))
 
 
-    model=model_selector(cfg, is_master_proc=is_master_proc)
+    model=model_selector(cfg, hyperbolic=args.hyperbolic, is_master_proc=is_master_proc)
 
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
@@ -615,7 +615,7 @@ def train(args, cfg):
                 print('\n=> Clustering')
                 start_time = time.time()
                 print('embeddings shape', embeddings.size())
-                trained_clustering_obj = fit_cluster(embeddings, 'sphere', cfg.ITERCLUSTER.K) #EDIT: change it back to kmeans
+                trained_clustering_obj = fit_cluster(embeddings, 'kmeans', cfg.ITERCLUSTER.K) #EDIT: change it back to kmeans
                 print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
                 # Calculate NMI for true labels vs cluster assignments

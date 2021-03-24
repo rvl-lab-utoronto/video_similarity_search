@@ -283,7 +283,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
         data_loader = torch.utils.data.DataLoader(data,
                                                   batch_size=batch_size,
-                                                  shuffle=False, #shuffle,
+                                                  shuffle=shuffle,
                                                   num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
                                                   pin_memory=True,
                                                   sampler=sampler,

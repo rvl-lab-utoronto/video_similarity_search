@@ -85,7 +85,7 @@ def mocov2_inflated(num_frames, center_init=True):
 
 
 # Select the appropriate model with the specified cfg parameters
-def model_selector(cfg, projection_head=True, is_master_proc=True):
+def model_selector(cfg, projection_head=True, hyperbolic=False, is_master_proc=True):
     assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast', 'info_nce', "uber_nce", 's3d', 'r3d',
             'simclr_pretrained_inflated_res50',
             'imagenet_pretrained_inflated_res50',
@@ -102,7 +102,8 @@ def model_selector(cfg, projection_head=True, is_master_proc=True):
                         no_max_pool=cfg.RESNET.NO_MAX_POOl,
                         widen_factor=cfg.RESNET.WIDEN_FACTOR,
                         projection_head=projection_head,
-                        predict_temporal_ds=cfg.MODEL.PREDICT_TEMPORAL_DS)
+                        predict_temporal_ds=cfg.MODEL.PREDICT_TEMPORAL_DS,
+                        hyperbolic=hyperbolic)
         #only resnet supports multiview for now
         if cfg.DATASET.MODALITY == True:
             encoder1 = model

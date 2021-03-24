@@ -4,6 +4,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from hyptorch.pmath import dist_matrix, dist
 
 
 class MemTripletLoss(nn.Module):
@@ -71,8 +72,7 @@ class MemTripletLoss(nn.Module):
         elif self.dist_metric == 'cosine':
             ap_dists = 1 - F.cosine_similarity(embeddings[triplets[0], :], self.queue[triplets[1], :], dim=1)
             an_dists = 1 - F.cosine_similarity(embeddings[triplets[0], :], self.queue[triplets[2], :], dim=1)
-        # print('ap_dists', ap_dists)
-        # print('an_dists', an_dists)
+
         # Compute margin ranking loss
         if len(triplets[0]) == 0:
             loss = torch.zeros(1, requires_grad=True)
@@ -127,8 +127,14 @@ class OnlineTripletLoss(nn.Module):
                 ap_dists = F.pairwise_distance(embeddings[triplets[0], :], embeddings[triplets[1], :])
                 an_dists = F.pairwise_distance(embeddings[triplets[0], :], embeddings[triplets[2], :])
             elif self.dist_metric == 'cosine':
+                # print(embeddings[triplets[0], :].size(), embeddings[triplets[1], :].size())
                 ap_dists = 1 - F.cosine_similarity(embeddings[triplets[0], :], embeddings[triplets[1], :], dim=1)
                 an_dists = 1 - F.cosine_similarity(embeddings[triplets[0], :], embeddings[triplets[2], :], dim=1)
+                # print('ap_dists:', ap_dists.size(), 'an_dists:', an_dists.size())
+            elif self.dist_metric == 'hyperbolic':
+                ap_dists = dist(embeddings[triplets[0], :], embeddings[triplets[1], :])
+                an_dists = dist(embeddings[triplets[0], :], embeddings[triplets[2], :])
+                # print(ap_dists.size(), an_dists.size())
 
             # Compute margin ranking loss
             if len(triplets[0]) == 0:
@@ -177,7 +183,6 @@ class NegativeTripletSelector:
             negative_indices = torch.where(torch.logical_not(global_label_mask))[0] 
             if negative_indices.shape[0] == 0:  # must have at least one negative
                 continue
-            # print('negative_indices', negative_indices[:20])
 
             # Sample anchor/positive/negative triplet
             triplet_label_pairs = self.get_one_one_triplets(positive_indices, negative_indices, distance_matrix, queue_ptr=queue_ptr, batch_size=batch_size)

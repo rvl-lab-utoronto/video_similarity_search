@@ -8,6 +8,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from hyptorch.nn import ToPoincare
+from hyptorch.pmath import poincare_mean, dist_matrix
+
 def conv3x3x3(in_planes, out_planes, stride=1):
     return nn.Conv3d(in_planes,
                      out_planes,
@@ -112,7 +115,8 @@ class ResNet(nn.Module):
                  hidden_layer= 2048,
                  out_dim = 128,
                  predict_temporal_ds =False,
-                 projection_head=True):
+                 projection_head=True,
+                 hyperbolic=False):
         super().__init__()
 
         block_inplanes = [int(x * widen_factor) for x in block_inplanes]
@@ -149,11 +153,12 @@ class ResNet(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
         self.predict_temporal_ds = predict_temporal_ds
         self.projection_head = projection_head
+        self.hyperbolic = hyperbolic
 
         if projection_head:
             print('==> setting up non-linear project heads')
             self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
-            # self.bn_proj = nn.BatchNorm1d(hidden_layer) #add batch norm 1d 
+            self.bn_proj = nn.BatchNorm1d(hidden_layer) #add batch norm 1d 
             self.fc2 = nn.Linear(hidden_layer, out_dim)
         else:
             self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
@@ -162,6 +167,10 @@ class ResNet(nn.Module):
             print('==> setting up temporal ds prediction heads')
             self.temporal_ds_linear = nn.Linear(block_inplanes[3] * block.expansion, 4)
 
+        if self.hyperbolic:
+            # from hyptorch.nn import ToPoincare
+            print('==> setting up hyperbolic layer')
+            self.e2p = ToPoincare(c=1.0, train_c=False, train_x=False)
 
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
@@ -226,25 +235,20 @@ class ResNet(nn.Module):
         # x = self.fc(x)
         #add projection head
         if self.projection_head:
-            # x = self.fc1(x)
-            # # print('after fc1', x.size())
-            # x = self.relu(x)
-            # # print('after relu', x.size())
-            # x = self.fc2(x)
-            # # print('after fc2', x.size())
-
-
             #add batchnorm layer
             h = self.fc1(x)
-            # h = self.bn_proj(h)
+            h = self.bn_proj(h)
             h = self.relu(h)
             h = self.fc2(h)
         
-        if self.predict_temporal_ds:
-            # print("x: ", x.size())
+        if self.hyperbolic:
+            h = self.e2p(h)
 
+        if self.predict_temporal_ds:
             predicted_ds = self.temporal_ds_linear(x)
             return h, predicted_ds
+
+        
 
         return h
 
@@ -288,11 +292,11 @@ if __name__ == '__main__':
     resnet_widen_factor = 1 #number of feature maps of resnet is multiplied by this value
 
 
-    model=generate_model(model_depth=model_depth, n_classes=n_classes,
-                        n_input_channels=n_input_channels, shortcut_type=resnet_shortcut,
-                        conv1_t_size=conv1_t_size,
-                        conv1_t_stride=conv1_t_stride,
-                        no_max_pool=no_max_pool,
-                        widen_factor=resnet_widen_factor)
+    # model=generate_model(model_depth=model_depth, n_classes=n_classes,
+    #                     n_input_channels=n_input_channels, shortcut_type=resnet_shortcut,
+    #                     conv1_t_size=conv1_t_size,
+    #                     conv1_t_stride=conv1_t_stride,
+    #                     no_max_pool=no_max_pool,
+    #                     widen_factor=resnet_widen_factor)
 
-    print(model)
+    # print(model)

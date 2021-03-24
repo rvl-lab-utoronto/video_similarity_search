@@ -115,6 +115,11 @@ def arg_parser():
         action='store_true',
         help='Perform iterative clustering for pseudolabel assignment'
     )
+    parser.add_argument(
+        '--hyperbolic', '-hp',
+        action='store_true',
+        help="map to hyperbolic"
+    )
     return parser
 
 

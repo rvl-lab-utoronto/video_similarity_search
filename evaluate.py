@@ -24,6 +24,7 @@ from datasets.temporal_transforms import Compose as TemporalCompose
 import misc.distributed_helper as du_helper
 from config.m_parser import load_config, arg_parser
 from misc.upload_gdrive import GoogleDriveUploader
+from hyptorch.pmath import dist_matrix
 
 # num_exemplar = 10
 log_interval = 10
@@ -207,11 +208,22 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
 def get_distance_matrix(x_embeddings, y_embeddings=None, dist_metric='cosine'):
 
     #print('Dist metric:', dist_metric)
-    assert(dist_metric in ['cosine', 'euclidean'])
+    assert(dist_metric in ['cosine', 'euclidean', 'hyperbolic'])
     if dist_metric == 'cosine':
         distance_matrix = cosine_distances(x_embeddings, Y=y_embeddings)
+        # print(distance_matrix.size(), distance_matrix[0][0].dtype)
+
     elif dist_metric == 'euclidean':
         distance_matrix = euclidean_distances(x_embeddings, Y=y_embeddings)
+        # print(distance_matrix.size(), distance_matrix[0][0].dtype)
+    elif dist_metric == 'hyperbolic':
+        # print('hyperbolic')
+        if y_embeddings is None:
+            y_embeddings = x_embeddings
+        # print(x_embeddings.size(), y_embeddings.size())
+        distance_matrix = dist_matrix(x_embeddings, y_embeddings)
+        distance_matrix = np.array(distance_matrix.to(int))
+        # print(distance_matrix.size(), distance_matrix[0][0].dtype)
     #print('Distance matrix shape:', distance_matrix.shape)
 
     if y_embeddings is None:
@@ -282,7 +294,7 @@ def load_exemplar(exemplar_file):
 
 
 def get_topk_acc(distance_matrix, x_labels, y_labels=None, top_ks = [1,5,10,20]):
-    top_k = top_ks[-1] 
+    top_k = top_ks[-1]
     topk_sum = 0
     topk_indices = get_closest_data_mat(distance_matrix, top_k=top_k)
     # print('topk_indices', topk_indices.size())
@@ -292,7 +304,6 @@ def get_topk_acc(distance_matrix, x_labels, y_labels=None, top_ks = [1,5,10,20])
     acc = []
     for i, x_label in enumerate(x_labels):
         cur_acc = []
-        # print('x_label', x_label)
         for k in top_ks:
             topk_idx = topk_indices[:, :k]
             cur_topk_idx = topk_idx[i]
@@ -342,7 +353,7 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
             print('saved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
 
     if split=="test": #EDIT
-        embeddings = embeddings.reshape((3781, 128))
+        embeddings = embeddings.reshape((-1, 128))
 
     return embeddings, labels, idxs
 
@@ -560,10 +571,11 @@ if __name__ == '__main__':
             checkpoint = torch.load(args.checkpoint_path)
             # print('checkpoint', checkpoint)
             state_dict = checkpoint['state_dict']
-            for k, v in state_dict.items():
-                name = k[7:] # remove `module.`
-                new_state_dict[name] = v
-            model.load_state_dict(new_state_dict)
+            # for k, v in state_dict.items():
+                # print(k)
+                # name = k[7:] # remove `module.`
+                # new_state_dict[name] = v
+            model.load_state_dict(state_dict)
 
     # tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
     # if cuda:

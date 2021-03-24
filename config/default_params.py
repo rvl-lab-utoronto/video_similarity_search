@@ -141,7 +141,8 @@ _C.OPTIM.SCHEDULE = []
 # Iterative clustering options
 # -----------------------------------------------------------------------------
 _C.ITERCLUSTER = CfgNode()
-_C.ITERCLUSTER.METHOD = 'spherical_kmeans'
+#_C.ITERCLUSTER.METHOD = 'spherical_kmeans'
+_C.ITERCLUSTER.METHOD = 'kmeans'
 _C.ITERCLUSTER.INTERVAL = 5
 _C.ITERCLUSTER.K = 1000
 _C.ITERCLUSTER.ADAPTIVEP = False

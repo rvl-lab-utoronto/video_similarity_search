@@ -535,8 +535,15 @@ if __name__ == '__main__':
     # Select appropriate model
     if(is_master_proc):
         print('\n==> Generating {} backbone model...'.format(cfg.MODEL.ARCH))
+
     model=model_selector(cfg, projection_head=True)
-    print(model)
+
+
+    ## SyncBatchNorm
+    if cfg.SYNC_BATCH_NORM:
+        print('Converting BatchNorm*D to SyncBatchNorm!')
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+
     n_parameters = sum([p.data.nelement() for p in model.parameters()])
     if(is_master_proc):
         print('Number of params: {}'.format(n_parameters))
@@ -580,6 +587,7 @@ if __name__ == '__main__':
                 # name = k[7:] # remove `module.`
                 # new_state_dict[name] = v
             model.load_state_dict(state_dict)
+
 
     # tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
     # if cuda:

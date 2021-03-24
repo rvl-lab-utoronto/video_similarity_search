@@ -21,6 +21,8 @@ from datasets import data_loader
 from datasets.spatial_transforms import (Compose, Resize, CenterCrop, ToTensor)
 from spherecluster import SphericalKMeans
 
+#https://github.com/jasonlaska/spherecluster
+#from spherecluster import SphericalKMeans
 
 np.random.seed(1)
 
@@ -52,7 +54,7 @@ def m_arg_parser(parser):
     parser.add_argument(
         '--method',
         type=str,
-        default='DBSCAN',
+        default='kmeans',
         help='Clustering algorithm'
     )
     return parser
@@ -167,7 +169,8 @@ def preprocess_features_kmeans(data):
 # Perform clustering 
 def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True):
 
-    assert(method in ['DBSCAN', 'Agglomerative', 'OPTICS', 'kmeans', 'sphere'])
+
+    assert(method in ['DBSCAN', 'Agglomerative', 'OPTICS', 'kmeans', 'spherical_kmeans'])
 
     print("Clustering with {}...".format(method))
     if method == 'kmeans':
@@ -194,6 +197,10 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True):
         n_clusters = k #2000 for ucf train
         trained_cluster_obj = KMeans(n_clusters=n_clusters,
                                      n_init=10).fit(embeddings)
+    elif method == 'spherical_kmeans':
+        n_clusters = k
+        print('clustering with spherical kmeans with k={}'.format(n_clusters))
+        trained_cluster_obj = SphericalKMeans(n_clusters=n_clusters).fit(embeddings)
     elif method == 'OPTICS':
         trained_cluster_obj = OPTICS(min_samples=3, max_eps=0.20, cluster_method='dbscan', metric='cosine', n_jobs=-1).fit(embeddings)
 
@@ -322,10 +329,11 @@ if __name__ == '__main__':
         true_labels = data.get_total_labels()
 
     NMI = normalized_mutual_info_score(true_labels, trained_clustering_obj.labels_)
-    print('NMI between true labels and cluster assignments: {:.2f}\n'.format(NMI))
 
     cluster_labels = cluster_embeddings(trained_clustering_obj, true_labels,
             data.get_label_to_class_map())
+
+    print('NMI between true labels and cluster assignments: {:.2f}\n'.format(NMI))
 
     with open(os.path.join(args.output, 'vid_clusters.txt'), "a") as f:
         for label in cluster_labels:

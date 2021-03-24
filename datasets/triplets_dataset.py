@@ -35,6 +35,7 @@ class TripletsData(data.Dataset):
                  sample_duration=None,
                  prob_pos_channel_replace=None,
                  relative_speed_perception=False,
+                 local_local_contrast=False,
                  modality=False,
                  predict_temporal_ds=False,
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
@@ -54,6 +55,7 @@ class TripletsData(data.Dataset):
         self.sample_duration = sample_duration
         self.prob_pos_channel_replace = prob_pos_channel_replace
         self.relative_speed_perception = relative_speed_perception
+        self.local_local_contrast = local_local_contrast
         self.modality = modality
         self.predict_temporal_ds = predict_temporal_ds
         self.max_sr = 4
@@ -124,6 +126,9 @@ class TripletsData(data.Dataset):
         if self.relative_speed_perception:
             p_fast_clip = self._load_clip(positive, self.fast_positive_temporal_transform,
                     pos_channel_replace=self.pos_channel_replace)
+        elif self.local_local_contrast:
+            a2_clip = self._load_clip(anchor, self.anchor_temporal_transform,
+                    pos_channel_replace=self.pos_channel_replace)
 
         if self.negative_sampling:
             while True:
@@ -136,7 +141,10 @@ class TripletsData(data.Dataset):
         
         elif self.relative_speed_perception:
             return (a_clip, p_clip, p_fast_clip), (a_target, p_target), index
-        
+
+        elif self.local_local_contrast:
+            return (a_clip, p_clip, a2_clip), (a_target, p_target), index
+
         else:
             return (a_clip, p_clip), (a_target, p_target), index
 

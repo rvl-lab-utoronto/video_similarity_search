@@ -508,7 +508,7 @@ if __name__ == '__main__':
 
     # ============================== Data Loaders ==============================
 
-    train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False)
+    train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False, req_train_shuffle=False)
     test_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, triplets=False, val_sample=None)
 
     # ================================ Evaluate ================================

@@ -43,13 +43,13 @@ def m_arg_parser(parser):
     parser.add_argument(
         '--name',
         type=str,
-        default=None,
+        default="test", #None,
         help='Please specify the name (e.g. ResNet18_K, SlowFast_U): '
     )
     parser.add_argument(
         '--num_exemplar',
         type=int,
-        default=None,
+        default=10,
         help='Please specify number of exemplar videos: '
     )
     parser.add_argument(
@@ -461,55 +461,24 @@ if __name__ == '__main__':
     # if args.pretrain_path is not None:
     #     model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
 
-    # Transfer model to DDP
+    # Load similarity network checkpoint if path exists
+    if args.checkpoint_path is not None:
+        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
+
     if cuda:
+        #model = DDP(model)
         if torch.cuda.device_count() > 1:
             print("Using DataParallel with {} gpus".format(torch.cuda.device_count()))
             model = nn.DataParallel(model)
         model = model.cuda(device=device)
-
-        # if torch.cuda.device_count() > 1:
-        #     #model = nn.DataParallel(model)
-        #     if cfg.MODEL.ARCH == '3dresnet':
-        #         model = torch.nn.parallel.DistributedDataParallel(module=model,
-        #             device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
-        #     else:
-        #         model = torch.nn.parallel.DistributedDataParallel(module=model,
-        #             device_ids=[device], broadcast_buffers=False)
-
-    if args.pretrain_path is not None:
-        model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
-
-    # Load similarity network checkpoint if path exists
-    if args.checkpoint_path is not None:
-        #if torch.cuda.device_count() > 1:
-        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
-        #else:
-        #    print('loading checkpoint path...')
-        #    from collections import OrderedDict
-        #    new_state_dict = OrderedDict()
-        #    checkpoint = torch.load(args.checkpoint_path)
-        #    state_dict = checkpoint['state_dict']
-        #    for k, v in state_dict.items():
-        #        name = k[7:] # remove `module.`
-        #        new_state_dict[name] = v
-        #    model.load_state_dict(new_state_dict)
-
-    # tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
-    # if cuda:
-    #     cfg.NUM_GPUS = torch.cuda.device_count()
-    #     print("Using {} GPU(s)".format(cfg.NUM_GPUS))
-    #     if cfg.NUM_GPUS > 1 or force_data_parallel:
-    #         tripletnet = nn.DataParallel(tripletnet)
-    #
-    # model = tripletnet.module.embeddingnet
 
     print('=> finished generating similarity network...')
 
     # ============================== Data Loaders ==============================
 
     train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False, req_train_shuffle=False)
-    test_loader, (val_data, _) = data_loader.build_data_loader('val', cfg, triplets=False, val_sample=None)
+    test_loader, (val_data, _) = data_loader.build_data_loader('val', cfg,
+            triplets=False, val_sample=None, req_train_shuffle=False)
 
     # ================================ Evaluate ================================
 

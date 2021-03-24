@@ -40,11 +40,14 @@ class FeatureExtractor():
             outputs += [x]
             x = [x] # put in list to be compatible with future layers
         else:
-            for name, module in self.model._modules.items():
-                x = module(x)
-                if name in self.target_layers:
-                    x.register_hook(self.save_gradient)
-                    outputs += [x]
+            #for name, module in self.model._modules.items():
+            #    x = module(x)
+            #    if name in self.target_layers:
+            #        x.register_hook(self.save_gradient)
+            #        outputs += [x]
+            x = self.model(x)
+            x.register_hook(self.save_gradient)
+            outputs += [x]
         return outputs, x
 
 
@@ -77,16 +80,18 @@ class ModelOutputs():
                 else:
                     x = module(x)
             else:
-                print (self.model_arch, 'not yet supported')
-                #if module == self.feature_module:
-                #    target_activations, x = self.feature_extractor(x)
-                #elif "avgpool" in name.lower():
-                #    x = module(x)
-                #    x = x.view(x.size(0),-1)
-                #else:
-                #    x = module(x)
-                return
-        
+                #print (self.model_arch, 'not yet supported')
+                if module == self.feature_module:
+                    target_activations, x = self.feature_extractor(x)
+                elif "avgpool" in name.lower():
+                    x = module(x)
+                    x = x.view(x.size(0),-1)
+                elif "bn_proj" in name.lower():
+                    x = module(x)
+                    x = F.relu(x)
+                else:
+                    x = module(x)
+
         return target_activations, x
 
 
@@ -177,6 +182,9 @@ class VideoSimilarityGradCam:
         grads_val2 = self.extractor2.get_gradients()[-1].cpu().data.numpy()
         print('gradval shape:', grads_val1.shape)
 
+        #grads_val1 = grads_val1 * (grads_val1 > 0)
+        #grads_val2 = grads_val2 * (grads_val2 > 0)
+
         cam1 = self.create_mask(features1, grads_val1, input_3d_shape)
         cam2 = self.create_mask(features2, grads_val2, input_3d_shape)
 
@@ -263,6 +271,7 @@ class GuidedBackpropReLUModel:
                 for i in range(len(input1)):
                     print('input size:', input1[i].size())
             else:
+                #input1, input2 = orig_input1, orig_input2
                 input1, input2 = orig_input1.clone(), orig_input2.clone()
                 input1, input2 = input1.to(device), input2.to(device)
                 print('input size:', input1.size())
@@ -287,7 +296,7 @@ class GuidedBackpropReLUModel:
         else:
             guided_grad1 = orig_input1.grad.cpu().data.numpy()
             guided_grad2 = orig_input2.grad.cpu().data.numpy()
-        
+
         guided_grad1 = guided_grad1[0, :, :, :]
         guided_grad2 = guided_grad2[0, :, :, :]
 
@@ -298,7 +307,7 @@ class GuidedBackpropReLUModel:
             guided_grad1 = zoom(guided_grad1, (1,4,1,1))
             guided_grad2 = zoom(guided_grad2, (1,4,1,1))
             print('upsampled guided_grad', guided_grad1.shape)
-        
+
         return guided_grad1, guided_grad2
 
 
@@ -325,6 +334,11 @@ def combine_cam_gb (mask, grad):
 
 
 def show_cams_on_images(vid1, masks1, vid2, masks2, grads1, grads2):
+
+    grads1 = grads1[0:3]
+    grads2 = grads2[0:3]
+    #print(grads1.shape)
+
     grads1 = grads1.transpose((1,2,3,0))
     grads2 = grads2.transpose((1,2,3,0))
 
@@ -393,18 +407,19 @@ if __name__ == '__main__':
     model=model_selector(cfg)
     print('\n=> finished generating {} backbone model...'.format(cfg.MODEL.ARCH))
 
-    tripletnet = Tripletnet(model)
+    '''tripletnet = Tripletnet(model)
     if cuda:
         cfg.NUM_GPUS = torch.cuda.device_count()
         print("Using {} GPU(s)".format(cfg.NUM_GPUS))
         if cfg.NUM_GPUS > 1 or force_data_parallel:
             tripletnet = nn.DataParallel(tripletnet)
+    '''
 
     if args.checkpoint_path is not None:
-        start_epoch, best_acc = load_checkpoint(tripletnet, args.checkpoint_path)
+        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path)
 
-    model = tripletnet.module.embeddingnet
-    #print(model._modules.items())
+    #model = tripletnet.module.embeddingnet
+    print(model._modules.items())
     if cuda:
         model.to(device)
 
@@ -412,7 +427,8 @@ if __name__ == '__main__':
 
     # ============================== Data Loaders ==============================
 
-    test_loader, data = data_loader.build_data_loader('val', cfg, triplets=False)
+    test_loader, (data, _) = data_loader.build_data_loader('val', cfg,
+            triplets=False, val_sample=None)
     print()
 
     # ================================ Evaluate ================================
@@ -426,10 +442,12 @@ if __name__ == '__main__':
     y_idx = args.vid2
     print('Img 1 path:', data.data[x_idx]['video'])
     print('Img 2 path:', data.data[y_idx]['video'])
-    x, _, _ = data.__getitem__(x_idx)  # cropped size
-    y, _, _ = data.__getitem__(y_idx)  # cropped size
+    x, _, _, _ = data.__getitem__(x_idx)  # cropped size
+    y, _, _, _ = data.__getitem__(y_idx)  # cropped size
     vid1 = x.unsqueeze(0)
     vid2 = y.unsqueeze(0)
+
+    print(vid1.shape)
 
     if cfg.MODEL.ARCH == 'slowfast':
         x = multipathway_input(vid1, cfg)
@@ -437,30 +455,40 @@ if __name__ == '__main__':
         x_clone = [x[0].clone(), x[1].clone()]
         y_clone = [y[0].clone(), y[1].clone()]
     else:
-        x_clone = x.clone()
-        y_clone = y.clone()
-    
+        x_clone = vid1.clone()
+        y_clone = vid2.clone()
+
     # Input clones to the networks so that the inputs are retained for guided
     # backpropagation
     print('\nComputing gradcam')
-    grad_cam = VideoSimilarityGradCam(model=model, feature_module=model.s5_fuse, \
+    if cfg.MODEL.ARCH == 'slowfast':
+        grad_cam = VideoSimilarityGradCam(model=model, feature_module=model.s5_fuse, \
+                            target_layer_names=[], use_cuda=cuda, model_arch=cfg.MODEL.ARCH)
+    else:
+        grad_cam = VideoSimilarityGradCam(model=model, feature_module=model.layer4, \
                             target_layer_names=[], use_cuda=cuda, model_arch=cfg.MODEL.ARCH)
     mask1, mask2 = grad_cam(x_clone, y_clone)
 
-    # Set requires_grad True so the gradients of the inputs can be saved
-    # during guided backpropagation
-    for i in range(len(x)):
-        x[i].requires_grad_(True)
-        y[i].requires_grad_(True)
-
     print('\nComputing guided backpropagation')
     gb_model = GuidedBackpropReLUModel(model=model, use_cuda=cuda, model_arch=cfg.MODEL.ARCH)
-    grad1, grad2 = gb_model(x, y)
+    if cfg.MODEL.ARCH == 'slowfast':
+        # Set requires_grad True so the gradients of the inputs can be saved
+        # during guided backpropagation
+        for i in range(len(x)):
+            x[i].requires_grad_(True)
+            y[i].requires_grad_(True)
+
+        grad1, grad2 = gb_model(x, y)
+    else:
+        # Set requires_grad True so the gradients of the inputs can be saved
+        # during guided backpropagation
+        vid1.requires_grad_(True)
+        vid2.requires_grad_(True)
+        grad1, grad2 = gb_model(vid1, vid2)
 
     show_cams_on_images(vid1.detach(), mask1, vid2.detach(), mask2, grad1, grad2)
 
 
-    
 
 
 

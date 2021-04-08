@@ -20,7 +20,7 @@ from temporal_transforms import (LoopPadding, TemporalRandomCrop,
                                  TemporalRandomCrop2xSpeed,
                                  TemporalCenterCrop, TemporalEvenCrop,
                                  TemporalEndCrop, TemporalBeginCrop,
-                                 SlidingWindow, TemporalSubsampling)
+                                 SlidingWindow, TemporalSubsampling, Shuffle)
 from temporal_transforms import Compose as TemporalCompose
 from dataset import get_data
 from loader import VideoLoader, BinaryImageLoaderPIL
@@ -141,12 +141,18 @@ def build_temporal_transformation(cfg, triplets=True, split=None):
             TempTransform['fast_positive'] = fast_positive_temporal_transform
 
         #negative
-        temporal_transform = []
-        temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
-        temporal_transform = TemporalCompose(temporal_transform)
-        TempTransform['negative'] = temporal_transform
-    # elif split=='test':
-    #     temporal_transform = []
+        neg_temporal_transform = []
+        neg_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
+        neg_temporal_transform = TemporalCompose(neg_temporal_transform)
+        TempTransform['negative'] = neg_temporal_transform
+
+        #intra-negative
+        if cfg.LOSS.INTRA_NEGATIVE:
+            intra_neg_temporal_transform = []
+            intra_neg_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
+            intra_neg_temporal_transform = TemporalCompose(intra_neg_temporal_transform)
+            # intra_neg_temporal_transform = Shuffle(intra_neg_temporal_transform)
+            TempTransform['intra_negative'] = intra_neg_temporal_transform
 
     else:
         temporal_transform = []
@@ -258,6 +264,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 prob_pos_channel_replace=cfg.DATASET.PROB_POS_CHANNEL_REPLACE,
                 relative_speed_perception=cfg.LOSS.RELATIVE_SPEED_PERCEPTION,
                 local_local_contrast=cfg.LOSS.LOCAL_LOCAL_CONTRAST,
+                intra_negative=cfg.LOSS.INTRA_NEGATIVE,
                 modality=cfg.DATASET.MODALITY,
                 predict_temporal_ds=cfg.MODEL.PREDICT_TEMPORAL_DS,
                 is_master_proc=is_master_proc)
@@ -299,7 +306,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
         data_loader = torch.utils.data.DataLoader(data,
                                                   batch_size=batch_size,
                                                   shuffle=shuffle,
-                                                  num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
+                                                  num_workers=cfg.TRAIN.NUM_DATA_WORKERS, #TODO: EDIT
                                                   pin_memory=True,
                                                   sampler=sampler,
                                                   worker_init_fn=worker_init_fn,

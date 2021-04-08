@@ -34,6 +34,7 @@ intra_neg = False #True
 moco = False #True
 neg_type='repeat'
 
+import cv2
 
 def calc_mask_accuracy(output, target_mask, topk=(1,)):
     maxk = max(topk)
@@ -431,6 +432,9 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         elif cfg.LOSS.LOCAL_LOCAL_CONTRAST:
             anchor, positive, anchor2 = inputs
             anchor2 = prepare_input(anchor2, cfg, cuda, device)
+        elif cfg.LOSS.INTRA_NEGATIVE:
+            anchor, positive, intra_neg = inputs 
+            intra_neg = prepare_input(intra_neg, cfg, cuda, device)
         else:
             anchor, positive = inputs
         anchor = prepare_input(anchor, cfg, cuda, device)
@@ -498,7 +502,45 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
             # Combined loss
             llc_lambda = 1.0
             loss = triplet_loss + llc_loss * llc_lambda
+        
+        elif cfg.LOSS.INTRA_NEGATIVE:
+            outputs = model(torch.cat((anchor, positive, intra_neg), 0))
+            out_anchor_positive = outputs[:batch_size*2]
+            out_anc = outputs[:batch_size]
+            out_pos = outputs[batch_size:batch_size*2]
+            out_intra_neg = outputs[batch_size*2:batch_size*3]
 
+            # Regular loss
+            triplet_loss, n_triplets = criterion(out_anchor_positive, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+
+            # Relative speed perception loss
+            if cfg.LOSS.DIST_METRIC == 'euclidean':
+                dist_ap = F.pairwise_distance(out_anc, out_intra_neg, 2)
+                dist_an = F.pairwise_distance(out_anc, out_pos, 2)
+            elif cfg.LOSS.DIST_METRIC == 'cosine':
+                dist_ap = 1 - F.cosine_similarity(out_anc, out_intra_neg, dim=1)
+                dist_an = 1 - F.cosine_similarity(out_anc, out_pos, dim=1)
+
+            intra_neg_criterion = torch.nn.MarginRankingLoss(margin=0.04).to(device)
+            target_intra_neg = torch.FloatTensor(dist_ap.size()).fill_(-1)
+            if cuda:
+                target_llc = target_intra_neg.to(device)
+            intra_neg_loss = intra_neg_criterion(dist_ap, dist_an, target_llc)
+
+            # Combined loss
+            intra_neg_lambda = 0.4
+            loss = triplet_loss + intra_neg_loss * intra_neg_lambda
+
+
+            # h, w, l = anchor[0][0].shape
+            # size = (w, h)
+            # anchor_out = cv2.VideoWriter('pos.avi',cv2.VideoWriter_fourcc(*'DIVX'), 15, size)
+            # for i in range(len(anchor[0])):
+            #     img = np.uint8(anchor[0][i].cpu().detach())
+            #     anchor_out.write(img)
+            # anchor_out.release()
+
+            
         else:
             outputs = model(torch.cat((anchor, positive), 0))  # dim: [(batch_size * 2), dim_embedding]
             # Sample negatives from batch for each anchor/positive and compute loss
@@ -626,7 +668,7 @@ def train(args, cfg):
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
-        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
+        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc,cfg)
 
     if cuda:
         model = DDP(model)

@@ -37,7 +37,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
              negative_sampling=False, positive_sampling_p=1.0,
              pos_channel_replace=False, prob_pos_channel_replace=None, modality=False, predict_temporal_ds=False, 
              relative_speed_perception=False, 
-             local_local_contrast=False, is_master_proc=True):
+             local_local_contrast=False, intra_negative=False, is_master_proc=True):
 
     assert split in ['train', 'val', 'test']
     assert dataset_name in ['kinetics', 'ucf101']
@@ -106,7 +106,8 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                             sample_duration=sample_duration,
                             predict_temporal_ds=predict_temporal_ds,
                             relative_speed_perception=relative_speed_perception,
-                            local_local_contrast=local_local_contrast)
+                            local_local_contrast=local_local_contrast,
+                            intra_negative=intra_negative)
     else:
         if (is_master_proc):
             print('Using single video dataset...')

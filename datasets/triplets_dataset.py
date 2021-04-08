@@ -14,6 +14,17 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from pathlib import Path
 from loader import VideoLoader
 from dataset_utils import construct_net_input
+from temporal_transforms import Shuffle
+
+
+def convert(img, target_type_min, target_type_max, target_type):
+    imin = img.min()
+    imax = img.max()
+
+    a = (target_type_max - target_type_min) / (imax - imin)
+    b = target_type_max - a * imax
+    new_img = (a * img + b).astype(target_type)
+    return new_img
 
 
 class TripletsData(data.Dataset):
@@ -36,6 +47,7 @@ class TripletsData(data.Dataset):
                  prob_pos_channel_replace=None,
                  relative_speed_perception=False,
                  local_local_contrast=False,
+                 intra_negative=False,
                  modality=False,
                  predict_temporal_ds=False,
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
@@ -56,15 +68,18 @@ class TripletsData(data.Dataset):
         self.prob_pos_channel_replace = prob_pos_channel_replace
         self.relative_speed_perception = relative_speed_perception
         self.local_local_contrast = local_local_contrast
+        self.intra_negative = intra_negative
         self.modality = modality
         self.predict_temporal_ds = predict_temporal_ds
         self.max_sr = 4
-        
+        self.shuffle = Shuffle()
 
         if temporal_transform is not None:
             self.anchor_temporal_transform = temporal_transform['anchor']
             self.positive_temporal_transform = temporal_transform['positive']
             self.negative_temporal_transform = temporal_transform['negative']
+            if self.intra_negative:
+                self.intra_neg_temporal_transform = temporal_transform['intra_negative']
 
             if self.relative_speed_perception:
                 self.fast_positive_temporal_transform = temporal_transform['fast_positive']
@@ -129,6 +144,26 @@ class TripletsData(data.Dataset):
         elif self.local_local_contrast:
             a2_clip = self._load_clip(anchor, self.anchor_temporal_transform,
                     pos_channel_replace=self.pos_channel_replace)
+        elif self.intra_negative:
+            intra_n_clip = self._load_clip(anchor, self.intra_neg_temporal_transform,
+                    pos_channel_replace=self.pos_channel_replace, intra_negative=True) 
+
+            # # #visualize
+            # import imageio, cv2, sys
+            # # print(a_clip.shape)
+            # pos_a_clip = np.array(a_clip.cpu()).transpose(1,2,3,0)
+            # # print(pos_a_clip.shape)
+            # pos_images = [convert(pos_a_clip[i], 0, 255, np.uint8) for i in range(pos_a_clip.shape[0])]
+            # # print(len(pos_images), pos_images[0].shape)
+            # imageio.mimwrite('anc.gif', pos_images)
+
+            # # print(a_clip.shape)
+            # neg_a_clip = np.array(intra_n_clip.cpu()).transpose(1,2,3,0)
+            # # print(pos_a_clip.shape)
+            # neg_images = [convert(neg_a_clip[i], 0, 255, np.uint8) for i in range(neg_a_clip.shape[0])]
+            # # print(len(pos_images), pos_images[0].shape)
+            # imageio.mimwrite('neg.gif', neg_images)
+            # sys.exit()
 
         if self.negative_sampling:
             while True:
@@ -144,11 +179,14 @@ class TripletsData(data.Dataset):
 
         elif self.local_local_contrast:
             return (a_clip, p_clip, a2_clip), (a_target, p_target), index
+        
+        elif self.intra_negative:
+            return (a_clip, p_clip, intra_n_clip), (a_target, p_target), index
 
         else:
             return (a_clip, p_clip), (a_target, p_target), index
 
-    def _load_clip(self, data, temporal_transform, use_channel_ext=True, pos_channel_replace=False, ds=1):
+    def _load_clip(self, data, temporal_transform, use_channel_ext=True, pos_channel_replace=False, intra_negative=False, ds=1):
         path = data['video']
         frame_indices = list(range(1, data['num_frames'] + 1))
         if self.predict_temporal_ds:
@@ -157,6 +195,12 @@ class TripletsData(data.Dataset):
             frame_id = self.get_temporal_ds_frame_indices(self.sample_duration, total_frame_len, start_frame, ds=ds)
         else:
             frame_id = temporal_transform(frame_indices) #EDIT 
+        
+        if self.intra_negative:
+            frame_id = self.shuffle(frame_id)
+            # print(frame_id)
+
+
 
         channel_paths = {}
         if use_channel_ext:

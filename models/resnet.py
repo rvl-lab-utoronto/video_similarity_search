@@ -453,11 +453,11 @@ if __name__ == '__main__':
     resnet_widen_factor = 1 #number of feature maps of resnet is multiplied by this value
 
 
-    # model=generate_model(model_depth=model_depth, n_classes=n_classes,
-    #                     n_input_channels=n_input_channels, shortcut_type=resnet_shortcut,
-    #                     conv1_t_size=conv1_t_size,
-    #                     conv1_t_stride=conv1_t_stride,
-    #                     no_max_pool=no_max_pool,
-    #                     widen_factor=resnet_widen_factor)
+    model=generate_model(model_depth=model_depth, n_classes=n_classes,
+                        n_input_channels=n_input_channels, shortcut_type=resnet_shortcut,
+                        conv1_t_size=conv1_t_size,
+                        conv1_t_stride=conv1_t_stride,
+                        no_max_pool=no_max_pool,
+                        widen_factor=resnet_widen_factor)
 
-    # print(model)
+    print(model)

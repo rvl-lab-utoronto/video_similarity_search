@@ -352,8 +352,8 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
                 torch.save(idxs, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
             print('saved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
 
-    if split=="test": #EDIT
-        embeddings = embeddings.reshape((-1, 128))
+    if split=="test": 
+        embeddings = embeddings.reshape((-1, cfg.LOSS.FEAT_DIM))
 
     return embeddings, labels, idxs
 
@@ -572,23 +572,6 @@ if __name__ == '__main__':
 
     if args.pretrain_path is not None:
         model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
-
-    # Load similarity network checkpoint if path exists
-    if args.checkpoint_path is not None:
-        if torch.cuda.device_count() > 1:
-            start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
-        else:
-            print('loading checkpoint path...')
-            from collections import OrderedDict
-            new_state_dict = OrderedDict()
-            checkpoint = torch.load(args.checkpoint_path)
-            # print('checkpoint', checkpoint)
-            state_dict = checkpoint['state_dict']
-            # for k, v in state_dict.items():
-                # print(k)
-                # name = k[7:] # remove `module.`
-                # new_state_dict[name] = v
-            model.load_state_dict(state_dict)
 
 
     # tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)

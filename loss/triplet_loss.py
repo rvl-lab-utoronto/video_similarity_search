@@ -259,13 +259,9 @@ class NegativeTripletSelector:
             local_label_mask = labels == label
             global_label_mask = label_q == label
 
-            # print('local_label_mask',local_label_mask)
-            # print('global_label_mask', global_label_mask[:20])
-
             positive_indices = torch.where(local_label_mask)[0]
             if positive_indices.shape[0] < 2:  # must have at least anchor and positive with same label
                 continue
-            # print('positive_indices', positive_indices)
             # Get embeddings indices without current label
             negative_indices = torch.where(torch.logical_not(global_label_mask))[0] 
             if negative_indices.shape[0] == 0:  # must have at least one negative
@@ -347,7 +343,9 @@ class NegativeTripletSelector:
             elif self.sampling_strategy == "random_semi_hard":
                 neg_list_idx = random_semi_hard_sampling(ap_dist, an_dists, self.margin)
                 neg_idx = negative_indices[neg_list_idx] if neg_list_idx is not None else None
-            elif self.sampling_strategy == 'adapted_hard':
+            elif self.sampling_strategy == 'adapted_hard': 
+                #sampling hard negatvies from memory bank
+                #only used in MemTripletLoss()
                 neg_list_idx = adapted_hard_sampling(ap_dist, an_dists, self.margin)
                 neg_idx = negative_indices[neg_list_idx] if neg_list_idx is not None else None
             elif self.sampling_strategy == "fixed_semi_hard":
@@ -415,15 +413,11 @@ def adapted_hard_sampling(ap_dist, an_dists, margin):
     loss = ap_margin_dist - an_dists
     
     k = max(int(0.05*len(loss)), 1)
-    # print('k:', k)
     possible_negs = loss.argsort()[-k:]
     if possible_negs.nelement() != 0:
         start = int(0.001 * len(loss))
         if possible_negs[:-start].nelement() !=0:
-            # print('start:', start)
-            # print('possible_negs: ',possible_negs[:-start])
             neg_idx = random.choice(possible_negs[:-start])
-            # print('neg_idx: ', neg_idx, loss[neg_idx])
         else:
             neg_idx = None
     else:

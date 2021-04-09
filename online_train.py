@@ -668,7 +668,7 @@ def train(args, cfg):
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
-        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc,cfg)
+        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
 
     if cuda:
         model = DDP(model)

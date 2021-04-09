@@ -148,23 +148,6 @@ class TripletsData(data.Dataset):
             intra_n_clip = self._load_clip(anchor, self.intra_neg_temporal_transform,
                     pos_channel_replace=self.pos_channel_replace, intra_negative=True) 
 
-            # # #visualize
-            # import imageio, cv2, sys
-            # # print(a_clip.shape)
-            # pos_a_clip = np.array(a_clip.cpu()).transpose(1,2,3,0)
-            # # print(pos_a_clip.shape)
-            # pos_images = [convert(pos_a_clip[i], 0, 255, np.uint8) for i in range(pos_a_clip.shape[0])]
-            # # print(len(pos_images), pos_images[0].shape)
-            # imageio.mimwrite('anc.gif', pos_images)
-
-            # # print(a_clip.shape)
-            # neg_a_clip = np.array(intra_n_clip.cpu()).transpose(1,2,3,0)
-            # # print(pos_a_clip.shape)
-            # neg_images = [convert(neg_a_clip[i], 0, 255, np.uint8) for i in range(neg_a_clip.shape[0])]
-            # # print(len(pos_images), pos_images[0].shape)
-            # imageio.mimwrite('neg.gif', neg_images)
-            # sys.exit()
-
         if self.negative_sampling:
             while True:
                 negative_idx = np.random.randint(self.__len__())

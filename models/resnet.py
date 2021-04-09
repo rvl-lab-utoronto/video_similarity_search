@@ -8,6 +8,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from hyptorch.nn import ToPoincare
+from hyptorch.pmath import poincare_mean, dist_matrix
+
 def conv3x3x3(in_planes, out_planes, stride=1):
     return nn.Conv3d(in_planes,
                      out_planes,
@@ -111,15 +114,16 @@ class ResNet(nn.Module):
                  widen_factor=1.0,
                  hidden_layer= 2048,
                  out_dim = 128,
+                 predict_temporal_ds =False,
+                 spatio_temporal_attention=False,
                  projection_head=True,
-                 spatio_temporal_attention=False):
+                 hyperbolic=False):
         super().__init__()
 
         block_inplanes = [int(x * widen_factor) for x in block_inplanes]
 
         self.in_planes = block_inplanes[0] #64
         self.no_max_pool = no_max_pool
-
         self.conv1 = nn.Conv3d(n_input_channels,
                                self.in_planes,
                                kernel_size=(conv1_t_size, 7, 7),
@@ -168,7 +172,10 @@ class ResNet(nn.Module):
             #                                           padding=(0, 0, 0))
 
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
+        self.predict_temporal_ds = predict_temporal_ds
         self.projection_head = projection_head
+        self.hyperbolic = hyperbolic
+
         if projection_head:
             print('==> setting up non-linear project heads')
             self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
@@ -177,6 +184,14 @@ class ResNet(nn.Module):
         else:
             self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
 
+        if self.predict_temporal_ds:
+            print('==> setting up temporal ds prediction heads')
+            self.temporal_ds_linear = nn.Linear(block_inplanes[3] * block.expansion, 4)
+
+        if self.hyperbolic:
+            # from hyptorch.nn import ToPoincare
+            print('==> setting up hyperbolic layer')
+            self.e2p = ToPoincare(c=1.0, train_c=False, train_x=False)
 
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
@@ -262,15 +277,22 @@ class ResNet(nn.Module):
         # x = self.fc(x)
         #add projection head
         if self.projection_head:
-            x = self.fc1(x)
-            x = self.bn_proj(x)
-            # print('after fc1', x.size())
-            x = self.relu(x)
-            # print('after relu', x.size())
-            x = self.fc2(x)
-            # print('after fc2', x.size())
+            #add batchnorm layer
+            h = self.fc1(x)
+            h = self.bn_proj(h)
+            h = self.relu(h)
+            h = self.fc2(h)
+        
+        if self.hyperbolic:
+            h = self.e2p(h)
 
-        return x
+        if self.predict_temporal_ds:
+            predicted_ds = self.temporal_ds_linear(x)
+            return h, predicted_ds
+
+        
+
+        return h
 
 
 ## channel-temporal + spatio-temporal attention

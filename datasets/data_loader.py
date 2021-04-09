@@ -20,7 +20,7 @@ from temporal_transforms import (LoopPadding, TemporalRandomCrop,
                                  TemporalRandomCrop2xSpeed,
                                  TemporalCenterCrop, TemporalEvenCrop,
                                  TemporalEndCrop, TemporalBeginCrop,
-                                 SlidingWindow, TemporalSubsampling)
+                                 SlidingWindow, TemporalSubsampling, Shuffle)
 from temporal_transforms import Compose as TemporalCompose
 from dataset import get_data
 from loader import VideoLoader, BinaryImageLoaderPIL
@@ -77,6 +77,8 @@ def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3, i
     extra_num_channel = num_channels-3
     mean.extend([0] * extra_num_channel)
     std.extend([1] * extra_num_channel)
+
+    print(extra_num_channel, mean, std)
     if (is_master_proc):
         print('Normalize mean:{}, std:{}'.format(mean, std))
     return Normalize(mean, std)
@@ -117,7 +119,7 @@ def build_spatial_transformation(cfg, split, triplets, is_master_proc=True):
 
 
 # Return transformation transformations used per set of video frames
-def build_temporal_transformation(cfg, triplets=True):
+def build_temporal_transformation(cfg, triplets=True, split=None):
     if triplets:
         TempTransform = {}
         #anchor
@@ -139,10 +141,18 @@ def build_temporal_transformation(cfg, triplets=True):
             TempTransform['fast_positive'] = fast_positive_temporal_transform
 
         #negative
-        temporal_transform = []
-        temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
-        temporal_transform = TemporalCompose(temporal_transform)
-        TempTransform['negative'] = temporal_transform
+        neg_temporal_transform = []
+        neg_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
+        neg_temporal_transform = TemporalCompose(neg_temporal_transform)
+        TempTransform['negative'] = neg_temporal_transform
+
+        #intra-negative
+        if cfg.LOSS.INTRA_NEGATIVE:
+            intra_neg_temporal_transform = []
+            intra_neg_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
+            intra_neg_temporal_transform = TemporalCompose(intra_neg_temporal_transform)
+            # intra_neg_temporal_transform = Shuffle(intra_neg_temporal_transform)
+            TempTransform['intra_negative'] = intra_neg_temporal_transform
 
     else:
         temporal_transform = []
@@ -186,7 +196,7 @@ def get_channel_extension(cfg):
 # Return a pytorch DataLoader
 def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                       negative_sampling=False, req_spatial_transform=None,
-                      req_train_shuffle=None, val_sample=1, drop_last=True):
+                      req_train_shuffle=None, val_sample=1, drop_last=True, batch_size=None):
 
     # ==================== Transforms and parameter Setup ======================
 
@@ -202,17 +212,20 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
             print('Using requested spatial transforms')
 
     # Get temporal transforms
-    TempTransform = build_temporal_transformation(cfg, triplets)
+    TempTransform = None
+    if split != "test":
+        TempTransform = build_temporal_transformation(cfg, triplets, split=split)
 
     # Get input channel extension (e.g. salient object mask, keypoint channel)
     # dictionary and assert that the specified input_channel_num is valid
+    
     channel_ext = {}
     if (triplets and cfg.DATASET.POS_CHANNEL_REPLACE and split == 'train') or not cfg.DATASET.POS_CHANNEL_REPLACE:
         channel_ext = get_channel_extension(cfg)
         assert (cfg.DATASET.MODALITY or cfg.DATASET.POS_CHANNEL_REPLACE or len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
         if (is_master_proc):
             print('Channel ext:', channel_ext)
-
+  
     # Set the target type and path to clustering information
     if split == 'train':
         target_type = cfg.DATASET.TARGET_TYPE_T
@@ -239,6 +252,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
     if (is_master_proc):
         print ('Loading', cfg.TRAIN.DATASET, split, 'split...')
+
     data, (collate_fn, _) = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, normalize=normalize,
@@ -250,10 +264,10 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 prob_pos_channel_replace=cfg.DATASET.PROB_POS_CHANNEL_REPLACE,
                 relative_speed_perception=cfg.LOSS.RELATIVE_SPEED_PERCEPTION,
                 local_local_contrast=cfg.LOSS.LOCAL_LOCAL_CONTRAST,
+                intra_negative=cfg.LOSS.INTRA_NEGATIVE,
                 modality=cfg.DATASET.MODALITY,
+                predict_temporal_ds=cfg.MODEL.PREDICT_TEMPORAL_DS,
                 is_master_proc=is_master_proc)
-    # if (is_master_proc):
-    #     print ('Single video input size:', data.size())
 
     # ============================ Build DataLoader ============================
 
@@ -271,7 +285,8 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
             shuffle = req_train_shuffle
         else:
             shuffle=(False if sampler else True)
-
+        
+        print('Shuffle:{}'.format(shuffle))
         if split == 'train':
             if triplets:
                 batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS)
@@ -291,7 +306,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
         data_loader = torch.utils.data.DataLoader(data,
                                                   batch_size=batch_size,
                                                   shuffle=shuffle,
-                                                  num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
+                                                  num_workers=cfg.TRAIN.NUM_DATA_WORKERS, #TODO: EDIT
                                                   pin_memory=True,
                                                   sampler=sampler,
                                                   worker_init_fn=worker_init_fn,
@@ -299,13 +314,12 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
     else: #test split
         data_loader = torch.utils.data.DataLoader(data,
-                                                  batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS),
+                                                  batch_size = 1, #batch_size 1 #int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS),
                                                   shuffle=False,
                                                   num_workers=cfg.TRAIN.NUM_DATA_WORKERS,
                                                   pin_memory=True,
                                                   sampler=sampler,
                                                   worker_init_fn=worker_init_fn
-                                                  # collate_fn=collate_fn)
                                                   )
     return data_loader, (data, sampler)
 

@@ -23,7 +23,7 @@ from models.model_utils import (model_selector, multipathway_input,
                             AverageMeter, accuracy, create_output_dirs)
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
-from loss.triplet_loss import OnlineTripleLoss
+from loss.triplet_loss import OnlineTripletLoss, MemTripletLoss
 from loss.NCE_loss import NCEAverage, NCEAverage_intra_neg, NCESoftmaxLoss
 from clustering.cluster_masks import fit_cluster
 from sklearn.metrics import normalized_mutual_info_score, adjusted_mutual_info_score
@@ -34,6 +34,7 @@ intra_neg = False #True
 moco = False #True
 neg_type='repeat'
 
+import cv2
 
 def calc_mask_accuracy(output, target_mask, topk=(1,)):
     maxk = max(topk)
@@ -225,19 +226,101 @@ def diff(x):
     return ((x - shift_x) + 1) / 2
 
 
-
-def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
-    losses = AverageMeter()
+def triplet_temporal_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True, temporal=True):
+    total_losses = AverageMeter()
+    triplet_losses = AverageMeter()
+    temporal_losses = AverageMeter()
     accs = AverageMeter()
     running_n_triplets = AverageMeter()
     world_size = du_helper.get_world_size()
     # switching to training mode
     model.train()
 
+    if temporal:
+        temporal_criterion = nn.CrossEntropyLoss().to(device)
+
+    # Training loop
+    start = time.time()
+    for batch_idx, (inputs, targets, ds_label, idx) in enumerate(train_loader):
+        anchor, positive = inputs
+        a_target, p_target = targets
+        batch_size = torch.tensor(anchor.size(0)).to(device)
+        targets = torch.cat((a_target, p_target), 0)
+
+        anchor, positive = anchor.to(device), positive.to(device)
+
+        # Get embeddings of anchors and positives
+        anchor_outputs, a_predicted_ds = model(anchor)
+        positive_outputs, p_predicted_ds = model(positive)
+        outputs = torch.cat((anchor_outputs, positive_outputs), 0)  # dim: [(batch_size * 2), dim_embedding]
+
+        if cuda:
+            targets = targets.to(device)
+            ds_label = ds_label.to(device)
+
+        # Sample negatives from batch for each anchor/positive and compute loss
+        triplet_loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+        a_temporal_loss = temporal_criterion(a_predicted_ds, ds_label-1)
+        p_temporal_loss = temporal_criterion(p_predicted_ds, ds_label-1)
+        temporal_loss = a_temporal_loss + p_temporal_loss
+        total_loss = triplet_loss + 0.5*temporal_loss
+        optimizer.zero_grad()
+        total_loss.backward()
+        optimizer.step()
+
+        # Average loss across all gpu processes
+        if cfg.NUM_GPUS > 1:
+            [total_loss] = du_helper.all_reduce([total_loss], avg=True)
+            [triplet_loss] = du_helper.all_reduce([triplet_loss], avg=True)
+            [temporal_loss] = du_helper.all_reduce([temporal_loss], avg=True)
+            [batch_size_world] = du_helper.all_reduce([batch_size], avg=False)
+        else:
+            batch_size_world = batch_size
+
+        batch_size_world = batch_size_world.item()
+
+        # Update running loss
+        total_losses.update(total_loss.item(), batch_size_world)
+        triplet_losses.update(triplet_loss.item(), batch_size_world)
+        temporal_losses.update(temporal_loss.item(), batch_size_world)
+        running_n_triplets.update(n_triplets)
+
+        # Log
+        if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
+            print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
+                  'Total Loss: {:.4f} ({:.4f}) \t'
+                  'Triplet Loss: {:.4f} ({:.4f}) \t'
+                  'Temporal Loss: {:.4f} ({:.4f}) \t'
+                  'N_Triplets: {:.1f}'.format(epoch, total_losses.count, len(train_loader.dataset),100. * (total_losses.count / len(train_loader.dataset)),
+                    total_losses.val, total_losses.avg,
+                    triplet_losses.val, triplet_losses.avg,
+                    temporal_losses.val, temporal_losses.avg,
+                    running_n_triplets.avg))
+
+    if (is_master_proc):
+        print('\nTrain set: Average loss: {:.4f} {:4f} {:4f}\n'.format(total_losses.avg, triplet_losses.avg, temporal_losses.avg))
+        print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
+        with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
+            f.write('epoch:{} runtime:{} {:.4f} {:.4f} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), total_losses.avg, triplet_losses.avg, temporal_losses.avg))
+        print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
+
+
+def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True, reconstruction=True):
+    losses = AverageMeter()
+    triplet_losses = AverageMeter()
+    reconstruction_losses = AverageMeter()
+    accs = AverageMeter()
+    running_n_triplets = AverageMeter()
+    world_size = du_helper.get_world_size()
+    # switching to training mode
+    model.train()
+
+    if reconstruction:
+        reconstruction_criterion = nn.MSELoss().to(device)
+
     # Training loop
     start = time.time()
     for batch_idx, (inputs, targets, idx) in enumerate(train_loader):
-        # print(len(inputs), len(inputs[0]), inputs[0][0].size())
         anchors, positives = inputs
         a_target, p_target = targets
 
@@ -252,16 +335,30 @@ def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epo
             anchor_v2, positive_v2 = anchor_v2.to(device), positive_v2.to(device)
 
         # Get embeddings of anchors and positives
-        anchor_outputs = model((anchor_v1, anchor_v2))
-        positive_outputs = model((positive_v1, positive_v2))
+        anchor_outputs, anchor_embeddings, anchor_decoded = model((anchor_v1, anchor_v2))
+        positive_outputs, positive_embeddings, positive_decoded = model((positive_v1, positive_v2))
 
         outputs = torch.cat((anchor_outputs, positive_outputs), 0)  # dim: [(batch_size * 2), dim_embedding]
         if cuda:
             targets = targets.to(device)
 
         # Sample negatives from batch for each anchor/positive and compute loss
-        loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+        triplet_loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
 
+        if reconstruction:
+            anchor_v1_embed, anchor_v2_embed = anchor_embeddings
+            anchor_v1_decod, anchor_v2_decod = anchor_decoded
+
+            pos_v1_embed, pos_v2_embed = positive_embeddings
+            pos_v1_decod, pos_v2_decod = positive_decoded
+
+            embedded = torch.cat((anchor_v1_embed, anchor_v2_embed, pos_v1_embed, pos_v2_embed), 0)
+            decoded = torch.cat((anchor_v1_decod, anchor_v2_decod, pos_v1_decod, pos_v2_decod), 0)
+            reconstruction_loss = reconstruction_criterion(embedded, decoded)
+            loss = triplet_loss + 0.5*reconstruction_loss
+        else:
+            loss = triplet_loss
+        
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
         loss.backward()
@@ -270,6 +367,8 @@ def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epo
         # Average loss across all gpu processes
         if cfg.NUM_GPUS > 1:
             [loss] = du_helper.all_reduce([loss], avg=True)
+            [triplet_loss] = du_helper.all_reduce([triplet_loss], avg=True)
+            if reconstruction: [reconstruction_loss] = du_helper.all_reduce([reconstruction_loss], avg=True)
             [batch_size_world] = du_helper.all_reduce([batch_size], avg=False)
         else:
             batch_size_world = batch_size
@@ -278,22 +377,28 @@ def triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epo
 
         # Update running loss
         losses.update(loss.item(), batch_size_world)
+        triplet_losses.update(triplet_loss.item(), batch_size_world)
+        if reconstruction: reconstruction_losses.update(reconstruction_loss.item(), batch_size_world)
         running_n_triplets.update(n_triplets)
 
         # Log
         if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
             print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                   'Loss: {:.4f} ({:.4f}) \t'
+                  'T Loss: {:.4f}, R Loss: {:.4f} \t'
                   'N_Triplets: {:.1f}'.format(epoch, losses.count,
                     len(train_loader.dataset),
                     100. * (losses.count / len(train_loader.dataset)),
-                    losses.val, losses.avg, running_n_triplets.avg))
+                    losses.val, losses.avg, 
+                    triplet_losses.val, reconstruction_losses.val,
+                    running_n_triplets.avg))
 
     if (is_master_proc):
         print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
         print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
-            f.write('epoch:{} runtime:{} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg))
+            f.write('epoch:{} runtime:{} {:.4f} {:.4f} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), 
+                                    losses.avg, triplet_losses.avg, reconstruction_losses.avg))
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
@@ -327,6 +432,9 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         elif cfg.LOSS.LOCAL_LOCAL_CONTRAST:
             anchor, positive, anchor2 = inputs
             anchor2 = prepare_input(anchor2, cfg, cuda, device)
+        elif cfg.LOSS.INTRA_NEGATIVE:
+            anchor, positive, intra_neg = inputs 
+            intra_neg = prepare_input(intra_neg, cfg, cuda, device)
         else:
             anchor, positive = inputs
         anchor = prepare_input(anchor, cfg, cuda, device)
@@ -394,7 +502,45 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
             # Combined loss
             llc_lambda = 1.0
             loss = triplet_loss + llc_loss * llc_lambda
+        
+        elif cfg.LOSS.INTRA_NEGATIVE:
+            outputs = model(torch.cat((anchor, positive, intra_neg), 0))
+            out_anchor_positive = outputs[:batch_size*2]
+            out_anc = outputs[:batch_size]
+            out_pos = outputs[batch_size:batch_size*2]
+            out_intra_neg = outputs[batch_size*2:batch_size*3]
 
+            # Regular loss
+            triplet_loss, n_triplets = criterion(out_anchor_positive, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+
+            # Relative speed perception loss
+            if cfg.LOSS.DIST_METRIC == 'euclidean':
+                dist_ap = F.pairwise_distance(out_anc, out_intra_neg, 2)
+                dist_an = F.pairwise_distance(out_anc, out_pos, 2)
+            elif cfg.LOSS.DIST_METRIC == 'cosine':
+                dist_ap = 1 - F.cosine_similarity(out_anc, out_intra_neg, dim=1)
+                dist_an = 1 - F.cosine_similarity(out_anc, out_pos, dim=1)
+
+            intra_neg_criterion = torch.nn.MarginRankingLoss(margin=0.04).to(device)
+            target_intra_neg = torch.FloatTensor(dist_ap.size()).fill_(-1)
+            if cuda:
+                target_llc = target_intra_neg.to(device)
+            intra_neg_loss = intra_neg_criterion(dist_ap, dist_an, target_llc)
+
+            # Combined loss
+            intra_neg_lambda = 0.4
+            loss = triplet_loss + intra_neg_loss * intra_neg_lambda
+
+
+            # h, w, l = anchor[0][0].shape
+            # size = (w, h)
+            # anchor_out = cv2.VideoWriter('pos.avi',cv2.VideoWriter_fourcc(*'DIVX'), 15, size)
+            # for i in range(len(anchor[0])):
+            #     img = np.uint8(anchor[0][i].cpu().detach())
+            #     anchor_out.write(img)
+            # anchor_out.release()
+
+            
         else:
             outputs = model(torch.cat((anchor, positive), 0))  # dim: [(batch_size * 2), dim_embedding]
             # Sample negatives from batch for each anchor/positive and compute loss
@@ -486,7 +632,7 @@ def train(args, cfg):
         print('\n==> Generating {} backbone model (for training)...'.format(cfg.MODEL.ARCH))
 
 
-    model=model_selector(cfg, is_master_proc=is_master_proc)
+    model=model_selector(cfg, hyperbolic=args.hyperbolic, is_master_proc=is_master_proc)
 
     ## SyncBatchNorm
     if cfg.SYNC_BATCH_NORM:
@@ -552,7 +698,10 @@ def train(args, cfg):
     if(is_master_proc):
         print('\n==> Setting criterion...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
-    criterion = OnlineTripleLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
+
+    criterion = OnlineTripletLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
+    # criterion = MemTripletLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device) #MemTripletLoss
+
     if cfg.OPTIM.OPTIMIZER == 'adam':
         optimizer = optim.Adam(model.parameters(), lr=cfg.OPTIM.LR, weight_decay=cfg.OPTIM.WD)
     elif cfg.OPTIM.OPTIMIZER == 'sgd':
@@ -602,7 +751,7 @@ def train(args, cfg):
         print('\n==> Building validation data loader (single video)...')
     eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg,
             is_master_proc=False, triplets=False, val_sample=None,
-            drop_last=False)
+            drop_last=False, batch_size=1)
 
     # ============================= Training loop ==============================
 
@@ -637,8 +786,10 @@ def train(args, cfg):
                 print('\n=> Clustering')
                 start_time = time.time()
                 print('embeddings shape', embeddings.size())
+
                 trained_clustering_obj = fit_cluster(embeddings, cfg.ITERCLUSTER.METHOD,
                                         cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE)
+
                 print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
                 # Calculate NMI for true labels vs cluster assignments
@@ -689,9 +840,11 @@ def train(args, cfg):
         if cfg.LOSS.TYPE == 'triplet':
             if (is_master_proc):
                 print('==> training with Triplet Loss with criterion:{}'.format(criterion))
-            if cfg.DATASET.MODALITY==True:
-                triplet_multiview_train_epoch(train_loader, model, criterion, optimizer,
-                                              epoch, cfg, cuda, device, is_master_proc)
+            if cfg.DATASET.MODALITY:
+                triplet_multiview_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+            elif cfg.MODEL.PREDICT_TEMPORAL_DS:
+                triplet_temporal_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc)
+
             else:
                 triplet_train_epoch(train_loader, model, criterion, optimizer, epoch,
                                     cfg, cuda, device, is_master_proc)

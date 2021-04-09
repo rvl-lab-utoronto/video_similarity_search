@@ -14,6 +14,17 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from pathlib import Path
 from loader import VideoLoader
 from dataset_utils import construct_net_input
+from temporal_transforms import Shuffle
+
+
+def convert(img, target_type_min, target_type_max, target_type):
+    imin = img.min()
+    imax = img.max()
+
+    a = (target_type_max - target_type_min) / (imax - imin)
+    b = target_type_max - a * imax
+    new_img = (a * img + b).astype(target_type)
+    return new_img
 
 
 class TripletsData(data.Dataset):
@@ -32,10 +43,13 @@ class TripletsData(data.Dataset):
                  positive_sampling_p=1.0,
                  negative_sampling=False,
                  pos_channel_replace=False,
+                 sample_duration=None,
                  prob_pos_channel_replace=None,
                  relative_speed_perception=False,
                  local_local_contrast=False,
+                 intra_negative=False,
                  modality=False,
+                 predict_temporal_ds=False,
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
                  target_type='label'):
 
@@ -50,15 +64,22 @@ class TripletsData(data.Dataset):
         self.normalize=normalize
         self.positive_types = ['same_inst', 'diff_inst']
         self.pos_channel_replace = pos_channel_replace
+        self.sample_duration = sample_duration
         self.prob_pos_channel_replace = prob_pos_channel_replace
         self.relative_speed_perception = relative_speed_perception
         self.local_local_contrast = local_local_contrast
+        self.intra_negative = intra_negative
         self.modality = modality
+        self.predict_temporal_ds = predict_temporal_ds
+        self.max_sr = 4
+        self.shuffle = Shuffle()
 
         if temporal_transform is not None:
             self.anchor_temporal_transform = temporal_transform['anchor']
             self.positive_temporal_transform = temporal_transform['positive']
             self.negative_temporal_transform = temporal_transform['negative']
+            if self.intra_negative:
+                self.intra_neg_temporal_transform = temporal_transform['intra_negative']
 
             if self.relative_speed_perception:
                 self.fast_positive_temporal_transform = temporal_transform['fast_positive']
@@ -103,6 +124,15 @@ class TripletsData(data.Dataset):
 
         p_target = positive[self.target_type]
 
+        if self.split == 'train' and self.predict_temporal_ds: #only applied to train split
+            ds_label = random.randint(1, 4) #TODO: make it configurable
+            a_clip = self._load_clip(anchor, self.anchor_temporal_transform,
+                        use_channel_ext=(False if self.pos_channel_replace else True), ds=ds_label)
+            p_clip = self._load_clip(positive, self.positive_temporal_transform,
+                        pos_channel_replace=self.pos_channel_replace, ds=ds_label)
+            return (a_clip, p_clip), (a_target, p_target), ds_label, index
+
+
         a_clip = self._load_clip(anchor, self.anchor_temporal_transform,
                 use_channel_ext=(False if self.pos_channel_replace else True))
         p_clip = self._load_clip(positive, self.positive_temporal_transform,
@@ -114,6 +144,9 @@ class TripletsData(data.Dataset):
         elif self.local_local_contrast:
             a2_clip = self._load_clip(anchor, self.anchor_temporal_transform,
                     pos_channel_replace=self.pos_channel_replace)
+        elif self.intra_negative:
+            intra_n_clip = self._load_clip(anchor, self.intra_neg_temporal_transform,
+                    pos_channel_replace=self.pos_channel_replace, intra_negative=True) 
 
         if self.negative_sampling:
             while True:
@@ -123,17 +156,34 @@ class TripletsData(data.Dataset):
             n_target = negative[self.target_type]
             n_clip = self._load_clip(negative, self.negative_temporal_transform)
             return (a_clip, p_clip, n_clip), (a_target, p_target, n_target), (index, negative_idx)
+        
         elif self.relative_speed_perception:
             return (a_clip, p_clip, p_fast_clip), (a_target, p_target), index
+
         elif self.local_local_contrast:
             return (a_clip, p_clip, a2_clip), (a_target, p_target), index
+        
+        elif self.intra_negative:
+            return (a_clip, p_clip, intra_n_clip), (a_target, p_target), index
+
         else:
             return (a_clip, p_clip), (a_target, p_target), index
 
-    def _load_clip(self, data, temporal_transform, use_channel_ext=True, pos_channel_replace=False):
+    def _load_clip(self, data, temporal_transform, use_channel_ext=True, pos_channel_replace=False, intra_negative=False, ds=1):
         path = data['video']
         frame_indices = list(range(1, data['num_frames'] + 1))
-        frame_id = temporal_transform(frame_indices)
+        if self.predict_temporal_ds:
+            total_frame_len = len(frame_indices)
+            start_frame = random.randint(1, total_frame_len)
+            frame_id = self.get_temporal_ds_frame_indices(self.sample_duration, total_frame_len, start_frame, ds=ds)
+        else:
+            frame_id = temporal_transform(frame_indices) #EDIT 
+        
+        if self.intra_negative:
+            frame_id = self.shuffle(frame_id)
+            # print(frame_id)
+
+
 
         channel_paths = {}
         if use_channel_ext:
@@ -150,3 +200,10 @@ class TripletsData(data.Dataset):
 
     def __len__(self):
         return len(self.data)
+
+    def get_temporal_ds_frame_indices(self, sample_duration, total_frame_len, start_frame, ds=1):
+        frame_indices = []
+        for i in range(sample_duration):
+            cur_frame_idx = (start_frame + i*ds) % total_frame_len + 1
+            frame_indices.append(cur_frame_idx)
+        return frame_indices

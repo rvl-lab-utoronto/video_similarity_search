@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-
+import numpy as np
 import torch
 import torch.utils.data as data
 from loader import VideoLoader, BinaryImageLoaderPIL
@@ -24,7 +24,8 @@ class VideoDataset(data.Dataset):
                  target_transform=None,
                  normalize=None,
                  video_loader=None,
-                 image_name_formatter=lambda x: f'image_{x:05d}.jpg'):
+                 image_name_formatter=lambda x: f'image_{x:05d}.jpg',
+                 sample_duration=16):
 
         self.data = data
         self.class_names = class_names
@@ -36,6 +37,7 @@ class VideoDataset(data.Dataset):
         self.target_transform = target_transform
         self.normalize=normalize
         self.image_name_formatter = image_name_formatter
+        self.sample_duration = sample_duration
 
         if video_loader is None:
             self.loader = VideoLoader(image_name_formatter)
@@ -59,6 +61,21 @@ class VideoDataset(data.Dataset):
     def kp_img_name_formatter(self, x):
         return f'image_{x:05d}_kp.png'
 
+    def get_test_video_frame_indices(self, frame_indices):
+        total_frames = len(frame_indices)
+        if total_frames - self.sample_duration <= 0: #pad left, only sample one
+            sequence = np.arange(1, self.sample_duration)
+            seq_idx = np.zeros_like(sequence)
+            sequence = sequence[sequence<total_frames]
+            seq_idx[-len(sequence)::] = sequence
+        else:
+            available = total_frames - self.sample_duration
+            start = np.expand_dims(np.arange(1, available+1, self.sample_duration),1)
+            seq_idx = np.expand_dims(np.arange(self.sample_duration), 0) + start
+            seq_idx = seq_idx.flatten()
+        return seq_idx
+
+
     def _get_video_custom_temporal(self, index, temporal_transform=None):
         cur = self.data[index]
         path = cur['video']
@@ -68,7 +85,10 @@ class VideoDataset(data.Dataset):
             target = cur[self.target_type]
 
         frame_indices = list(range(1, cur['num_frames'] + 1))
-        if temporal_transform is not None:
+        
+        if self.split=="test":
+            frame_indices = self.get_test_video_frame_indices(frame_indices)
+        elif temporal_transform is not None:
             frame_indices = temporal_transform(frame_indices)
 
         channel_paths = {}

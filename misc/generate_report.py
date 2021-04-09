@@ -111,7 +111,7 @@ def parse_file(result_dir, f_type='train'):
 
 
 def plot_training_progress(result_dir, name, show_plot=False, service=None):
-    _, _, train_losses, _, _, _, _, _ = parse_file(result_dir, 'train')
+    _, _, train_losses, _, _, _, _, _  = parse_file(result_dir, 'train') 
     _, _, val_losses, val_acc, top1_acc, top5_acc, _, _ = parse_file(result_dir, 'val')
     top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc, _, _ = parse_file(result_dir, 'global_retrieval')
 
@@ -165,17 +165,18 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
 
     plot_name = '{}_train_val_loss.png'.format(name)
     f.savefig(plot_name)
-
-    service.upload_file_to_gdrive(plot_name, 'evaluate')
-    print('plots saved to:{}, and uploaded to google drive folder under /evaluate'.format(plot_name))
+    print('plots saved to:{}'.format(plot_name))
+    if service:
+        service.upload_file_to_gdrive(plot_name, 'evaluate')
+        print('plot uploaded to google drive folder under /evaluate')
 
     if (show_plot):
         plt.show()
 
 def write_to_google_sheet(result_dir, client, worksheet_name):
-    epoch, runtime, train_losses, _, _, _, _ = parse_file(result_dir, 'train')
-    _, _, val_losses, val_acc, top1_acc, top5_acc, _ = parse_file(result_dir, 'val')
-    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc, _ = parse_file(result_dir, 'global_retrieval')
+    epoch, runtime, train_losses, _, _, _, _, _ = parse_file(result_dir, 'train')
+    _, _, val_losses, val_acc, top1_acc, top5_acc, _, _ = parse_file(result_dir, 'val')
+    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc, _, _ = parse_file(result_dir, 'global_retrieval')
 
 
     # best_idx = np.argmax(np.array(top1_acc))
@@ -225,7 +226,8 @@ if __name__ == '__main__':
     if not args.result_dir:
         result_dir=input("Please specify the results directory: ")
 
-    gs_report(result_dir, name)
+    # gs_report(result_dir, name)
     if args.plot:
-        gdrive_service = GoogleDriveUploader()
+        # gdrive_service = GoogleDriveUploader()
+        gdrive_service=None
         plot_training_progress(result_dir, name, show_plot=True, service=gdrive_service)

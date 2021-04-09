@@ -24,6 +24,7 @@ from datasets.temporal_transforms import Compose as TemporalCompose
 import misc.distributed_helper as du_helper
 from config.m_parser import load_config, arg_parser
 from misc.upload_gdrive import GoogleDriveUploader
+from hyptorch.pmath import dist_matrix
 
 # num_exemplar = 10
 log_interval = 10
@@ -82,6 +83,71 @@ def m_arg_parser(parser):
     )
     return parser
 
+def test_evaluate(cfg, model, cuda, device, data_loader, split='test', is_master_proc=True):
+    log_interval = 5
+    model.eval()
+    embedding = []
+    # vid_info = []
+    labels = []
+    idxs = []
+    world_size = du_helper.get_world_size()
+
+    def tr(x):
+        batch_size = x.size(0);# assert batch_size ==1 
+        num_test_sample = x.size(2)//cfg.DATA.SAMPLE_DURATION
+        # print(x.size())
+        return x.view(cfg.DATA.INPUT_CHANNEL_NUM, num_test_sample, batch_size, cfg.DATA.SAMPLE_DURATION, cfg.DATA.SAMPLE_SIZE, cfg.DATA.SAMPLE_SIZE).permute(1,2,0,3,4,5)
+
+
+    with torch.no_grad():
+        # print(data_loader)
+        for batch_idx, (input_seq, targets, info, indexes) in enumerate(data_loader):
+            # print("imhere", input_seq.size())
+            if cfg.DATASET.MODALITY == True:
+                batch_size = input_seq[0].size(0)
+                if cuda:
+                    for i in range(len(input_seq)):
+                        input_seq[i] = input_seq[i].to(device)
+            else:
+                batch_size = input_seq.size(0)
+                if cuda:
+                    input_seq= input_seq.to(device)
+
+            if cuda:
+                targets = targets.to(device)
+                indexes = indexes.to(device)
+
+            input_seq = tr(input_seq)
+            test_sample = input_seq.size(0)
+            input_seq = input_seq.squeeze(1)
+            # print('input seq', input_seq.size())
+            embedd = model(input_seq)
+            if isinstance(embedd, tuple): #for multiview
+                embedd = embedd[0]
+            # print(embedd.size())
+            # embedd = embedd.flatten(1)
+
+            if cfg.NUM_GPUS > 1:
+                embedd, targets, indexes = du_helper.all_gather([embedd, targets, indexes])
+            embedd = embedd.detach().cpu()
+            # print(embedd.mean(0).size())
+            embedding.append(embedd.mean(0))
+            # print("embedding: ", len(embedding), embedding[0].size())
+            labels.append(targets.detach().cpu())
+            idxs.append(indexes.detach().cpu())
+            # vid_info.extend(info)
+            # print('embedd size', embedd.size())
+            batch_size_world = batch_size * world_size
+            if ((batch_idx + 1) * world_size) % log_interval == 0 and is_master_proc:
+                print('{} [{}/{} | {:.1f}%]'.format(split, (batch_idx+1)*batch_size_world, len(data_loader.dataset), 
+                    ((batch_idx+1)*100.*batch_size_world/len(data_loader.dataset))))
+
+    embeddings = torch.cat(embedding, dim=0)
+    labels = torch.cat(labels, dim=0).tolist()
+    idxs = torch.cat(idxs, dim=0).tolist()
+    # if is_master_proc: print('embeddings size', embeddings.size())
+    return embeddings, labels, idxs
+
 
 def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_proc=True):
     #log_interval=len(data_loader.dataset)//5
@@ -114,8 +180,12 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
                 targets = targets.to(device)
                 indexes = indexes.to(device)
 
-            embedd = model(input).flatten(1)
+            embedd = model(input)
+            if isinstance(embedd, tuple): #for multiview
+                embedd = embedd[0]
+            embedd = embedd.flatten(1)
 
+            
             if cfg.NUM_GPUS > 1:
                 embedd, targets, indexes = du_helper.all_gather([embedd, targets, indexes])
             embedding.append(embedd.detach().cpu())
@@ -138,11 +208,22 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
 def get_distance_matrix(x_embeddings, y_embeddings=None, dist_metric='cosine'):
 
     #print('Dist metric:', dist_metric)
-    assert(dist_metric in ['cosine', 'euclidean'])
+    assert(dist_metric in ['cosine', 'euclidean', 'hyperbolic'])
     if dist_metric == 'cosine':
         distance_matrix = cosine_distances(x_embeddings, Y=y_embeddings)
+        # print(distance_matrix.size(), distance_matrix[0][0].dtype)
+
     elif dist_metric == 'euclidean':
         distance_matrix = euclidean_distances(x_embeddings, Y=y_embeddings)
+        # print(distance_matrix.size(), distance_matrix[0][0].dtype)
+    elif dist_metric == 'hyperbolic':
+        # print('hyperbolic')
+        if y_embeddings is None:
+            y_embeddings = x_embeddings
+        # print(x_embeddings.size(), y_embeddings.size())
+        distance_matrix = dist_matrix(x_embeddings, y_embeddings)
+        distance_matrix = np.array(distance_matrix.to(int))
+        # print(distance_matrix.size(), distance_matrix[0][0].dtype)
     #print('Distance matrix shape:', distance_matrix.shape)
 
     if y_embeddings is None:
@@ -222,7 +303,6 @@ def get_topk_acc(distance_matrix, x_labels, y_labels=None, top_ks = [1,5,10,20])
     acc = []
     for i, x_label in enumerate(x_labels):
         cur_acc = []
-        # print('x_label', x_label)
         for k in top_ks:
             topk_idx = topk_indices[:, :k]
             cur_topk_idx = topk_idx[i]
@@ -254,9 +334,15 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
             labels = torch.load(handle)
         with open(idxs_pkl, 'rb') as handle:
             idxs = torch.load(handle)
+        
+
         print('retrieved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
-    else:
-        embeddings, labels, idxs = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
+
+    else:      
+        if split =="test":
+            embeddings, labels, idxs = test_evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
+        else:
+            embeddings, labels, idxs = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
         if save_pkl and is_master_proc:
             with open(embeddings_pkl, 'wb') as handle:
                 torch.save(embeddings, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
@@ -266,29 +352,28 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
                 torch.save(idxs, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
             print('saved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
 
+    if split=="test": 
+        embeddings = embeddings.reshape((-1, cfg.LOSS.FEAT_DIM))
+
     return embeddings, labels, idxs
 
 
 def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
-        train_data, val_data, cfg, plot=True, epoch=None, is_master_proc=True,
+        train_data, val_data, cfg, split='val', plot=True, epoch=None, is_master_proc=True,
                         evaluate_output=None, num_exemplar=None, service=None,
                         load_pkl=False, out_filename='global_retrieval_acc'):
 
     if is_master_proc:
         print ('Getting embeddings...')
-    val_embeddings, val_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda,
-            device, test_loader, split='val', is_master_proc=is_master_proc, load_pkl=load_pkl)
-    train_embeddings, train_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda,
-            device, train_loader, split='train', is_master_proc=is_master_proc, load_pkl=load_pkl)
-
+    test_embeddings, test_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader,
+                                                        split=split, is_master_proc=is_master_proc, load_pkl=load_pkl)
+    train_embeddings, train_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader,
+                                                        split='train', is_master_proc=is_master_proc, load_pkl=load_pkl)
     acc = []
     print ('Computing top1/5/10/20 Acc...')
     if (is_master_proc):
-
-        distance_matrix = get_distance_matrix(val_embeddings, train_embeddings,
-                dist_metric=cfg.LOSS.DIST_METRIC)
-        acc = get_topk_acc(distance_matrix, val_labels, y_labels=train_labels)
-
+        distance_matrix = get_distance_matrix(test_embeddings, train_embeddings, dist_metric=cfg.LOSS.DIST_METRIC)
+        acc = get_topk_acc(distance_matrix, test_labels, y_labels=train_labels)
         if epoch is not None:
             to_write = 'epoch:{} {:.2f} {:.2f}'.format(epoch, 100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
             msg = '\nTest Set: Top1 Acc: {:.2f}%, Top5 Acc: {:.2f}%, Top10 Acc: {:.2f}%, Top20 Acc: {:.2f}%'.format(100.*acc[0], 100.*acc[1], 100.*acc[2], 100.*acc[3])
@@ -297,15 +382,15 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
                 val_file.write(to_write)
 
         if plot:
-            spatial_transform = build_spatial_transformation(cfg, 'val')
+            spatial_transform = build_spatial_transformation(cfg, 'val', triplets=False)
             temporal_transform = [TemporalCenterFrame()]
             temporal_transform = TemporalCompose(temporal_transform)
             fig = plt.figure()
             for i in range(num_exemplar):
                 exemplar_idx = np.random.randint(0, distance_matrix.shape[0]-1)
-                print('exemplar video id: {}'.format(exemplar_idx))
+                print('exemplar video id: {}, label:{}'.format(exemplar_idx, test_labels[exemplar_idx]))
                 k_idx = get_closest_data(distance_matrix, exemplar_idx, top_k)
-                print(k_idx, len(train_data))
+                print([train_labels[x] for x in k_idx], len(train_data))
                 k_nearest_data = [train_data[i] for i in k_idx]
                 plot_img(cfg, fig, val_data, train_data, num_exemplar, i, exemplar_idx, k_idx, spatial_transform, temporal_transform, output=evaluate_output)
             # plt.show()
@@ -347,6 +432,8 @@ def temporal_heat_map(model, data, cfg, evaluate_output, exemplar_idx=455,
             if cuda:
                 test_video_in = test_video_in.to(device)
         test_embedding = model(test_video_in)
+        if isinstance(test_embedding, tuple):
+            test_embedding = test_embedding[0]
         #print('Test embed size:', test_embedding.size())
 
         # Loop across exemplar video, use [i-cfg.DATA.SAMPLE_SIZE,...,i] as the frames for the temporal crop
@@ -365,8 +452,9 @@ def temporal_heat_map(model, data, cfg, evaluate_output, exemplar_idx=455,
                     exemplar_video_in = exemplar_video_in.to(device)
 
             exemplar_embedding = model(exemplar_video_in)
-            #print('Exemplar input size:', exemplar_video.size())
-            #print('Exemplar embed size:', exemplar_embedding.size())
+            if isinstance(exemplar_embedding, tuple):
+                exemplar_embedding = exemplar_embedding[0]
+
             dist = F.pairwise_distance(exemplar_embedding, test_embedding, 2)
             dists.append(dist.item())
 
@@ -445,8 +533,9 @@ if __name__ == '__main__':
     # Select appropriate model
     if(is_master_proc):
         print('\n==> Generating {} backbone model...'.format(cfg.MODEL.ARCH))
-    #model=model_selector(cfg, projection_head=False)
-    model=model_selector(cfg)
+
+    model=model_selector(cfg, projection_head=True)
+
 
     ## SyncBatchNorm
     if cfg.SYNC_BATCH_NORM:
@@ -472,13 +561,34 @@ if __name__ == '__main__':
             model = nn.DataParallel(model)
         model = model.cuda(device=device)
 
+        # if torch.cuda.device_count() > 1:
+        #     #model = nn.DataParallel(model)
+        #     if cfg.MODEL.ARCH == '3dresnet':
+        #         model = torch.nn.parallel.DistributedDataParallel(module=model,
+        #             device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
+        #     else:
+        #         model = torch.nn.parallel.DistributedDataParallel(module=model,
+        #             device_ids=[device], broadcast_buffers=False)
+
+    if args.pretrain_path is not None:
+        model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
+
+
+    # tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
+    # if cuda:
+    #     cfg.NUM_GPUS = torch.cuda.device_count()
+    #     print("Using {} GPU(s)".format(cfg.NUM_GPUS))
+    #     if cfg.NUM_GPUS > 1 or force_data_parallel:
+    #         tripletnet = nn.DataParallel(tripletnet)
+    #
+    # model = tripletnet.module.embeddingnet
+
     print('=> finished generating similarity network...')
 
     # ============================== Data Loaders ==============================
 
     train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False, req_train_shuffle=False)
-    test_loader, (val_data, _) = data_loader.build_data_loader('val', cfg,
-            triplets=False, val_sample=None, req_train_shuffle=False)
+    test_loader, (val_data, _) = data_loader.build_data_loader('test', cfg, triplets=False, val_sample=None, req_train_shuffle=False)
 
     # ================================ Evaluate ================================
 
@@ -491,6 +601,6 @@ if __name__ == '__main__':
             temporal_heat_map(model, data, cfg, evaluate_output)
     else:
         k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
-                        train_data, val_data, cfg, evaluate_output=evaluate_output,
+                        train_data, val_data, cfg, split='test', evaluate_output=evaluate_output,
                         num_exemplar=num_exemplar, service=GoogleDriveUploader(), load_pkl=args.load_pkl)
         print('total runtime: {}s'.format(time.time()-start))

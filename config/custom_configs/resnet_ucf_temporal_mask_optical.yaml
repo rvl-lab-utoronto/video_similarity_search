@@ -1,12 +1,10 @@
-OUTPUT_PATH: '/home/sherry/output/ucf'
-
 TRAIN:
     DATASET: "ucf101"
 
 DATASET:
-    VID_PATH: '/media/synology/datasets/UCF101/jpg'
-    ANNOTATION_PATH: '/media/synology/datasets/UCF101/json/ucf101_01.json'
-    CLUSTER_PATH: '/media/synology/datasets/UCF101/vid_clusters.txt'
+    VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
+    ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
+    #CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'
@@ -14,8 +12,16 @@ DATASET:
     SAMPLING_STRATEGY: 'random_semi_hard'
     POSITIVE_SAMPLING_P: 0.2
 
+    # POS_CHANNEL_REPLACE: False
+    CHANNEL_EXTENSIONS: 'salient, optical_u'
+    SALIENT_PATH: /media/diskstation/datasets/UCF101/poolnet_new
+    OPTICAL_U_PATH: tvl1_flow/u
+
+
 MODEL:
     ARCH: '3dresnet'
+    PREDICT_TEMPORAL_DS: True
+
 
 RESNET:
     MODEL_DEPTH: 18
@@ -28,9 +34,9 @@ RESNET:
     WIDEN_FACTOR: 1
 
 DATA:
-    SAMPLE_SIZE: 112
+    SAMPLE_SIZE: 128
     SAMPLE_DURATION: 16
-    INPUT_CHANNEL_NUM: 3
+    INPUT_CHANNEL_NUM: 5 #EDIT
 
 LOSS:
     MARGIN: 0.2

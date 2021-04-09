@@ -34,6 +34,8 @@ DATA:
 
 LOSS:
     MARGIN: 0.2
+    INTRA_NEGATIVE: True
+
 
 OPTIM:
     LR: 0.01

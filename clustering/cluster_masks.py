@@ -168,6 +168,7 @@ def preprocess_features_kmeans(data):
 # Perform clustering 
 def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True):
 
+
     assert(method in ['DBSCAN', 'Agglomerative', 'OPTICS', 'kmeans', 'spherical_kmeans'])
 
     print("Clustering with {}...".format(method))
@@ -196,6 +197,7 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True):
         trained_cluster_obj = KMeans(n_clusters=n_clusters,
                                      n_init=10).fit(embeddings)
     elif method == 'spherical_kmeans':
+        from spherecluster import SphericalKMeans
         n_clusters = k
         print('clustering with spherical kmeans with k={}'.format(n_clusters))
         trained_cluster_obj = SphericalKMeans(n_clusters=n_clusters).fit(embeddings)

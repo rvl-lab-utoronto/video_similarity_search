@@ -38,6 +38,7 @@ _C.TEST = CfgNode()
 _C.MODEL = CfgNode()
 _C.MODEL.ARCH = "slowfast"
 #_C.MODEL.ARCH = "3dresnet"
+_C.MODEL.PREDICT_TEMPORAL_DS = False
 
 # -----------------------------------------------------------------------------
 # Dataset options
@@ -63,7 +64,9 @@ _C.DATASET.OPTICAL_V_PATH = ''
 
 _C.DATASET.MODALITY=False
 _C.DATASET.POS_CHANNEL_REPLACE = False
-_C.DATASET.PROB_POS_CHANNEL_REPLACE = 0.25
+_C.DATASET.PROB_POS_CHANNEL_REPLACE=0.25
+_C.DATASET.RECONSTRUCTION = False
+
 
 # -----------------------------------------------------------------------------
 # Slowfast options
@@ -126,6 +129,9 @@ _C.LOSS.RELATIVE_SPEED_PERCEPTION = False
 
 #Local local contrast
 _C.LOSS.LOCAL_LOCAL_CONTRAST = False
+
+#intra negative
+_C.LOSS.INTRA_NEGATIVE = False
 
 # -----------------------------------------------------------------------------
 # Optimizer options

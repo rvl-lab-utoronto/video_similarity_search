@@ -39,6 +39,14 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
              relative_speed_perception=False, 
              local_local_contrast=False, intra_negative=False, is_master_proc=True):
 
+
+    '''
+    this is to differentiate out validation method and CoCLR validation method. 
+    During training, we set split=='val' and randomly sample 1 subclip for evaluation. 
+    After training, we set split=='test' to average all possible sequences for each clip to do evaluation
+    '''
+
+
     assert split in ['train', 'val', 'test']
     assert dataset_name in ['kinetics', 'ucf101']
 

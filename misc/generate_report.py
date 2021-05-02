@@ -151,14 +151,17 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     ax3.legend(['Top1', 'Top5'])
 
     if (os.path.exists(os.path.join(result_dir, nmi_progress_file))):
+
+        cluster_interval = round(len(train_losses) / len(nmis))
+
         ax4 = plt.subplot(1, num_plots, 4)
-        ax4.plot(np.arange(len(nmis)), nmis)
+        ax4.plot(cluster_interval*np.arange(len(nmis)), nmis)
         ax4.set_xlabel('Epoch')
         ax4.set_ylabel('Cluster Assignment vs True Label NMI')
         ax4.set_title('NMI vs. Epoch')
 
         ax5 = plt.subplot(1, num_plots, 5)
-        ax5.plot(np.arange(len(amis)), amis)
+        ax5.plot(cluster_interval*np.arange(len(amis)), amis)
         ax5.set_xlabel('Epoch')
         ax5.set_ylabel('Cluster Assignment vs True Label AMI')
         ax5.set_title('AMI vs. Epoch')

@@ -311,6 +311,17 @@ class GuidedBackpropReLUModel:
         return guided_grad1, guided_grad2
 
 
+def convert_to_gray(img):
+    grayscale_im = np.sum(np.abs(img), axis=0)
+    im_max = np.percentile(grayscale_im, 99)
+    im_min = np.min(grayscale_im)
+    grayscale_im = (np.clip((grayscale_im - im_min) / (im_max - im_min), 0, 1))
+    grayscale_im = np.expand_dims(grayscale_im, axis=0)
+
+    grayscale_im = np.repeat(grayscale_im, 3, axis=0)
+    return np.uint8(grayscale_im * 255)
+
+
 def deprocess_image(img):
     #img = img - np.min(img)
     #img = img / np.max(img)
@@ -319,17 +330,21 @@ def deprocess_image(img):
     img = img / (np.std(img) + 1e-5)
     img = img * 0.1
     img = img + 0.5
+
     img = np.clip(img, 0, 1)
     return np.uint8(img * 255)
 
-    return img
 
 #================================= Visualize ==================================#
 
 
-def combine_cam_gb (mask, grad):
+def combine_cam_gb (mask, grad, gray=True):
     cam_mask = cv2.merge([mask, mask, mask])
-    cam_grad = deprocess_image(cam_mask*grad)
+    if not gray:
+        cam_grad = deprocess_image(cam_mask*grad)
+        #cam_grad = cv2.cvtColor(cam_grad, cv2.COLOR_BGR2RGB)
+    else:
+        cam_grad = convert_to_gray((cam_mask*grad).transpose(2,0,1)).transpose(1,2,0)
     return cam_grad
 
 
@@ -366,7 +381,7 @@ def show_cams_on_images(vid1, masks1, vid2, masks2, grads1, grads2):
             grads = np.vstack((grad1, grad2))
             cam_grads = np.vstack((cam_grad1, cam_grad2))
 
-            all_imgs = np.hstack((imgs, cams, heatmaps, grads, cam_grads))
+            all_imgs = np.hstack((imgs, cams, grads, cam_grads))
 
             cv2.imshow('Videos and their Similarity Heatmaps', all_imgs)
             cv2.waitKey(int(1.0/fps*1000.0))
@@ -433,7 +448,7 @@ if __name__ == '__main__':
     #print()
 
     train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False, req_train_shuffle=False)
-    test_loader, (val_data, _) = data_loader.build_data_loader('val', cfg,
+    test_loader, (val_data, _) = data_loader.build_data_loader('train', cfg,
             triplets=False, val_sample=None, req_train_shuffle=False)
 
     # ================================ Evaluate ================================
@@ -460,8 +475,10 @@ if __name__ == '__main__':
     vid1 = vid1[0].permute(1,2,3,0).numpy()
     vid2 = vid2[0].permute(1,2,3,0).numpy()
 
-    vid1 = vid1[:,:,:,0:3]
-    vid2 = vid2[:,:,:,0:3]
+    #vid1 = vid1[:,:,:,3]  # mask only
+    #vid2 = vid2[:,:,:,3]  # mask only
+    vid1 = vid1[:,:,:,0:3]  # rgb only
+    vid2 = vid2[:,:,:,0:3]  # rgb only
 
     print(vid1.shape)
     print(vid2.shape)
@@ -472,6 +489,14 @@ if __name__ == '__main__':
 
             img1 = cv2.cvtColor(vid1[i], cv2.COLOR_RGB2BGR)
             img2 = cv2.cvtColor(vid2[i], cv2.COLOR_RGB2BGR)
+
+            img1 = img1 - np.min(img1)
+            img1 = img1 / np.max(img1)
+            img1 = np.uint8(255 * img1)
+            img2 = img2 - np.min(img2)
+            img2 = img2 / np.max(img2)
+            img2 = np.uint8(255 * img2)
+
             imgs = np.vstack((img1, img2))
 
             cv2.imshow('Videos and their Similarity Heatmaps', imgs)

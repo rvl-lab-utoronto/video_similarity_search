@@ -17,7 +17,6 @@ import torchvision
 from models.baselines.inflate_src.i3res import I3ResNet
 from models.baselines.simclr_pytorch.resnet_wider import resnet50x1
 from models.multiview import Multiview
-from models.resnet_VAE import ResnetVAE
 
 def create_output_dirs(cfg):
     if not os.path.exists(cfg.OUTPUT_PATH):

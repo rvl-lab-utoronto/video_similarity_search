@@ -18,7 +18,7 @@ DATASET:
 
 MODEL:
     ARCH: '3dresnet'
-    PREDICT_TEMPORAL_DS: True
+    # PREDICT_TEMPORAL_DS: True
 
 
 RESNET:
@@ -42,3 +42,6 @@ LOSS:
 OPTIM:
     LR: 0.01
     MOMENTUM: 0.5
+
+ITERCLUSTER:
+    K: 800 #1000

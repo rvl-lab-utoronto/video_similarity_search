@@ -130,6 +130,9 @@ _C.LOSS.RELATIVE_SPEED_PERCEPTION = False
 #Local local contrast
 _C.LOSS.LOCAL_LOCAL_CONTRAST = False
 
+#intra negative
+_C.LOSS.INTRA_NEGATIVE = False
+
 # -----------------------------------------------------------------------------
 # Optimizer options
 # -----------------------------------------------------------------------------

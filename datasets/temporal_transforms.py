@@ -232,7 +232,7 @@ class TemporalSubsampling(object):
 
 class Shuffle(object):
 
-    def __init__(self, block_size):
+    def __init__(self, block_size=2): #TODO: make it configurable
         self.block_size = block_size
 
     def __call__(self, frame_indices):
@@ -242,4 +242,8 @@ class Shuffle(object):
         ]
         random.shuffle(frame_indices)
         frame_indices = [t for block in frame_indices for t in block]
+        # print(frame_indices)
         return frame_indices
+
+
+#temporal shuffle

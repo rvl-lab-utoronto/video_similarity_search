@@ -93,10 +93,10 @@ def test_evaluate(cfg, model, cuda, device, data_loader, split='test', is_master
     world_size = du_helper.get_world_size()
 
     def tr(x):
-        batch_size = x.size(0); assert batch_size ==1 
+        batch_size = x.size(0);# assert batch_size ==1 
         num_test_sample = x.size(2)//cfg.DATA.SAMPLE_DURATION
         # print(x.size())
-        return x.view(cfg.DATA.INPUT_CHANNEL_NUM, num_test_sample, 1, cfg.DATA.SAMPLE_DURATION, cfg.DATA.SAMPLE_SIZE, cfg.DATA.SAMPLE_SIZE).permute(1,2,0,3,4,5)
+        return x.view(cfg.DATA.INPUT_CHANNEL_NUM, num_test_sample, batch_size, cfg.DATA.SAMPLE_DURATION, cfg.DATA.SAMPLE_SIZE, cfg.DATA.SAMPLE_SIZE).permute(1,2,0,3,4,5)
 
 
     with torch.no_grad():
@@ -352,25 +352,23 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
                 torch.save(idxs, handle, pickle_protocol=pkl.HIGHEST_PROTOCOL)
             print('saved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
 
-    if split=="test": #EDIT
-        embeddings = embeddings.reshape((-1, 128))
+    if split=="test": 
+        embeddings = embeddings.reshape((-1, cfg.LOSS.FEAT_DIM))
 
     return embeddings, labels, idxs
 
 
 def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
-        train_data, val_data, cfg, plot=True, epoch=None, is_master_proc=True,
+        train_data, val_data, cfg, split='val', plot=True, epoch=None, is_master_proc=True,
                         evaluate_output=None, num_exemplar=None, service=None,
                         load_pkl=False, out_filename='global_retrieval_acc'):
 
     if is_master_proc:
         print ('Getting embeddings...')
     test_embeddings, test_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader,
-                                                        split='test', is_master_proc=is_master_proc, load_pkl=load_pkl)
+                                                        split=split, is_master_proc=is_master_proc, load_pkl=load_pkl)
     train_embeddings, train_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader,
                                                         split='train', is_master_proc=is_master_proc, load_pkl=load_pkl)
-    acc = []
-
     acc = []
     print ('Computing top1/5/10/20 Acc...')
     if (is_master_proc):
@@ -384,7 +382,7 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
                 val_file.write(to_write)
 
         if plot:
-            spatial_transform = build_spatial_transformation(cfg, 'val')
+            spatial_transform = build_spatial_transformation(cfg, 'val', triplets=False)
             temporal_transform = [TemporalCenterFrame()]
             temporal_transform = TemporalCompose(temporal_transform)
             fig = plt.figure()
@@ -575,23 +573,6 @@ if __name__ == '__main__':
     if args.pretrain_path is not None:
         model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
 
-    # Load similarity network checkpoint if path exists
-    if args.checkpoint_path is not None:
-        if torch.cuda.device_count() > 1:
-            start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
-        else:
-            print('loading checkpoint path...')
-            from collections import OrderedDict
-            new_state_dict = OrderedDict()
-            checkpoint = torch.load(args.checkpoint_path)
-            # print('checkpoint', checkpoint)
-            state_dict = checkpoint['state_dict']
-            # for k, v in state_dict.items():
-                # print(k)
-                # name = k[7:] # remove `module.`
-                # new_state_dict[name] = v
-            model.load_state_dict(state_dict)
-
 
     # tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
     # if cuda:
@@ -620,6 +601,6 @@ if __name__ == '__main__':
             temporal_heat_map(model, data, cfg, evaluate_output)
     else:
         k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
-                        train_data, val_data, cfg, evaluate_output=evaluate_output,
+                        train_data, val_data, cfg, split='test', evaluate_output=evaluate_output,
                         num_exemplar=num_exemplar, service=GoogleDriveUploader(), load_pkl=args.load_pkl)
         print('total runtime: {}s'.format(time.time()-start))

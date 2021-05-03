@@ -39,6 +39,7 @@ DATA:
 
 LOSS:
     MARGIN: 0.2
+    LOCAL_LOCAL_CONTRAST: True
 
 OPTIM:
     LR: 0.1

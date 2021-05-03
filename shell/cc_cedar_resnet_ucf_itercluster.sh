@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --account=def-florian7_gpu
-#SBATCH --time=2-20:10:00
+#SBATCH --time=0-20:10:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=triplet_ucf_itercluster_f_scratch_lr0.05
+#SBATCH --job-name=triplet_ucf_itercluster_augfix
 #SBATCH --output=%x-%j.out
-#SBATCH --gres=gpu:v100l:4
+#SBATCH --gres=gpu:v100l:2
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=8
 # --wait-all-nodes=1
@@ -30,11 +30,10 @@ echo master_port:$MPORT
 
 srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/online_train.py \
 --cfg '/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/custom_configs/cc_resnet_ucf_itercluster.yaml' \
---gpu 0,1,2,3 \
+--gpu 0,1 \
 --num_data_workers 4 \
---batch_size 40 \
---output '/home/cheny257/projects/def-florian7/cheny257/output/triplet_itercluster' \
---checkpoint_path '/home/cheny257/projects/def-florian7/cheny257/output/triplet_itercluster/tnet_checkpoints/3dresnet/checkpoint.pth.tar' \
+--batch_size 80 \
+--output '/home/cheny257/projects/def-florian7/cheny257/output/rgb_agglomo_itercluster_augfix' \
 --num_shards 2 \
 --epoch 800 \
 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT \

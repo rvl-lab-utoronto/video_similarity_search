@@ -19,7 +19,7 @@ import pickle as pkl
 from config.m_parser import load_config, arg_parser
 from datasets import data_loader
 from datasets.spatial_transforms import (Compose, Resize, CenterCrop, ToTensor)
-from spherecluster import SphericalKMeans
+# from spherecluster import SphericalKMeans
 
 #https://github.com/jasonlaska/spherecluster
 #from spherecluster import SphericalKMeans
@@ -197,10 +197,10 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True):
         n_clusters = k #2000 for ucf train
         trained_cluster_obj = KMeans(n_clusters=n_clusters,
                                      n_init=10).fit(embeddings)
-    elif method == 'spherical_kmeans':
-        n_clusters = k
-        print('clustering with spherical kmeans with k={}'.format(n_clusters))
-        trained_cluster_obj = SphericalKMeans(n_clusters=n_clusters).fit(embeddings)
+    # elif method == 'spherical_kmeans':
+    #     n_clusters = k
+    #     print('clustering with spherical kmeans with k={}'.format(n_clusters))
+    #     trained_cluster_obj = SphericalKMeans(n_clusters=n_clusters).fit(embeddings)
     elif method == 'OPTICS':
         trained_cluster_obj = OPTICS(min_samples=3, max_eps=0.20, cluster_method='dbscan', metric='cosine', n_jobs=-1).fit(embeddings)
 

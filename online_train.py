@@ -744,13 +744,13 @@ def train(args, cfg):
     if(is_master_proc):
         print('\n==> Building training data loader (single video)...')
     eval_train_loader, (train_data, _) = data_loader.build_data_loader('train',
-            cfg, is_master_proc=False, triplets=False, req_train_shuffle=False,
+            cfg, is_master_proc, triplets=False, req_train_shuffle=False,
             drop_last=False)
 
     if(is_master_proc):
         print('\n==> Building validation data loader (single video)...')
     eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg,
-            is_master_proc=False, triplets=False, val_sample=None,
+            is_master_proc, triplets=False, val_sample=None,
             drop_last=False, batch_size=1)
 
     # ============================= Training loop ==============================
@@ -787,20 +787,20 @@ def train(args, cfg):
                 start_time = time.time()
                 print('embeddings shape', embeddings.size())
 
-                trained_clustering_obj = fit_cluster(embeddings, cfg.ITERCLUSTER.METHOD,
+                cluster_labels = fit_cluster(embeddings, cfg.ITERCLUSTER.METHOD,
                                         cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE)
 
                 print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
                 # Calculate NMI for true labels vs cluster assignments
                 #true_labels = train_data.get_total_labels()
-                NMI = normalized_mutual_info_score(true_labels, trained_clustering_obj.labels_)
+                NMI = normalized_mutual_info_score(true_labels, cluster_labels)
                 print('NMI between true labels and cluster assignments: {:.3f}'.format(NMI))
                 with open('{}/tnet_checkpoints/NMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
                     f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
 
                 # Calculate Adjusted NMI for true labels vs cluster assignements
-                AMI = adjusted_mutual_info_score(true_labels, trained_clustering_obj.labels_)
+                AMI = adjusted_mutual_info_score(true_labels, cluster_labels)
                 print('AMI between true labels and cluster assignments: {:.3f}\n'.format(AMI))
                 with open('{}/tnet_checkpoints/AMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
                     f.write('epoch:{} {:.3f}\n'.format(epoch, AMI))
@@ -811,8 +811,8 @@ def train(args, cfg):
 
                 # Get cluster assignments in unshuffled order of dataset
                 cluster_assignments_unshuffled_order = [None] * len(eval_train_loader.dataset)
-                for i in range(len(trained_clustering_obj.labels_)):
-                    cluster_assignments_unshuffled_order[idxs[i]] = trained_clustering_obj.labels_[i]
+                for i in range(len(cluster_labels)):
+                    cluster_assignments_unshuffled_order[idxs[i]] = cluster_labels[i]
 
                 # Save cluster assignments corresponding to unshuffled order of dataset
                 cluster_output_path = os.path.join(cfg.OUTPUT_PATH, 'vid_clusters.txt')

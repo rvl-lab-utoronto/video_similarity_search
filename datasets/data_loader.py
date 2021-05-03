@@ -78,9 +78,8 @@ def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3, i
     mean.extend([0] * extra_num_channel)
     std.extend([1] * extra_num_channel)
 
-    print(extra_num_channel, mean, std)
     if (is_master_proc):
-        print('Normalize mean:{}, std:{}'.format(mean, std))
+        print('Extra # channel:{}, Normalize mean:{}, std:{}'.format(extra_num_channel, mean, std))
     return Normalize(mean, std)
 
 
@@ -285,17 +284,23 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
             shuffle = req_train_shuffle
         else:
             shuffle=(False if sampler else True)
-        
-        print('Shuffle:{}'.format(shuffle))
+
+        if is_master_proc:
+            print('Shuffle:{}'.format(shuffle))
+
         if split == 'train':
             if triplets:
                 batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS)
             else:  # if not in train mode can support a larger batch size
-                batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
+                if cfg.TRAIN.EVAL_BATCH_SIZE is not None:
+                    batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
+                else:
+                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
         else:
             batch_size = int(cfg.VAL.BATCH_SIZE)
+
         if is_master_proc:
-            print (split, 'batch size for this process:', batch_size)
+            print(split, 'batch size for this process:', batch_size)
 
         # if drop_last == True,
         # Drop the last non-full batch of each workers dataset replica.

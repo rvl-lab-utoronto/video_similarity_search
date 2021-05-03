@@ -16,6 +16,8 @@ _C.TRAIN.DATASET = "ucf101"
 _C.TRAIN.NUM_DATA_WORKERS = 4
 _C.TRAIN.LOG_INTERVAL = 5 #for print statements
 
+_C.TRAIN.EVAL_BATCH_SIZE = None
+
 # -----------------------------------------------------------------------------
 # Testing options
 # -----------------------------------------------------------------------------

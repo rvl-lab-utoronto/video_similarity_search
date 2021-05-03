@@ -4,7 +4,9 @@
 # DATA.SAMPLE_SIZE 224 DATA.SAMPLE_DURATION 16 TRAIN.BATCH_SIZE 128
 
 
-import os
+import sys,os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 import argparse
 import torch
 import torchvision.models as models
@@ -20,8 +22,12 @@ from config.m_parser import load_config, arg_parser
 from datasets import data_loader
 from datasets.spatial_transforms import (Compose, Resize, CenterCrop, ToTensor)
 
-#https://github.com/jasonlaska/spherecluster
-#from spherecluster import SphericalKMeans
+# from https://github.com/jasonlaska/spherecluster, install with:
+# `python setup.py install`
+# requires scikit-learn==0.22.0
+#from spherecluster import SphericalKMeans  # commented out to remove warnings
+
+from finch import FINCH
 
 np.random.seed(1)
 
@@ -169,7 +175,8 @@ def preprocess_features_kmeans(data):
 def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True):
 
 
-    assert(method in ['DBSCAN', 'Agglomerative', 'OPTICS', 'kmeans', 'spherical_kmeans'])
+    assert(method in ['DBSCAN', 'Agglomerative', 'OPTICS', 'kmeans',
+        'spherical_kmeans', 'finch'])
 
     print("Clustering with {}...".format(method))
     if method == 'kmeans':
@@ -181,6 +188,7 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True):
                                                       linkage='average',
                                                       distance_threshold=distance_threshold,
                                                       affinity='cosine').fit(embeddings)
+
     elif method == 'DBSCAN':
         # If small clusters have too many incorrect increase min_samples, if there are some very large clusters with
         # too many incorrect decrease eps, if too few / little cluster representation decrease min_samples, if too many -1 increase eps
@@ -188,6 +196,7 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True):
                                      min_samples=2, #3 for ucf val, #2 for ucf train, 3 for kin train
                                      metric='cosine',
                                      n_jobs=-1).fit(embeddings)
+
     elif method == 'kmeans':
         #pre-process - l2 normalize embeddings
         if l2normalize:
@@ -196,26 +205,38 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True):
         n_clusters = k #2000 for ucf train
         trained_cluster_obj = KMeans(n_clusters=n_clusters,
                                      n_init=10).fit(embeddings)
+
     elif method == 'spherical_kmeans':
-        from spherecluster import SphericalKMeans
         n_clusters = k
         print('clustering with spherical kmeans with k={}'.format(n_clusters))
+        print(embeddings.shape)
         trained_cluster_obj = SphericalKMeans(n_clusters=n_clusters).fit(embeddings)
+
+    elif method == 'finch':
+        embeddings = embeddings.detach().cpu().numpy()
+        c, num_clust, req_c = FINCH(embeddings, distance='cosine')
+
+        PARTITION = 0
+        labels = c[:,PARTITION]
+        n_clusters = num_clust[PARTITION]
+
     elif method == 'OPTICS':
         trained_cluster_obj = OPTICS(min_samples=3, max_eps=0.20, cluster_method='dbscan', metric='cosine', n_jobs=-1).fit(embeddings)
 
-    labels = trained_cluster_obj.labels_
-    n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+
+    if method != 'finch':
+        labels = trained_cluster_obj.labels_
+        print(labels.shape)
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
 
     print("Fitted " + str(n_clusters) + " clusters with " + str(method))
-    return trained_cluster_obj
+    return labels
 
 
 # Print clusters 
-def cluster_embeddings(clustering_obj, true_labels, label_to_class_map):
+def cluster_embeddings(labels, true_labels, label_to_class_map):
 
-    labels = clustering_obj.labels_
-    cluster_to_data_idxs = {label: np.where(clustering_obj.labels_ == label)[0] for label in set(labels)}
+    cluster_to_data_idxs = {label: np.where(labels == label)[0] for label in set(labels)}
 
     # Put each data with cluster label -1 into its own new cluster
     if -1 in cluster_to_data_idxs:
@@ -313,7 +334,7 @@ if __name__ == '__main__':
     # =============================== Clustering ===============================
 
     start_time = time.time()
-    trained_clustering_obj = fit_cluster(embeddings, args.method)
+    ret_cluster_labels = fit_cluster(embeddings, args.method)
     print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
     if args.label_dir:
@@ -324,9 +345,9 @@ if __name__ == '__main__':
     else:
         true_labels = data.get_total_labels()
 
-    NMI = normalized_mutual_info_score(true_labels, trained_clustering_obj.labels_)
+    NMI = normalized_mutual_info_score(true_labels, ret_cluster_labels)
 
-    cluster_labels = cluster_embeddings(trained_clustering_obj, true_labels,
+    cluster_labels = cluster_embeddings(ret_cluster_labels, true_labels,
             data.get_label_to_class_map())
 
     print('NMI between true labels and cluster assignments: {:.2f}\n'.format(NMI))

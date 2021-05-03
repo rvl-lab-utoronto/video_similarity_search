@@ -3,9 +3,9 @@
 #SBATCH --time=0-20:10:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=resnet_ucf_itercluster_optical_lr0.05
+#SBATCH --job-name=resnet_ucf_ic_llc_optical_pos_replace_1.0
 #SBATCH --output=%x-%j.out
-#SBATCH --gres=gpu:v100l:4
+#SBATCH --gres=gpu:v100l:2
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=8
 # --wait-all-nodes=1
@@ -31,13 +31,13 @@ MPORT=3456
 echo master_port:$MPORT
 
 srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/online_train.py \
---cfg '/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/custom_configs/cc_resnet_ucf_itercluster_optical.yaml' \
---gpu 0,1,2,3 \
+--cfg '/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/custom_configs/cc_resnet_ucf_itercluster_optical_llc_1.0.yaml' \
+--gpu 0,1 \
 --num_data_workers 4 \
---batch_size 40 \
---output '/home/cheny257/projects/def-florian7/cheny257/output/resnet_ucf_itercluster_optical_lr0.05' \
+--batch_size 56 \
+--output '/home/cheny257/projects/def-florian7/cheny257/output/resnet_ucf_ic_llc_optical_pos_replace_1.0' \
 --num_shards 2 \
 --epoch 600 \
 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT \
 --compute_canada \
---iterative_cluster
+--iterative_cluster \

@@ -493,14 +493,14 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
                 dist_ap = 1 - F.cosine_similarity(out_anc, out_anc2, dim=1)
                 dist_an = 1 - F.cosine_similarity(out_anc, out_pos, dim=1)
 
-            llc_criterion = torch.nn.MarginRankingLoss(margin=0.04).to(device)
+            llc_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.LOCAL_LOCAL_MARGIN).to(device)
             target_llc = torch.FloatTensor(dist_ap.size()).fill_(-1)
             if cuda:
                 target_llc = target_llc.to(device)
             llc_loss = llc_criterion(dist_ap, dist_an, target_llc)
 
             # Combined loss
-            llc_lambda = 1.0
+            llc_lambda = cfg.LOSS.LOCAL_LOCAL_WEIGHT
             loss = triplet_loss + llc_loss * llc_lambda
         
         elif cfg.LOSS.INTRA_NEGATIVE:

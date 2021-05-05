@@ -836,7 +836,7 @@ def train(args, cfg):
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
-        # Train 
+        # Train
         if cfg.LOSS.TYPE == 'triplet':
             if (is_master_proc):
                 print('==> training with Triplet Loss with criterion:{}'.format(criterion))
@@ -884,7 +884,7 @@ def train(args, cfg):
 
         # ============================= Evaluation =============================
 
-        # Validate with triplet loss and retrieval on val set with query from val set 
+        # Validate with triplet loss and retrieval on val set with query from val set
         if is_master_proc:
             print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
             print('=> Using criterion:{} for validation'.format(val_criterion))
@@ -924,6 +924,9 @@ def train(args, cfg):
 
 
 if __name__ == '__main__':
+
+    torch.manual_seed(7)
+
     print ('\n==> Parsing parameters:')
     args = arg_parser().parse_args()
     cfg = load_config(args)

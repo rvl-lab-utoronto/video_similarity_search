@@ -297,7 +297,13 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 else:
                     batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
         else:
-            batch_size = int(cfg.VAL.BATCH_SIZE)
+            if triplets:
+                batch_size = int(cfg.VAL.BATCH_SIZE)
+            else:
+                if cfg.TRAIN.EVAL_BATCH_SIZE is not None:
+                    batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
+                else:
+                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
 
         if is_master_proc:
             print(split, 'batch size for this process:', batch_size)

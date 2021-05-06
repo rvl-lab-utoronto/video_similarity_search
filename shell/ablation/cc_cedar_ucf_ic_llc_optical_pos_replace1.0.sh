@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=def-florian7_gpu
-#SBATCH --time=0-03:10:00
+#SBATCH --time=0-20:10:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
 #SBATCH --job-name=resnet_ucf_ic_llc_optical_pos_replace_1.0
@@ -31,7 +31,7 @@ MPORT=3456
 echo master_port:$MPORT
 
 srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/online_train.py \
---cfg '/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/custom_configs/cc_resnet_ucf_itercluster_optical_llc_1.0.yaml' \
+--cfg '/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/custom_configs/ablation/cc_resnet_ucf_ic_llc_optical_pos_replace1.0.yaml' \
 --gpu 0,1 \
 --num_data_workers 4 \
 --batch_size 56 \

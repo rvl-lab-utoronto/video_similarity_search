@@ -11,13 +11,13 @@ DATASET:
     TARGET_TYPE_V: 'label'
 
     SAMPLING_STRATEGY: 'random_semi_hard'
-    POSITIVE_SAMPLING_P: 0.2
+    POSITIVE_SAMPLING_P: 1.0
 
-    POS_CHANNEL_REPLACE: True
-    PROB_POS_CHANNEL_REPLACE: 1.0
+    # POS_CHANNEL_REPLACE: True
+    # PROB_POS_CHANNEL_REPLACE: 0.35
 
-    CHANNEL_EXTENSIONS: 'optical_u'
-    OPTICAL_U_PATH: ./tvl1_flow/u
+    # CHANNEL_EXTENSIONS: 'optical_u'
+    # OPTICAL_U_PATH: ./tvl1_flow/u
 
 
 MODEL:

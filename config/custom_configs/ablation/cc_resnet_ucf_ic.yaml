@@ -13,11 +13,11 @@ DATASET:
     SAMPLING_STRATEGY: 'random_semi_hard'
     POSITIVE_SAMPLING_P: 0.2
 
-    POS_CHANNEL_REPLACE: True
-    PROB_POS_CHANNEL_REPLACE: 1.0
+    # POS_CHANNEL_REPLACE: True
+    # PROB_POS_CHANNEL_REPLACE: 0.35
 
-    CHANNEL_EXTENSIONS: 'optical_u'
-    OPTICAL_U_PATH: ./tvl1_flow/u
+    # CHANNEL_EXTENSIONS: 'optical_u'
+    # OPTICAL_U_PATH: ./tvl1_flow/u
 
 
 MODEL:
@@ -40,7 +40,7 @@ DATA:
 
 LOSS:
     MARGIN: 0.2
-    LOCAL_LOCAL_CONTRAST: True 
+    # LOCAL_LOCAL_CONTRAST: True  #NO LLC
 
 
 OPTIM:

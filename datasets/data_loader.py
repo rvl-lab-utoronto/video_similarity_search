@@ -104,10 +104,11 @@ def build_spatial_transformation(cfg, split, triplets, is_master_proc=True):
         spatial_transform.append(ToTensor())
         # spatial_transform.append(normalize) #EDIT
 
-    else: #val/ test
+    else: #val, test, trian(during eval)
         spatial_transform = [
             Resize(cfg.DATA.SAMPLE_SIZE),
             CenterCrop(cfg.DATA.SAMPLE_SIZE),
+            # CenterCrop(112), #from IIC
             ToTensor()
         ]
         spatial_transform.extend([ScaleValue(value_scale)])#, normalize])
@@ -156,7 +157,7 @@ def build_temporal_transformation(cfg, triplets=True, split=None):
 
     else:
         temporal_transform = []
-        temporal_transform.append(TemporalCenterCrop(cfg.DATA.SAMPLE_DURATION)) #opt.n_val_samples))
+        temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION)) #opt.n_val_samples)) #EDIT: CenterCrop
         temporal_transform = TemporalCompose(temporal_transform)
         TempTransform = temporal_transform
 
@@ -168,7 +169,7 @@ def build_temporal_transformation(cfg, triplets=True, split=None):
 def get_channel_extension(cfg):
     channel_ext = {}
 
-    assert cfg.TRAIN.DATASET in ['kinetics', 'ucf101']
+    assert cfg.TRAIN.DATASET in ['kinetics', 'ucf101', 'hmdb51']
 
     if cfg.TRAIN.DATASET == 'ucf101':
         kp_img_name_formatter = datasets.ucf101.kp_img_name_formatter
@@ -178,6 +179,8 @@ def get_channel_extension(cfg):
     elif cfg.TRAIN.DATASET == 'kinetics':
         kp_img_name_formatter = datasets.kinetics.kp_img_name_formatter
         salient_img_name_formatter = datasets.kinetics.salient_img_name_formatter
+    else:
+        print("channel extension not implemented for {}".format(cfg.TRAIN.DATASET))
 
     for channel_extension in cfg.DATASET.CHANNEL_EXTENSIONS.split(','):
         if channel_extension == 'keypoint':

@@ -292,7 +292,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
             if triplets:
                 batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS)
             else:  # if not in train mode can support a larger batch size
-                if cfg.TRAIN.EVAL_BATCH_SIZE is not None:
+                if cfg.TRAIN.EVAL_BATCH_SIZE:
                     batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
                 else:
                     batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
@@ -300,7 +300,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
             if triplets:
                 batch_size = int(cfg.VAL.BATCH_SIZE)
             else:
-                if cfg.TRAIN.EVAL_BATCH_SIZE is not None:
+                if cfg.TRAIN.EVAL_BATCH_SIZE:
                     batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
                 else:
                     batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6

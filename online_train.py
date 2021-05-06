@@ -788,7 +788,8 @@ def train(args, cfg):
                 print('embeddings shape', embeddings.size())
 
                 cluster_labels = fit_cluster(embeddings, cfg.ITERCLUSTER.METHOD,
-                                        cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE)
+                                        cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE,
+                                        cfg.ITERCLUSTER.FINCH_PARTITION)
 
                 print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 

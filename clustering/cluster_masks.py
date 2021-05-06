@@ -172,7 +172,8 @@ def preprocess_features_kmeans(data):
 
 
 # Perform clustering 
-def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True):
+def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True,
+        finch_partition=0):
 
 
     assert(method in ['DBSCAN', 'Agglomerative', 'OPTICS', 'kmeans',
@@ -216,9 +217,10 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True):
         embeddings = embeddings.detach().cpu().numpy()
         c, num_clust, req_c = FINCH(embeddings, distance='cosine')
 
-        PARTITION = 0
+        PARTITION = finch_partition
         labels = c[:,PARTITION]
         n_clusters = num_clust[PARTITION]
+        print('Taking partition {} from finch'.format(PARTITION))
 
     elif method == 'OPTICS':
         trained_cluster_obj = OPTICS(min_samples=3, max_eps=0.20, cluster_method='dbscan', metric='cosine', n_jobs=-1).fit(embeddings)

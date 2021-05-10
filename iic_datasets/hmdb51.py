@@ -2,7 +2,7 @@
 import os
 import random
 from glob import glob
-# from pprint import pprint
+from pprint import pprint
 # import uuid
 # import tempfile
 
@@ -10,7 +10,7 @@ import numpy as np
 # import ffmpeg
 import skvideo.io
 import pandas as pd
-# from skvideo.io import ffprobe
+from skvideo.io import ffprobe
 import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
@@ -132,7 +132,7 @@ class HMDB51ClipRetrievalDataset(Dataset):
         self.train = train
         self.transforms_ = transforms_
         self.toPIL = transforms.ToPILImage()
-        class_idx_path = os.path.join(root_dir, 'prev_split', 'classInd.txt')
+        class_idx_path = os.path.join(root_dir, 'prev_split', 'ClassInd.txt')
         self.class_idx2label = pd.read_csv(class_idx_path, header=None, sep=' ').set_index(0)[1]
         self.class_label2idx = pd.read_csv(class_idx_path, header=None, sep=' ').set_index(1)[0]
 
@@ -363,23 +363,23 @@ class HMDB51ClipRetrievalDataset(Dataset):
 #             f.write('\n'.join(test_split))
 
 
-# def hmdb51_stats():
-#     """HMDB51 statistics"""
-#     collects = {'nb_frames': [], 'heights': [], 'widths': [], 
-#                 'aspect_ratios': [], 'frame_rates': []}
+def hmdb51_stats():
+    """HMDB51 statistics"""
+    collects = {'nb_frames': [], 'heights': [], 'widths': [], 
+                'aspect_ratios': [], 'frame_rates': []}
 
-#     for filename in glob('../data/hmdb51/video/*/*.avi'):
-#         metadata = ffprobe(filename)['video']
-#         collects['nb_frames'].append(eval(metadata['@nb_frames']))
-#         collects['heights'].append(eval(metadata['@height']))
-#         collects['widths'].append(eval(metadata['@width']))
-#         collects['aspect_ratios'].append(metadata['@display_aspect_ratio'])
-#         collects['frame_rates'].append(eval(metadata['@avg_frame_rate']))
+    for filename in glob('/media/diskstation/datasets/HMDB51/avi/*/*.avi'):
+        metadata = ffprobe(filename)['video']
+        collects['nb_frames'].append(eval(metadata['@nb_frames']))
+        collects['heights'].append(eval(metadata['@height']))
+        collects['widths'].append(eval(metadata['@width']))
+        collects['aspect_ratios'].append(metadata['@display_aspect_ratio'])
+        collects['frame_rates'].append(eval(metadata['@avg_frame_rate']))
 
-#     stats = {key: sorted(list(set(collects[key]))) for key in collects.keys()}
-#     stats['nb_frames'] = [stats['nb_frames'][0], stats['nb_frames'][-1]]
+    stats = {key: sorted(list(set(collects[key]))) for key in collects.keys()}
+    stats['nb_frames'] = [stats['nb_frames'][0], stats['nb_frames'][-1]]
 
-#     pprint(stats)
+    pprint(stats)
 
 
 if __name__ == '__main__':
@@ -388,7 +388,7 @@ if __name__ == '__main__':
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-    # hmdb51_stats()
+    hmdb51_stats()
     # gen_hmdb51_splits_like_ucf101('../data/hmdb51')
     # gen_hmdb51_vcop_splits('../data/hmdb51', 16, 8, 2)
     # gen_hmdb51_vcop_splits('../data/hmdb51', 16, 8, 3)

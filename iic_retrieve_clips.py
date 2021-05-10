@@ -41,6 +41,47 @@ def load_pretrained_weights(ckpt_path):
             print('Pretrained weight name: [{}]'.format(name))
     return adjusted_weights
 
+class Normalize(transforms.Normalize):
+
+    def randomize_parameters(self):
+        pass
+
+
+# Return normalization function used per image in a video
+def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3, is_master_proc=True):
+    if no_mean_norm:
+        mean = [0, 0, 0]
+    elif no_std_norm:
+        std = [1, 1, 1]
+
+    extra_num_channel = num_channels-3
+    mean.extend([0] * extra_num_channel)
+    std.extend([1] * extra_num_channel)
+
+    print(extra_num_channel, mean, std)
+    if (is_master_proc):
+        print('Normalize mean:{}, std:{}'.format(mean, std))
+    return Normalize(mean, std)
+
+
+# Return mean and std deviation used for normalization
+def get_mean_std(value_scale, dataset):
+    if dataset == 'kinetics':
+        mean = [0.4345, 0.4051, 0.3775]
+        std = [0.2768, 0.2713, 0.2737]
+    else:
+        #mean = [0.5, 0.5, 0.5]
+        #std = [0.5, 0.5, 0.5]
+        mean=[0.485, 0.456, 0.406]
+        std=[0.229, 0.224, 0.225]
+
+    mean = [x * value_scale for x in mean]
+    std = [x * value_scale for x in std]
+
+    return mean, std
+
+
+
 
 def neq_load_customized(model, pretrained_dict, verbose=True):
     ''' load pre-trained model in a not-equal way,
@@ -148,11 +189,16 @@ def extract_feature(args, split='train'):
     model.eval()
     torch.set_grad_enabled(False)
     ### Exract for train split ###
+    mean, std = get_mean_std(1, dataset=args.dataset)
+    normalize = get_normalize_method(mean, std, False, False)
+
+
     if split=='train':
         train_transforms = transforms.Compose([
             transforms.Resize((128, 171)),
-            transforms.CenterCrop(112),
-            transforms.ToTensor()
+            transforms.CenterCrop(128), #EDIT: 112
+            transforms.ToTensor(),
+            normalize
         ])
         if args.dataset == 'ucf101':
             train_dataset = UCF101ClipRetrievalDataset('/media/synology/datasets/UCF101', args.cl, 10, True, train_transforms)
@@ -166,7 +212,7 @@ def extract_feature(args, split='train'):
         classes = []
         for data in tqdm(train_dataloader):
             sampled_clips, idxs = data
-            clips = sampled_clips.reshape((-1, 3, args.cl, 112, 112))
+            clips = sampled_clips.reshape((-1, 3, args.cl, 128, 128))
             inputs = clips.to(device)
             # forward
             if args.model=='CoCLR':
@@ -187,8 +233,9 @@ def extract_feature(args, split='train'):
     else:
         test_transforms = transforms.Compose([
             transforms.Resize((128, 171)),
-            transforms.CenterCrop(112),
-            transforms.ToTensor()
+            transforms.CenterCrop(128),
+            transforms.ToTensor(),
+            normalize
         ])
         if args.dataset == 'ucf101':
             test_dataset = UCF101ClipRetrievalDataset('/media/synology/datasets/UCF101', args.cl, 10, False, test_transforms)
@@ -201,7 +248,7 @@ def extract_feature(args, split='train'):
         classes = []
         for data in tqdm(test_dataloader):
             sampled_clips, idxs = data
-            clips = sampled_clips.reshape((-1, 3, args.cl, 112, 112))
+            clips = sampled_clips.reshape((-1, 3, args.cl, 128, 128))
             inputs = clips.to(device)
             # forward
             # outputs = model(inputs)

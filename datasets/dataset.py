@@ -12,6 +12,7 @@ from loader import VideoLoader, VideoLoaderHDF5, VideoLoaderFlowHDF5
 from triplets_dataset import TripletsData
 from video_dataset import VideoDataset
 from ucf101 import UCF101
+from hmdb51 import HMDB51
 from kinetics import Kinetics
 
 
@@ -48,7 +49,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
 
 
     assert split in ['train', 'val', 'test']
-    assert dataset_name in ['kinetics', 'ucf101']
+    assert dataset_name in ['kinetics', 'ucf101', 'hmdb51']
 
     if file_type == 'jpg':
         assert input_type == 'rgb', 'flow input is supported only when input type is hdf5.'
@@ -64,6 +65,12 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
     if dataset_name == 'ucf101':
         split2 = split if split!='test' else 'val'
         Dataset = UCF101(video_path, annotation_path, split2, sample_duration,
+                        channel_ext, cluster_path,
+                        is_master_proc, video_path_formatter, val_sample)
+
+    elif dataset_name == 'hmdb51':
+        split2 = split if split!='test' else 'val'
+        Dataset = HMDB51(video_path, annotation_path, split2, sample_duration,
                         channel_ext, cluster_path,
                         is_master_proc, video_path_formatter, val_sample)
 
@@ -84,7 +91,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
     cluster_labels = None
     if triplets:
         if (is_master_proc):
-            print('Using triplets dataset...')
+            print('==> Using TripletsData loader...')
 
         if target_type == 'cluster_label':
             cluster_labels = set(Dataset.get_cluster_labels())
@@ -118,7 +125,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                             intra_negative=intra_negative)
     else:
         if (is_master_proc):
-            print('Using single video dataset...')
+            print('==> Using VideoDataset Loader...')
         data = VideoDataset(data = Dataset.get_dataset(),
                             class_names = Dataset.get_idx_to_class_map(),
                             split=split,

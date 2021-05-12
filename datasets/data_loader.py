@@ -78,8 +78,9 @@ def get_normalize_method(mean, std, no_mean_norm, no_std_norm, num_channels=3, i
     mean.extend([0] * extra_num_channel)
     std.extend([1] * extra_num_channel)
 
+    print(extra_num_channel, mean, std)
     if (is_master_proc):
-        print('Extra # channel:{}, Normalize mean:{}, std:{}'.format(extra_num_channel, mean, std))
+        print('Normalize mean:{}, std:{}'.format(mean, std))
     return Normalize(mean, std)
 
 
@@ -103,10 +104,11 @@ def build_spatial_transformation(cfg, split, triplets, is_master_proc=True):
         spatial_transform.append(ToTensor())
         # spatial_transform.append(normalize) #EDIT
 
-    else: #val/ test
+    else: #val, test, trian(during eval)
         spatial_transform = [
             Resize(cfg.DATA.SAMPLE_SIZE),
             CenterCrop(cfg.DATA.SAMPLE_SIZE),
+            # CenterCrop(112), #from IIC
             ToTensor()
         ]
         spatial_transform.extend([ScaleValue(value_scale)])#, normalize])
@@ -155,7 +157,7 @@ def build_temporal_transformation(cfg, triplets=True, split=None):
 
     else:
         temporal_transform = []
-        temporal_transform.append(TemporalCenterCrop(cfg.DATA.SAMPLE_DURATION)) #opt.n_val_samples))
+        temporal_transform.append(TemporalCenterCrop(cfg.DATA.SAMPLE_DURATION)) #opt.n_val_samples)) #EDIT: CenterCrop
         temporal_transform = TemporalCompose(temporal_transform)
         TempTransform = temporal_transform
 
@@ -167,7 +169,7 @@ def build_temporal_transformation(cfg, triplets=True, split=None):
 def get_channel_extension(cfg):
     channel_ext = {}
 
-    assert cfg.TRAIN.DATASET in ['kinetics', 'ucf101']
+    assert cfg.TRAIN.DATASET in ['kinetics', 'ucf101', 'hmdb51']
 
     if cfg.TRAIN.DATASET == 'ucf101':
         kp_img_name_formatter = datasets.ucf101.kp_img_name_formatter
@@ -177,6 +179,8 @@ def get_channel_extension(cfg):
     elif cfg.TRAIN.DATASET == 'kinetics':
         kp_img_name_formatter = datasets.kinetics.kp_img_name_formatter
         salient_img_name_formatter = datasets.kinetics.salient_img_name_formatter
+    else:
+        print("channel extension not implemented for {}".format(cfg.TRAIN.DATASET))
 
     for channel_extension in cfg.DATASET.CHANNEL_EXTENSIONS.split(','):
         if channel_extension == 'keypoint':
@@ -284,29 +288,17 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
             shuffle = req_train_shuffle
         else:
             shuffle=(False if sampler else True)
-
-        if is_master_proc:
-            print('Shuffle:{}'.format(shuffle))
-
+        
+        print('Shuffle:{}'.format(shuffle))
         if split == 'train':
             if triplets:
                 batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS)
             else:  # if not in train mode can support a larger batch size
-                if cfg.TRAIN.EVAL_BATCH_SIZE:
-                    batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
-                else:
-                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
+                batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
         else:
-            if triplets:
-                batch_size = int(cfg.VAL.BATCH_SIZE)
-            else:
-                if cfg.TRAIN.EVAL_BATCH_SIZE:
-                    batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
-                else:
-                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
-
+            batch_size = int(cfg.VAL.BATCH_SIZE)
         if is_master_proc:
-            print(split, 'batch size for this process:', batch_size)
+            print (split, 'batch size for this process:', batch_size)
 
         # if drop_last == True,
         # Drop the last non-full batch of each workers dataset replica.

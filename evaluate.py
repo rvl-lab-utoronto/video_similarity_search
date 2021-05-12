@@ -82,7 +82,7 @@ def m_arg_parser(parser):
         help='load computed embeddings from the pickle file'
     )
     parser.add_argument(
-        "--eval",
+        "--crop",
         default='avg',
         type=str,
         help='avg, center, random'
@@ -561,8 +561,9 @@ if __name__ == '__main__':
 
     print('=> finished generating similarity network...')
 
-    print('=> Using evaluation method: {}'.format(args.eval))
-    if args.eval=='avg': #COCLR eval metric
+    cfg.DATA.TEMPORAL_CROP = args.crop
+    print('=> Using evaluation method: {}'.format(cfg.DATA.TEMPORAL_CROP))
+    if args.crop=='avg': #COCLR eval metric
         test_split='test'
     else:
         test_split='val'

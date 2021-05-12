@@ -4,7 +4,7 @@ TRAIN:
 DATASET:
     VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
     ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/UCF101_Flow/json/ucf101_01.json' #optical flow
-    #CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
+    CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'
@@ -13,9 +13,10 @@ DATASET:
     POSITIVE_SAMPLING_P: 0.2
 
     POS_CHANNEL_REPLACE: True
-    PROB_POS_CHANNEL_REPLACE: 0.25
+    PROB_POS_CHANNEL_REPLACE: 0.5
 
-    CHANNEL_EXTENSIONS: 'optical_u'
+    CHANNEL_EXTENSIONS: 'optical_u,salient'
+    SALIENT_PATH: /media/diskstation/datasets/UCF101/poolnet_new
     OPTICAL_U_PATH: /media/diskstation/datasets/UCF101/UCF101_Flow/tvl1_flow/u
 
 MODEL:

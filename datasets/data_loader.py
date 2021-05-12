@@ -108,7 +108,6 @@ def build_spatial_transformation(cfg, split, triplets, is_master_proc=True):
         spatial_transform = [
             Resize(cfg.DATA.SAMPLE_SIZE),
             CenterCrop(cfg.DATA.SAMPLE_SIZE),
-            # CenterCrop(112), #from IIC
             ToTensor()
         ]
         spatial_transform.extend([ScaleValue(value_scale)])#, normalize])
@@ -157,7 +156,13 @@ def build_temporal_transformation(cfg, triplets=True, split=None):
 
     else:
         temporal_transform = []
-        temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION)) #opt.n_val_samples)) #EDIT: CenterCrop
+        if cfg.DATA.TEMPORAL_CROP == 'random':
+            print('==> using Temporal Random Crop')
+            temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION)) #opt.n_val_samples))
+        else: #center/avg
+            print('==> using Temporal Center Crop')
+            temporal_transform.append(TemporalCenterCrop(cfg.DATA.SAMPLE_DURATION))
+
         temporal_transform = TemporalCompose(temporal_transform)
         TempTransform = temporal_transform
 

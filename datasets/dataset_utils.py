@@ -70,10 +70,13 @@ def construct_net_input(vid_loader, channel_ext, spatial_transform,
                                               1.0-prob_pos_channel_replace])
 
         if choice == 'replace':
-            assert len(channel_paths) == 1, 'Only 1 other view for now'
-            for key_i in channel_paths:
-                key = key_i
-                break
+            assert len(channel_paths) >= 1, 'the channel path is empty!'
+            key = np.random.choice(list(channel_paths)) #randomly select a view as positive
+            # print('choice repalce, key:', key)
+            # if len(channel_paths) ==1:
+            #     for key_i in channel_paths:
+            #         key = key_i
+            #         break
             channel_path = channel_paths[key]
             channel_loader = channel_ext[key][1]
             channel_clip = channel_loader(channel_path, frame_indices)

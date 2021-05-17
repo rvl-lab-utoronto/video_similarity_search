@@ -2,8 +2,8 @@ TRAIN:
     DATASET: "ucf101"
 
 DATASET:
-    VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
-    ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/UCF101_Flow/json/ucf101_01.json' #optical flow
+    VID_PATH: '/media/synology/datasets/UCF101/jpg'
+    ANNOTATION_PATH: '/media/synology/datasets/UCF101/UCF101_Flow/json/ucf101_01.json' #optical flow
     #CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
@@ -16,7 +16,7 @@ DATASET:
     PROB_POS_CHANNEL_REPLACE: 0.25
 
     CHANNEL_EXTENSIONS: 'optical_u'
-    OPTICAL_U_PATH: /media/diskstation/datasets/UCF101/UCF101_Flow/tvl1_flow/u
+    OPTICAL_U_PATH: /media/synology/datasets/UCF101/UCF101_Flow/tvl1_flow/u
 
 MODEL:
     ARCH: '3dresnet'

@@ -84,7 +84,7 @@ def mocov2_inflated(num_frames, center_init=True):
 
 
 # Select the appropriate model with the specified cfg parameters
-def model_selector(cfg, projection_head=True, hyperbolic=False, is_master_proc=True):
+def model_selector(cfg, projection_head=True, hyperbolic=False, classifier=False, num_classes=101, is_master_proc=True):
     assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast', 'info_nce', "uber_nce", 's3d', 'r3d',
             'simclr_pretrained_inflated_res50',
             'imagenet_pretrained_inflated_res50',
@@ -94,6 +94,7 @@ def model_selector(cfg, projection_head=True, hyperbolic=False, is_master_proc=T
         model=generate_model(model_depth=cfg.RESNET.MODEL_DEPTH,
                         hidden_layer=cfg.RESNET.HIDDEN_LAYER,
                         out_dim=cfg.RESNET.OUT_DIM,
+                        num_classes=num_classes,
                         n_input_channels=cfg.DATA.INPUT_CHANNEL_NUM,
                         shortcut_type=cfg.RESNET.SHORTCUT,
                         conv1_t_size=cfg.RESNET.CONV1_T_SIZE,
@@ -103,7 +104,8 @@ def model_selector(cfg, projection_head=True, hyperbolic=False, is_master_proc=T
                         projection_head=projection_head,
                         predict_temporal_ds=cfg.MODEL.PREDICT_TEMPORAL_DS,
                         spatio_temporal_attention=cfg.RESNET.ATTENTION,
-                        hyperbolic=hyperbolic)
+                        hyperbolic=hyperbolic,
+                        classifier=classifier)
 
         #only resnet supports multiview for now
         if cfg.DATASET.MODALITY == True:
@@ -238,7 +240,7 @@ def save_checkpoint(state, is_best, model_name, output_path, is_master_proc=True
 
 
 # Load model checkpoint from the specified path
-def load_checkpoint(model, checkpoint_path, is_master_proc=True):
+def load_checkpoint(model, checkpoint_path, classifier=False, is_master_proc=True):
     if os.path.isfile(checkpoint_path):
         if (is_master_proc):
             print("=> loading checkpoint '{}'".format(checkpoint_path))
@@ -254,10 +256,15 @@ def load_checkpoint(model, checkpoint_path, is_master_proc=True):
             if 'module.' in k:
                 name = k[7:] # remove `module.`
                 new_state_dict[name] = v
+            elif classifier and ('fc' in k or 'bn_proj' in k):
+                continue
             else:
                 new_state_dict[k] = v
         # load params
-        model.load_state_dict(new_state_dict)
+        if classifier:
+            model.load_state_dict(new_state_dict, strict=False)
+        else:
+            model.load_state_dict(new_state_dict)
 
         if (is_master_proc):
             print("=> loaded checkpoint '{}' (epoch {})".format(checkpoint_path, checkpoint['epoch']))

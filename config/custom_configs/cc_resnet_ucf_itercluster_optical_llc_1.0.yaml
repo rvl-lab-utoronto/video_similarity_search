@@ -1,18 +1,25 @@
-OUTPUT_PATH: '/home/sherry/output/ucf'
 
 TRAIN:
     DATASET: "ucf101"
 
 DATASET:
-    VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
-    ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
-    CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
+    VID_PATH: ./jpg
+    ANNOTATION_PATH: /home/cheny257/projects/def-florian7/datasets/UCF101/json/ucf101_01.json
+    # CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'
 
     SAMPLING_STRATEGY: 'random_semi_hard'
     POSITIVE_SAMPLING_P: 0.2
+    POS_CHANNEL_REPLACE: True
+
+    POS_CHANNEL_REPLACE: True
+    PROB_POS_CHANNEL_REPLACE: 1.0
+
+    CHANNEL_EXTENSIONS: 'optical_u'
+    OPTICAL_U_PATH: ./tvl1_flow/u
+
 
 MODEL:
     ARCH: '3dresnet'
@@ -28,13 +35,15 @@ RESNET:
     WIDEN_FACTOR: 1
 
 DATA:
-    SAMPLE_SIZE: 112
+    SAMPLE_SIZE: 128
     SAMPLE_DURATION: 16
-    INPUT_CHANNEL_NUM: 3
+    INPUT_CHANNEL_NUM: 3 #4
 
 LOSS:
     MARGIN: 0.2
+    LOCAL_LOCAL_CONTRAST: True 
+
 
 OPTIM:
-    LR: 0.01
+    LR: 0.1
     MOMENTUM: 0.5

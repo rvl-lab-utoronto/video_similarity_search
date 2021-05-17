@@ -909,18 +909,23 @@ def train(args, cfg):
                 best_acc = max(top1_acc, best_acc)
 
         # Save checkpoint
+        if epoch % 200 == 0:
+            filename = 'checkpoint_{}.pth.tar'.format(epoch)
+        else:
+            filename = 'checkpoint.pth.tar'
+
         if torch.cuda.device_count() > 1:
             save_checkpoint({
                 'epoch': epoch+1,
                 'state_dict':model.module.state_dict(),
                 'best_prec1': best_acc,
-            }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
+            }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc, filename=filename)
         else:
             save_checkpoint({
                 'epoch': epoch+1,
                 'state_dict':model.state_dict(),
                 'best_prec1': best_acc,
-            }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
+            }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc, filename=filename)
 
 
 if __name__ == '__main__':

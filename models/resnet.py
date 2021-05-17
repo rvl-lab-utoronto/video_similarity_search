@@ -117,7 +117,9 @@ class ResNet(nn.Module):
                  predict_temporal_ds =False,
                  spatio_temporal_attention=False,
                  projection_head=True,
-                 hyperbolic=False):
+                 num_classes=101,
+                 hyperbolic=False,
+                 classifier=False):
         super().__init__()
 
         block_inplanes = [int(x * widen_factor) for x in block_inplanes]
@@ -175,6 +177,8 @@ class ResNet(nn.Module):
         self.predict_temporal_ds = predict_temporal_ds
         self.projection_head = projection_head
         self.hyperbolic = hyperbolic
+        self.classifier = classifier
+        self.num_classes=num_classes
 
         if projection_head:
             print('==> setting up non-linear project heads')
@@ -192,6 +196,10 @@ class ResNet(nn.Module):
             # from hyptorch.nn import ToPoincare
             print('==> setting up hyperbolic layer')
             self.e2p = ToPoincare(c=1.0, train_c=False, train_x=False)
+        
+        if self.classifier:
+            print('==> setting up linear layer for classification')
+            self.linear = nn.Linear(512, self.num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
@@ -290,8 +298,9 @@ class ResNet(nn.Module):
             predicted_ds = self.temporal_ds_linear(x)
             return h, predicted_ds
 
-        
-
+        if self.classifier:
+            x = x.view(-1, 512)
+            h = self.linear(x)
         return h
 
 

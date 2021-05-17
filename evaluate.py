@@ -81,6 +81,12 @@ def m_arg_parser(parser):
         action='store_true',
         help='load computed embeddings from the pickle file'
     )
+    parser.add_argument(
+        "--crop",
+        default='avg',
+        type=str,
+        help='avg, center, random'
+    )
     return parser
 
 def test_evaluate(cfg, model, cuda, device, data_loader, split='test', is_master_proc=True):
@@ -95,14 +101,11 @@ def test_evaluate(cfg, model, cuda, device, data_loader, split='test', is_master
     def tr(x):
         batch_size = x.size(0);# assert batch_size ==1 
         num_test_sample = x.size(2)//cfg.DATA.SAMPLE_DURATION
-        # print(x.size())
         return x.view(cfg.DATA.INPUT_CHANNEL_NUM, num_test_sample, batch_size, cfg.DATA.SAMPLE_DURATION, cfg.DATA.SAMPLE_SIZE, cfg.DATA.SAMPLE_SIZE).permute(1,2,0,3,4,5)
 
 
     with torch.no_grad():
-        # print(data_loader)
         for batch_idx, (input_seq, targets, info, indexes) in enumerate(data_loader):
-            # print("imhere", input_seq.size())
             if cfg.DATASET.MODALITY == True:
                 batch_size = input_seq[0].size(0)
                 if cuda:
@@ -120,23 +123,17 @@ def test_evaluate(cfg, model, cuda, device, data_loader, split='test', is_master
             input_seq = tr(input_seq)
             test_sample = input_seq.size(0)
             input_seq = input_seq.squeeze(1)
-            # print('input seq', input_seq.size())
             embedd = model(input_seq)
             if isinstance(embedd, tuple): #for multiview
                 embedd = embedd[0]
-            # print(embedd.size())
-            # embedd = embedd.flatten(1)
 
             if cfg.NUM_GPUS > 1:
                 embedd, targets, indexes = du_helper.all_gather([embedd, targets, indexes])
             embedd = embedd.detach().cpu()
-            # print(embedd.mean(0).size())
             embedding.append(embedd.mean(0))
-            # print("embedding: ", len(embedding), embedding[0].size())
             labels.append(targets.detach().cpu())
             idxs.append(indexes.detach().cpu())
-            # vid_info.extend(info)
-            # print('embedd size', embedd.size())
+
             batch_size_world = batch_size * world_size
             if ((batch_idx + 1) * world_size) % log_interval == 0 and is_master_proc:
                 print('{} [{}/{} | {:.1f}%]'.format(split, (batch_idx+1)*batch_size_world, len(data_loader.dataset), 
@@ -339,7 +336,7 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
         print('retrieved {}_embeddings'.format(split), embeddings.size(), 'labels', len(labels))
 
     else:      
-        if split =="test":
+        if split =="test": #COCLR evaluation
             embeddings, labels, idxs = test_evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
         else:
             embeddings, labels, idxs = evaluate(cfg, model, cuda, device, data_loader, split=split, is_master_proc=is_master_proc)
@@ -359,14 +356,14 @@ def get_embeddings_and_labels(args, cfg, model, cuda, device, data_loader,
 
 
 def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
-        train_data, val_data, cfg, split='val', plot=True, epoch=None, is_master_proc=True,
+        train_data, val_data, cfg, test_split='val', plot=True, epoch=None, is_master_proc=True,
                         evaluate_output=None, num_exemplar=None, service=None,
                         load_pkl=False, out_filename='global_retrieval_acc'):
 
     if is_master_proc:
         print ('Getting embeddings...')
     test_embeddings, test_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, test_loader,
-                                                        split=split, is_master_proc=is_master_proc, load_pkl=load_pkl)
+                                                        split=test_split, is_master_proc=is_master_proc, load_pkl=load_pkl)
     train_embeddings, train_labels, _ = get_embeddings_and_labels(args, cfg, model, cuda, device, train_loader,
                                                         split='train', is_master_proc=is_master_proc, load_pkl=load_pkl)
     acc = []
@@ -546,9 +543,6 @@ if __name__ == '__main__':
     if(is_master_proc):
         print('Number of params: {}'.format(n_parameters))
 
-    # # Load pretrained backbone if path exists
-    # if args.pretrain_path is not None:
-    #     model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
 
     # Load similarity network checkpoint if path exists
     if args.checkpoint_path is not None:
@@ -561,34 +555,23 @@ if __name__ == '__main__':
             model = nn.DataParallel(model)
         model = model.cuda(device=device)
 
-        # if torch.cuda.device_count() > 1:
-        #     #model = nn.DataParallel(model)
-        #     if cfg.MODEL.ARCH == '3dresnet':
-        #         model = torch.nn.parallel.DistributedDataParallel(module=model,
-        #             device_ids=[device], find_unused_parameters=True, broadcast_buffers=False)
-        #     else:
-        #         model = torch.nn.parallel.DistributedDataParallel(module=model,
-        #             device_ids=[device], broadcast_buffers=False)
-
     if args.pretrain_path is not None:
         model = load_pretrained_model(model, args.pretrain_path, is_master_proc)
 
 
-    # tripletnet = Tripletnet(model, cfg.LOSS.DIST_METRIC)
-    # if cuda:
-    #     cfg.NUM_GPUS = torch.cuda.device_count()
-    #     print("Using {} GPU(s)".format(cfg.NUM_GPUS))
-    #     if cfg.NUM_GPUS > 1 or force_data_parallel:
-    #         tripletnet = nn.DataParallel(tripletnet)
-    #
-    # model = tripletnet.module.embeddingnet
-
     print('=> finished generating similarity network...')
+
+    cfg.DATA.TEMPORAL_CROP = args.crop
+    print('=> Using evaluation method: {}'.format(cfg.DATA.TEMPORAL_CROP))
+    if args.crop=='avg': #COCLR eval metric
+        test_split='test'
+    else:
+        test_split='val'
 
     # ============================== Data Loaders ==============================
 
     train_loader, (train_data, _) = data_loader.build_data_loader('train', cfg, triplets=False, req_train_shuffle=False)
-    test_loader, (val_data, _) = data_loader.build_data_loader('test', cfg, triplets=False, val_sample=None, req_train_shuffle=False)
+    test_loader, (val_data, _) = data_loader.build_data_loader(test_split, cfg, triplets=False, val_sample=None, req_train_shuffle=False)
 
     # ================================ Evaluate ================================
 
@@ -601,6 +584,6 @@ if __name__ == '__main__':
             temporal_heat_map(model, data, cfg, evaluate_output)
     else:
         k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
-                        train_data, val_data, cfg, split='test', evaluate_output=evaluate_output,
+                        train_data, val_data, cfg, test_split=test_split, evaluate_output=evaluate_output,
                         num_exemplar=num_exemplar, service=GoogleDriveUploader(), load_pkl=args.load_pkl)
         print('total runtime: {}s'.format(time.time()-start))

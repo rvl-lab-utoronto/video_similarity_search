@@ -11,10 +11,13 @@ DATASET:
     TARGET_TYPE_V: 'label'
 
     SAMPLING_STRATEGY: 'random_semi_hard'
-    POSITIVE_SAMPLING_P: 0.2
+    POSITIVE_SAMPLING_P: 0.7
 
-    CHANNEL_EXTENSIONS: 'optical_u'
-    OPTICAL_U_PATH: tvl1_flow/u
+    # POS_CHANNEL_REPLACE: True
+    # PROB_POS_CHANNEL_REPLACE: 0.35
+
+    # CHANNEL_EXTENSIONS: 'optical_u'
+    # OPTICAL_U_PATH: ./tvl1_flow/u
 
 
 MODEL:
@@ -33,11 +36,13 @@ RESNET:
 DATA:
     SAMPLE_SIZE: 128
     SAMPLE_DURATION: 16
-    INPUT_CHANNEL_NUM: 4
+    INPUT_CHANNEL_NUM: 3 #4
 
 LOSS:
     MARGIN: 0.2
+    LOCAL_LOCAL_CONTRAST: True 
+
 
 OPTIM:
-    LR: 0.05
+    LR: 0.1
     MOMENTUM: 0.5

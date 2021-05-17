@@ -1,9 +1,7 @@
+
 TRAIN:
     DATASET: "ucf101"
 
-ITERCLUSTER:
-    METHOD: 'Agglomerative'
-    
 DATASET:
     VID_PATH: ./jpg
     ANNOTATION_PATH: /home/cheny257/projects/def-florian7/datasets/UCF101/json/ucf101_01.json
@@ -13,7 +11,14 @@ DATASET:
     TARGET_TYPE_V: 'label'
 
     SAMPLING_STRATEGY: 'random_semi_hard'
-    POSITIVE_SAMPLING_P: 0.2
+    POSITIVE_SAMPLING_P: 0.0
+
+    # POS_CHANNEL_REPLACE: True
+    # PROB_POS_CHANNEL_REPLACE: 0.35
+
+    # CHANNEL_EXTENSIONS: 'optical_u'
+    # OPTICAL_U_PATH: ./tvl1_flow/u
+
 
 MODEL:
     ARCH: '3dresnet'
@@ -31,10 +36,12 @@ RESNET:
 DATA:
     SAMPLE_SIZE: 128
     SAMPLE_DURATION: 16
-    INPUT_CHANNEL_NUM: 3
+    INPUT_CHANNEL_NUM: 3 #4
 
 LOSS:
     MARGIN: 0.2
+    LOCAL_LOCAL_CONTRAST: True 
+
 
 OPTIM:
     LR: 0.1

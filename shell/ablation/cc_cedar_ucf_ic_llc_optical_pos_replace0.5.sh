@@ -30,12 +30,13 @@ echo master_address:$MASTER_ADDRESS
 MPORT=3456
 echo master_port:$MPORT
 
-srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/online_train.py \ 
+srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/online_train.py \
 --cfg '/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/custom_configs/ablation/cc_resnet_ucf_ic_llc_optical_pos_replace0.5.yaml' \
 --gpu 0,1 \
 --num_data_workers 4 \
 --batch_size 56 \
 --output '/home/cheny257/projects/def-florian7/cheny257/output/resnet_ucf_ic_llc_optical_pos_replace_0.5' \
+--checkpoint '/home/cheny257/projects/def-florian7/cheny257/output/resnet_ucf_ic_llc_optical_pos_replace_0.5/tnet_checkpoints/3dresnet/checkpoint.pth.tar' \
 --num_shards 2 \
 --epoch 800 \
 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT \

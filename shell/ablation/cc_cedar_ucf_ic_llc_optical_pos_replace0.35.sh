@@ -27,15 +27,16 @@ cd $SLURM_TMPDIR
 export MASTER_ADDRESS=$(hostname)
 echo master_address:$MASTER_ADDRESS
 
-MPORT=3456
+MPORT=3462
 echo master_port:$MPORT
 
-srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/online_train.py \ 
+srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/online_train.py \
 --cfg '/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/custom_configs/ablation/cc_resnet_ucf_ic_llc_optical_pos_replace0.35.yaml' \
 --gpu 0,1 \
 --num_data_workers 4 \
 --batch_size 56 \
 --output '/home/cheny257/projects/def-florian7/cheny257/output/resnet_ucf_ic_llc_optical_pos_replace_0.35' \
+--checkpoint_path '/home/cheny257/projects/def-florian7/cheny257/output/resnet_ucf_ic_llc_optical_pos_replace_0.35/tnet_checkpoints/3dresnet/checkpoint.pth.tar' \
 --num_shards 2 \
 --epoch 800 \
 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT \

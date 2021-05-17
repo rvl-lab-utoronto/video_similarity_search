@@ -16,6 +16,8 @@ _C.TRAIN.DATASET = "ucf101"
 _C.TRAIN.NUM_DATA_WORKERS = 4
 _C.TRAIN.LOG_INTERVAL = 5 #for print statements
 
+_C.TRAIN.EVAL_BATCH_SIZE = False
+
 # -----------------------------------------------------------------------------
 # Testing options
 # -----------------------------------------------------------------------------
@@ -131,6 +133,8 @@ _C.LOSS.RELATIVE_SPEED_PERCEPTION = False
 
 #Local local contrast
 _C.LOSS.LOCAL_LOCAL_CONTRAST = False
+_C.LOSS.LOCAL_LOCAL_WEIGHT = 1.0
+_C.LOSS.LOCAL_LOCAL_MARGIN = 0.04
 
 #intra negative
 _C.LOSS.INTRA_NEGATIVE = False
@@ -156,6 +160,7 @@ _C.ITERCLUSTER.K = 1000
 _C.ITERCLUSTER.ADAPTIVEP = False
 _C.ITERCLUSTER.WARMUP_EPOCHS = 0
 _C.ITERCLUSTER.L2_NORMALIZE = True
+_C.ITERCLUSTER.FINCH_PARTITION = 0
 
 # -----------------------------------------------------------------------------
 # Misc options

@@ -493,14 +493,14 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
                 dist_ap = 1 - F.cosine_similarity(out_anc, out_anc2, dim=1)
                 dist_an = 1 - F.cosine_similarity(out_anc, out_pos, dim=1)
 
-            llc_criterion = torch.nn.MarginRankingLoss(margin=0.04).to(device)
+            llc_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.LOCAL_LOCAL_MARGIN).to(device)
             target_llc = torch.FloatTensor(dist_ap.size()).fill_(-1)
             if cuda:
                 target_llc = target_llc.to(device)
             llc_loss = llc_criterion(dist_ap, dist_an, target_llc)
 
             # Combined loss
-            llc_lambda = 1.0
+            llc_lambda = cfg.LOSS.LOCAL_LOCAL_WEIGHT
             loss = triplet_loss + llc_loss * llc_lambda
         
         elif cfg.LOSS.INTRA_NEGATIVE:
@@ -744,13 +744,13 @@ def train(args, cfg):
     if(is_master_proc):
         print('\n==> Building training data loader (single video)...')
     eval_train_loader, (train_data, _) = data_loader.build_data_loader('train',
-            cfg, is_master_proc=False, triplets=False, req_train_shuffle=False,
+            cfg, is_master_proc, triplets=False, req_train_shuffle=False,
             drop_last=False)
 
     if(is_master_proc):
         print('\n==> Building validation data loader (single video)...')
     eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg,
-            is_master_proc=False, triplets=False, val_sample=None,
+            is_master_proc, triplets=False, val_sample=None,
             drop_last=False, batch_size=1)
 
     # ============================= Training loop ==============================
@@ -787,20 +787,21 @@ def train(args, cfg):
                 start_time = time.time()
                 print('embeddings shape', embeddings.size())
 
-                trained_clustering_obj = fit_cluster(embeddings, cfg.ITERCLUSTER.METHOD,
-                                        cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE)
+                cluster_labels = fit_cluster(embeddings, cfg.ITERCLUSTER.METHOD,
+                                        cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE,
+                                        cfg.ITERCLUSTER.FINCH_PARTITION)
 
                 print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
                 # Calculate NMI for true labels vs cluster assignments
                 #true_labels = train_data.get_total_labels()
-                NMI = normalized_mutual_info_score(true_labels, trained_clustering_obj.labels_)
+                NMI = normalized_mutual_info_score(true_labels, cluster_labels)
                 print('NMI between true labels and cluster assignments: {:.3f}'.format(NMI))
                 with open('{}/tnet_checkpoints/NMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
                     f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
 
                 # Calculate Adjusted NMI for true labels vs cluster assignements
-                AMI = adjusted_mutual_info_score(true_labels, trained_clustering_obj.labels_)
+                AMI = adjusted_mutual_info_score(true_labels, cluster_labels)
                 print('AMI between true labels and cluster assignments: {:.3f}\n'.format(AMI))
                 with open('{}/tnet_checkpoints/AMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
                     f.write('epoch:{} {:.3f}\n'.format(epoch, AMI))
@@ -811,8 +812,8 @@ def train(args, cfg):
 
                 # Get cluster assignments in unshuffled order of dataset
                 cluster_assignments_unshuffled_order = [None] * len(eval_train_loader.dataset)
-                for i in range(len(trained_clustering_obj.labels_)):
-                    cluster_assignments_unshuffled_order[idxs[i]] = trained_clustering_obj.labels_[i]
+                for i in range(len(cluster_labels)):
+                    cluster_assignments_unshuffled_order[idxs[i]] = cluster_labels[i]
 
                 # Save cluster assignments corresponding to unshuffled order of dataset
                 cluster_output_path = os.path.join(cfg.OUTPUT_PATH, 'vid_clusters.txt')
@@ -836,7 +837,7 @@ def train(args, cfg):
         if cfg.NUM_GPUS > 1:
             train_sampler.set_epoch(epoch)
 
-        # Train 
+        # Train
         if cfg.LOSS.TYPE == 'triplet':
             if (is_master_proc):
                 print('==> training with Triplet Loss with criterion:{}'.format(criterion))
@@ -884,7 +885,7 @@ def train(args, cfg):
 
         # ============================= Evaluation =============================
 
-        # Validate with triplet loss and retrieval on val set with query from val set 
+        # Validate with triplet loss and retrieval on val set with query from val set
         if is_master_proc:
             print('\n=> Validating with triplet accuracy and {} top1/5 retrieval on val set with batch_size: {}'.format(cfg.VAL.METRIC, cfg.VAL.BATCH_SIZE))
             print('=> Using criterion:{} for validation'.format(val_criterion))
@@ -929,6 +930,9 @@ def train(args, cfg):
 
 
 if __name__ == '__main__':
+
+    torch.manual_seed(7)
+
     print ('\n==> Parsing parameters:')
     args = arg_parser().parse_args()
     cfg = load_config(args)

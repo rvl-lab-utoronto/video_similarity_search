@@ -64,7 +64,11 @@ class UCF101Dataset(Dataset):
         else:
             videoname = self.test_split[idx]
         class_idx = self.class_label2idx[videoname[:videoname.find('/')]]
+<<<<<<< HEAD
         filename = os.path.join(self.root_dir, 'videos', videoname)
+=======
+        filename = os.path.join(self.root_dir, 'video', videoname)
+>>>>>>> origin/kinetics_iterclus_multview
         videodata = skvideo.io.vread(filename)
         length, height, width, channel = videodata.shape
 
@@ -131,7 +135,11 @@ class UCF101ClipRetrievalDataset(Dataset):
         self.train = train
         self.transforms_ = transforms_
         self.toPIL = transforms.ToPILImage()
+<<<<<<< HEAD
         class_idx_path = os.path.join(root_dir, 'split', 'ClassInd.txt')
+=======
+        class_idx_path = os.path.join(root_dir, 'split', 'classInd.txt')
+>>>>>>> origin/kinetics_iterclus_multview
         self.class_idx2label = pd.read_csv(class_idx_path, header=None, sep=' ').set_index(0)[1]
         self.class_label2idx = pd.read_csv(class_idx_path, header=None, sep=' ').set_index(1)[0]
 

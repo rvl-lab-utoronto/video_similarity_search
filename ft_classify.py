@@ -19,6 +19,10 @@ from iic_datasets.hmdb51 import HMDB51Dataset
 # from models.r3d import R3DNet
 # from models.r21d import R2Plus1DNet
 
+from datasets.spatial_transforms import (RandomResizedCrop, RandomHorizontalFlip,
+                                ToTensor, ColorJitter, ColorDrop, GaussianBlur)
+from datasets.data_loader import get_mean_std, get_normalize_method
+
 from models.model_utils import (model_selector, multipathway_input,
                             load_pretrained_model, save_checkpoint, load_checkpoint,
                             AverageMeter, accuracy, create_output_dirs)
@@ -226,16 +230,21 @@ if __name__ == '__main__':
         cfg.merge_from_file(args.cfg_file)
     model=model_selector(cfg, projection_head=False, classifier=True, num_classes=class_num)
 
+    # define normalize (used for train/test split)
+    mean, std = get_mean_std(1, dataset=cfg.TRAIN.DATASET)
+    normalize = get_normalize_method(mean, std, False, False, num_channels=cfg.DATA.INPUT_CHANNEL_NUM)
 
     if args.mode == 'train':  ########### Train #############
         if args.checkpoint_path:  # resume training
-            # model.load_state_dict(torch.load(args.checkpoint_path))
-            log_dir = os.path.dirname(args.checkpoint_path)
-                # Load similarity network checkpoint if path exists
-            # start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, classifier=True)
-            model.load_state_dict(torch.load(args.checkpoint_path))
+            try:
+                model.load_state_dict(torch.load(args.checkpoint_path))
+            except Exception as e:
+                print("retry model loading with load_checkpoint()")
+                start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, classifier=True)
+                print("start_eppch:{}, best_acc:{}".format(start_epoch, best_acc))
 
-            
+            log_dir = os.path.dirname(args.checkpoint_path)
+
             # if cuda:
             model = model.cuda(device=device)
 
@@ -247,11 +256,30 @@ if __name__ == '__main__':
             log_dir = os.path.join(args.log, exp_name)
         writer = SummaryWriter(log_dir)
 
-        train_transforms = transforms.Compose([
-            transforms.Resize((128, 171)),
-            transforms.RandomCrop(128),
-            transforms.ToTensor()
-        ])
+        # train_transforms = transforms.Compose([
+        #     transforms.Resize((128, 171)),
+        #     transforms.RandomCrop(128),
+        #     transforms.ToTensor()
+        # ])
+
+
+        def get_spatial_transforms(normalize=normalize):
+            print("==> Applying augmentation & normalization")
+            spatial_transform = []
+            spatial_transform.append(
+                RandomResizedCrop(cfg.DATA.SAMPLE_SIZE, (0.25, 1.0), (0.75, 1.0/0.75))
+            )
+            spatial_transform.append(RandomHorizontalFlip(p=0.5))
+            spatial_transform.append(ColorJitter(brightness=0.5, contrast=0.5,
+                                                saturation=0.5, hue=0.5, p=0.8))
+            spatial_transform.append(ColorDrop(p=0.2))
+            spatial_transform.append(GaussianBlur(p=0.2))
+            spatial_transform.append(ToTensor())
+            spatial_transform.append(normalize)
+            return spatial_transform
+
+        train_transforms = transforms.Compose(get_spatial_transforms())
+
 
         if args.dataset == 'ucf101':
             train_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101', args.cl, args.split, True, train_transforms)
@@ -316,11 +344,12 @@ if __name__ == '__main__':
         test_transforms = transforms.Compose([
             transforms.Resize((128, 171)),
             transforms.CenterCrop(128),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            normalize
         ])
 
         if args.dataset == 'ucf101':
-            test_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101', args.cl, args.split, False, test_transforms, test_sample_num=1)#, 10) #10
+            test_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101', args.cl, args.split, False, test_transforms, test_sample_num=1) #10
         elif args.dataset == 'hmdb51':
             test_dataset = HMDB51Dataset('/media/diskstation/datasets/HMDB51', args.cl, args.split, False, test_transforms, 10)
 

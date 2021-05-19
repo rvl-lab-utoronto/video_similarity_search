@@ -19,6 +19,10 @@ from iic_datasets.hmdb51 import HMDB51Dataset
 # from models.r3d import R3DNet
 # from models.r21d import R2Plus1DNet
 
+from datasets.spatial_transforms import (RandomResizedCrop, RandomHorizontalFlip,
+                                ToTensor, ColorJitter, ColorDrop, GaussianBlur)
+from datasets.data_loader import get_mean_std, get_normalize_method
+
 from models.model_utils import (model_selector, multipathway_input,
                             load_pretrained_model, save_checkpoint, load_checkpoint,
                             AverageMeter, accuracy, create_output_dirs)
@@ -238,17 +242,21 @@ if __name__ == '__main__':
         cfg.merge_from_file(args.cfg_file)
     model=model_selector(cfg, projection_head=False, classifier=True, dropout=args.dropout, num_classes=class_num)
 
+    # define normalize (used for train/test split)
+    mean, std = get_mean_std(1, dataset=cfg.TRAIN.DATASET)
+    normalize = get_normalize_method(mean, std, False, False, num_channels=cfg.DATA.INPUT_CHANNEL_NUM)
 
     if args.mode == 'train':  ########### Train #############
         if args.checkpoint_path:  # resume training
-            # model.load_state_dict(torch.load(args.checkpoint_path))
-            log_dir = os.path.dirname(args.checkpoint_path)
-                # Load similarity network checkpoint if path exists
-            # start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, classifier=True)
-            model.load_state_dict(torch.load(args.checkpoint_path))
+            try:
+                model.load_state_dict(torch.load(args.checkpoint_path))
+            except Exception as e:
+                print("retry model loading with load_checkpoint()")
+                start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, classifier=True)
+                print("start_eppch:{}, best_acc:{}".format(start_epoch, best_acc))
 
-            
-            # if cuda:
+            log_dir = os.path.dirname(args.checkpoint_path)
+
             
 
         else:
@@ -257,9 +265,18 @@ if __name__ == '__main__':
             else:
                 exp_name = '{}_cl{}_{}'.format(args.model, args.cl, time.strftime('%m%d%H%M'))
             log_dir = os.path.join(args.log, exp_name)
+
         writer = SummaryWriter(log_dir)
 
         model = model.cuda(device=device)
+
+
+        # train_transforms = transforms.Compose([
+        #     transforms.Resize((128, 171)),
+        #     transforms.RandomCrop(128),
+        #     transforms.ToTensor()
+        # ])
+
 
         def get_spatial_transforms(normalize=normalize):
             print("==> Applying augmentation & normalization")

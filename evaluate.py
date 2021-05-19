@@ -23,7 +23,7 @@ from datasets.temporal_transforms import TemporalCenterFrame, TemporalSpecificCr
 from datasets.temporal_transforms import Compose as TemporalCompose
 import misc.distributed_helper as du_helper
 from config.m_parser import load_config, arg_parser
-from misc.upload_gdrive import GoogleDriveUploader
+#from misc.upload_gdrive import GoogleDriveUploader
 from hyptorch.pmath import dist_matrix
 
 # num_exemplar = 10

@@ -201,7 +201,7 @@ class ResNet(nn.Module):
         
         if self.classifier:
             print('==> setting up linear layer for classification')
-            if self.dropout is None:
+            if self.dropout is None or self.dropout > 0.0:
                 print('==> setting up Dropout layer')
                 self.linear = nn.Sequential(
                                     nn.Dropout(dropout),

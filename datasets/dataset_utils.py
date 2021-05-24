@@ -24,6 +24,8 @@ def construct_net_input(vid_loader, channel_ext, spatial_transform,
         pos_channel_replace=False, prob_pos_channel_replace=None,
         modality=False, split='train'):
 
+    assert not (split != 'train' and pos_channel_replace)
+
     if prob_pos_channel_replace is None:
         prob_pos_channel_replace = 0.25  # default val
 

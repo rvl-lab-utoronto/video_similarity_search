@@ -119,7 +119,8 @@ class ResNet(nn.Module):
                  projection_head=True,
                  num_classes=101,
                  hyperbolic=False,
-                 classifier=False):
+                 classifier=False,
+                 dropout=None):
         super().__init__()
 
         block_inplanes = [int(x * widen_factor) for x in block_inplanes]
@@ -179,6 +180,7 @@ class ResNet(nn.Module):
         self.hyperbolic = hyperbolic
         self.classifier = classifier
         self.num_classes=num_classes
+        self.dropout = dropout
 
         if projection_head:
             print('==> setting up non-linear project heads')
@@ -199,7 +201,14 @@ class ResNet(nn.Module):
         
         if self.classifier:
             print('==> setting up linear layer for classification')
-            self.linear = nn.Linear(512, self.num_classes)
+            if self.dropout is not None and self.dropout > 0.0:
+                print('==> setting up Dropout layer')
+                self.linear = nn.Sequential(
+                                    nn.Dropout(dropout),
+                                    nn.Linear(512, self.num_classes))
+            else:
+                self.linear = nn.Linear(512, self.num_classes)
+            self._initialize_weights(self.linear) #CoCLR does this
 
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
@@ -244,6 +253,14 @@ class ResNet(nn.Module):
             layers.append(block(self.in_planes, planes))
 
         return nn.Sequential(*layers)
+
+    def _initialize_weights(self, module):
+        for name, param in module.named_parameters():
+            if 'bias' in name:
+                nn.init.constant_(param, 0.0)
+            elif 'weight' in name:
+                nn.init.normal_(param, mean=0.0, std=0.01)
+
 
     def forward(self, x):
         # print('forwarding in resnet module')

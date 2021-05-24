@@ -108,6 +108,7 @@ def build_spatial_transformation(cfg, split, triplets, is_master_proc=True):
         spatial_transform = [
             Resize(cfg.DATA.SAMPLE_SIZE),
             CenterCrop(cfg.DATA.SAMPLE_SIZE),
+            # CenterCrop(112), #from IIC
             ToTensor()
         ]
         spatial_transform.extend([ScaleValue(value_scale)])#, normalize])
@@ -293,17 +294,27 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
             shuffle = req_train_shuffle
         else:
             shuffle=(False if sampler else True)
-        
+
         print('Shuffle:{}'.format(shuffle))
         if split == 'train':
             if triplets:
                 batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS)
             else:  # if not in train mode can support a larger batch size
-                batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
+                if cfg.TRAIN.EVAL_BATCH_SIZE:
+                    batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
+                else:
+                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
         else:
-            batch_size = int(cfg.VAL.BATCH_SIZE)
+            if triplets:
+                batch_size = int(cfg.VAL.BATCH_SIZE)
+            else:
+                if cfg.TRAIN.EVAL_BATCH_SIZE:
+                    batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
+                else:
+                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
+
         if is_master_proc:
-            print (split, 'batch size for this process:', batch_size)
+            print(split, 'batch size for this process:', batch_size)
 
         # if drop_last == True,
         # Drop the last non-full batch of each workers dataset replica.

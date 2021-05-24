@@ -19,3 +19,6 @@ oauth2client
 apiclient
 google-api-python-client
 torchviz
+pyflann-py3
+seaborn
+pp-ez

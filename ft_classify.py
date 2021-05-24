@@ -15,9 +15,13 @@ from tensorboardX import SummaryWriter
 
 from iic_datasets.ucf101 import UCF101Dataset
 from iic_datasets.hmdb51 import HMDB51Dataset
-# from models.c3d import C3D
-# from models.r3d import R3DNet
-# from models.r21d import R2Plus1DNet
+
+import seaborn as sn
+import pandas as pd
+import matplotlib.pyplot as plt
+
+import pp
+
 
 from datasets.spatial_transforms import (RandomResizedCrop, RandomHorizontalFlip,
                                 ToTensor, ColorJitter, ColorDrop, GaussianBlur)
@@ -47,7 +51,6 @@ def train(args, model, criterion, optimizer, device, train_dataloader, writer, e
         optimizer.zero_grad()
         # forward and backward
         outputs = model(inputs) # return logits here
-        # print(targets)
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
@@ -126,14 +129,17 @@ def test_backup(args, model, criterion, device, test_dataloader):
     return avg_loss
 
 
-def test(args, model, criterion, device, test_dataloader):
+def test(args, model, criterion, device, test_dataloader, stdout=True):
     torch.set_grad_enabled(False)
     model.eval()
 
     total_loss = 0.0
     correct = 0
+    confusion_matrix = torch.zeros((101, 101))
+    # print(confusion_matrix.shape)
     for i, data in enumerate(test_dataloader, 1):
         # get inputs
+
         sampled_clips, idxs = data
         targets = idxs - 1
         targets = targets.to(device)
@@ -141,11 +147,8 @@ def test(args, model, criterion, device, test_dataloader):
         for clips in sampled_clips:
             inputs = clips.to(device)
             # forward
-            # print(inputs.shape)
             o = model(inputs)
-            # print(o.shape)
             o = torch.mean(o, dim=0)
-            # print(o.shape)
             # exit()
             outputs.append(o)
         outputs = torch.stack(outputs)
@@ -154,22 +157,62 @@ def test(args, model, criterion, device, test_dataloader):
         total_loss += loss.item()
         pts = torch.argmax(outputs, dim=1)
         correct += torch.sum(targets == pts).item()
-        print('correct: {}, {}, {}'.format(correct, targets, pts))
+
+        # (unique, count) = torch.unique(pts, return_counts=True)
+        # for i in range(len(unique)):
+        #     confusion_matrix[targets[0], unique[i]] += count[i]
+        for i in range(targets.shape[0]):
+            confusion_matrix[targets[i], pts[i]] += 1
+
+        # print(confusion_matrix[targets, pts])
+        if stdout: print('correct: {}, {}, {}'.format(correct, targets, pts))
+    
+    #plot confusion matrix
+    print(confusion_matrix)
+    confusion_matrix = confusion_matrix.numpy()
+    df_cm = pd.DataFrame(confusion_matrix, index = [i for i in range(0, 101)],
+                  columns = [i for i in range(0, 101)])
+    df_cm.to_csv("confusion_matrix.csv")
+
+    # plt.figure()
+    # sn.heatmap(df_cm, annot=True)
+    # plt.savefig('confusion_matrix.png')
+
     avg_loss = total_loss / len(test_dataloader)
     avg_acc = correct / len(test_dataloader.dataset)
     print('[TEST] loss: {:.3f}, acc: {:.3f}'.format(avg_loss, avg_acc))
     return avg_loss
 
+def run_test(args, model, device, stdout=True):
+    test_transforms = transforms.Compose([
+            transforms.Resize((128, 171)),
+            transforms.CenterCrop(128),
+            transforms.ToTensor(),
+            normalize
+        ])
+
+    if args.dataset == 'ucf101':
+        test_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101', args.cl, args.split, False, test_transforms, test_sample_num=10) #10
+    elif args.dataset == 'hmdb51':
+        test_dataset = HMDB51Dataset('/media/diskstation/datasets/HMDB51', args.cl, args.split, False, test_transforms, 10)
+
+    test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
+                            num_workers=args.workers, pin_memory=True)
+    print('TEST video number: {}.'.format(len(test_dataset)))
+    criterion = nn.CrossEntropyLoss()
+    test(args, model, criterion, device, test_dataloader, stdout=stdout) #EDIT
+    # test_backup(args, model, criterion, device, test_dataloader)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Video Classification')
     parser.add_argument('--mode', type=str, default='train', help='train/test')
     parser.add_argument('--cfg', type=str, default=None, dest="cfg_file", help='config file')
-    # parser.add_argument('--model', type=str, default='c3d', help='c3d/r3d/r21d')
+    parser.add_argument('--model', type=str, default='resnet', help='c3d/r3d/r21d')
     parser.add_argument('--dataset', type=str, default='ucf101', help='ucf101/hmdb51')
     parser.add_argument('--split', type=str, default='1', help='dataset split')
     parser.add_argument('--cl', type=int, default=16, help='clip length')
     parser.add_argument('--gpu', type=int, default=1, help='GPU id')
+    parser.add_argument('--dropout', default=0.9, type=float, help='dropout')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
     parser.add_argument('--momentum', type=float, default=9e-1, help='momentum')
     parser.add_argument('--wd', type=float, default=5e-4, help='weight decay')
@@ -182,6 +225,7 @@ def parse_args():
     parser.add_argument('--workers', type=int, default=2, help='number of data loading workers')
     parser.add_argument('--pf', type=int, default=10, help='print frequency every batch')
     parser.add_argument('--seed', type=int, default=632, help='seed for initializing training.')
+    parser.add_argument('--top_k', type=int, default=5, help='plot top k classes in confusion matrix')
     parser.add_argument(
         "opts",
         default=None,
@@ -217,18 +261,10 @@ if __name__ == '__main__':
     elif args.dataset == 'hmdb51':
         class_num = 51
 
-    # if args.model == 'c3d':
-    #     print(class_num)
-    #     model = C3D(with_classifier=True, num_classes=class_num).to(device)
-    # elif args.model == 'r3d':
-    #     model = R3DNet(layer_sizes=(1,1,1,1), with_classifier=True, num_classes=class_num).to(device)
-    # elif args.model == 'r21d':   
-    #     model = R2Plus1DNet(layer_sizes=(1,1,1,1), with_classifier=True, num_classes=class_num).to(device)
-
     cfg = get_cfg()
     if args.cfg_file is not None:
         cfg.merge_from_file(args.cfg_file)
-    model=model_selector(cfg, projection_head=False, classifier=True, num_classes=class_num)
+    model=model_selector(cfg, projection_head=False, classifier=True, dropout=args.dropout, num_classes=class_num)
 
     # define normalize (used for train/test split)
     mean, std = get_mean_std(1, dataset=cfg.TRAIN.DATASET)
@@ -245,8 +281,7 @@ if __name__ == '__main__':
 
             log_dir = os.path.dirname(args.checkpoint_path)
 
-            # if cuda:
-            model = model.cuda(device=device)
+            
 
         else:
             if args.desp:
@@ -254,7 +289,11 @@ if __name__ == '__main__':
             else:
                 exp_name = '{}_cl{}_{}'.format(args.model, args.cl, time.strftime('%m%d%H%M'))
             log_dir = os.path.join(args.log, exp_name)
+
         writer = SummaryWriter(log_dir)
+
+        model = model.cuda(device=device)
+
 
         # train_transforms = transforms.Compose([
         #     transforms.Resize((128, 171)),
@@ -273,7 +312,7 @@ if __name__ == '__main__':
             spatial_transform.append(ColorJitter(brightness=0.5, contrast=0.5,
                                                 saturation=0.5, hue=0.5, p=0.8))
             spatial_transform.append(ColorDrop(p=0.2))
-            spatial_transform.append(GaussianBlur(p=0.2))
+            # spatial_transform.append(GaussianBlur(p=0.2))
             spatial_transform.append(ToTensor())
             spatial_transform.append(normalize)
             return spatial_transform
@@ -328,6 +367,8 @@ if __name__ == '__main__':
             # save model every 10 epoches
             if epoch % 10 == 0:
                 torch.save(model.state_dict(), os.path.join(log_dir, 'model_{}.pt'.format(epoch)))
+                run_test(args, model, device, stdout=False)
+
             # save model for the best val
             if val_loss < prev_best_val_loss:
                 model_path = os.path.join(log_dir, 'best_model_{}.pt'.format(epoch))
@@ -341,22 +382,60 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(args.checkpoint_path))
         model = model.cuda(device=device)
 
-        test_transforms = transforms.Compose([
-            transforms.Resize((128, 171)),
-            transforms.CenterCrop(128),
-            transforms.ToTensor(),
-            normalize
-        ])
 
-        if args.dataset == 'ucf101':
-            test_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101', args.cl, args.split, False, test_transforms, test_sample_num=1) #10
-        elif args.dataset == 'hmdb51':
-            test_dataset = HMDB51Dataset('/media/diskstation/datasets/HMDB51', args.cl, args.split, False, test_transforms, 10)
+        run_test(args, model, device)
+        # test_transforms = transforms.Compose([
+        #     transforms.Resize((128, 171)),
+        #     transforms.CenterCrop(128),
+        #     transforms.ToTensor(),
+        #     normalize
+        # ])
 
-        test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
-                                num_workers=args.workers, pin_memory=True)
-        print('TEST video number: {}.'.format(len(test_dataset)))
-        criterion = nn.CrossEntropyLoss()
-        test(args, model, criterion, device, test_dataloader) #EDIT
+        # if args.dataset == 'ucf101':
+        #     test_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101', args.cl, args.split, False, test_transforms, test_sample_num=10) #10
+        # elif args.dataset == 'hmdb51':
+        #     test_dataset = HMDB51Dataset('/media/diskstation/datasets/HMDB51', args.cl, args.split, False, test_transforms, 10)
+
+        # test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
+        #                         num_workers=args.workers, pin_memory=True)
+        # print('TEST video number: {}.'.format(len(test_dataset)))
+        # criterion = nn.CrossEntropyLoss()
+        # test(args, model, criterion, device, test_dataloader) #EDIT
         # test_backup(args, model, criterion, device, test_dataloader)
 
+    elif args.mode == 'plot':
+
+
+        if args.dataset == 'ucf101':
+            test_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101', args.cl, args.split, False, test_sample_num=10) #10
+        elif args.dataset == 'hmdb51':
+            test_dataset = HMDB51Dataset('/media/diskstation/datasets/HMDB51', args.cl, args.split, False, 10)
+
+
+        confusion_matrix = pd.read_csv("confusion_matrix.csv")
+        confusion_matrix = confusion_matrix.to_numpy()[:,1:]
+
+        acc = np.diagonal(confusion_matrix)/np.sum(confusion_matrix, axis=1)
+        top_k = acc.argsort()[:args.top_k]
+
+        print(top_k)
+        to_print = [(test_dataset.class_idx2label[k+1], acc[k]) for k in top_k]
+        pp(to_print)
+        idx = top_k
+        for k in top_k:
+            idx = np.concatenate((idx, confusion_matrix[k,:].argsort()[::-1][:4]))
+        idx = np.unique(idx)
+
+        to_select = np.ix_(top_k, idx)
+        sub_matrix = confusion_matrix[to_select]
+        sub_matrix = pd.DataFrame(sub_matrix)
+
+        header = [x for x in test_dataset.class_idx2label[idx+1]]
+        df_cm = pd.DataFrame(sub_matrix)
+        df_cm.columns = header
+        df_cm['classes'] = [x for x in test_dataset.class_idx2label[top_k+1]]
+        df_cm.set_index("classes", inplace=True)
+        # print(df_cm)
+        plt.figure(figsize = (19,10))
+        sn.heatmap(df_cm, annot=True)
+        plt.savefig('confusion_matrix.png')

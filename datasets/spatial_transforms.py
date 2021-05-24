@@ -206,6 +206,24 @@ class Lambda:
     def __repr__(self):
         return self.__class__.__name__ + '()'
 
+class Lambda:
+    """Apply a user-defined lambda as a transform. This transform does not support torchscript.
+    Args:
+        lambd (function): Lambda/function to be used for transform.
+    """
+
+    def __init__(self, lambd):
+        if not callable(lambd):
+            raise TypeError("Argument lambd should be callable, got {}".format(repr(type(lambd).__name__)))
+        self.lambd = lambd
+
+    def __call__(self, img):
+        return self.lambd(img)
+
+    def __repr__(self):
+        return self.__class__.__name__ + '()'
+
+
 class ColorJitter(transforms.ColorJitter):
 
     def __init__(self, brightness=0.8, contrast=0.8, saturation=0.8, hue=0.5, p=0.8):
@@ -217,10 +235,8 @@ class ColorJitter(transforms.ColorJitter):
     def __call__(self, img):
         if self.randomize:
             self.apply = self.random_p < self.p
-            # self.transform = self.get_params(self.brightness, self.contrast,
-            #                                   self.saturation, self.hue)
             fn_idx, b, c, s, h = self.get_params(self.brightness, self.contrast,
-                                                self.saturation, self.hue)
+                                              self.saturation, self.hue)
             # based on pre-torch1.8 version of get_params: https://github.com/pytorch/vision/blob/2f40a483d73018ae6e1488a484c5927f2b309969/torchvision/transforms/transforms.py#L1053-L1085	
             transforms = []
             transforms.append(Lambda(lambda img: F.adjust_brightness(img, b)))

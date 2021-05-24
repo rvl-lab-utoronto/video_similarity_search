@@ -930,6 +930,14 @@ def train(args, cfg):
                 'best_prec1': best_acc,
             }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
 
+            if epoch % 200 == 0:
+                filename = 'checkpoint_{}.pth.tar'.format(epoch)
+                save_checkpoint({
+                    'epoch': epoch+1,
+                    'state_dict': state_dict,
+                    'best_prec1': best_acc,
+                }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc, filename)
+
         if args.vector:
             save_checkpoint({
                 'epoch': epoch+1,

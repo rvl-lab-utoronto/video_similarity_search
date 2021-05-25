@@ -243,7 +243,7 @@ def parse_args():
     parser.add_argument('--dropout', default=0.9, type=float, help='dropout')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
     parser.add_argument('--momentum', type=float, default=9e-1, help='momentum')
-    parser.add_argument('--wd', type=float, default=5e-4, help='weight decay')
+    parser.add_argument('--wd', type=float, default=1e-3, help='weight decay')
     parser.add_argument('--log', type=str, help='log directory')
     parser.add_argument('--checkpoint_path', type=str, help='checkpoint path')
     parser.add_argument('--desp', type=str, help='additional description')
@@ -263,6 +263,8 @@ def parse_args():
         help="See config/defaults.py for all options",
     )
     parser.add_argument('--dataset_root', type=str, default='/media/diskstation/datasets', help='ucf/hmdb dataset root path')
+    parser.add_argument('--train_mode', type=str, default='finetune', help='finetune/linear')
+    parser.add_argument('--optim', type=str, default='sgd', help='sgd/adam')
     args = parser.parse_args()
     return args
 
@@ -313,8 +315,6 @@ if __name__ == '__main__':
 
             log_dir = os.path.dirname(args.checkpoint_path)
 
-            
-
         else:
             if args.desp:
                 exp_name = '{}_cl{}_{}_{}'.format(args.model, args.cl, args.desp, time.strftime('%m%d%H%M'))
@@ -326,13 +326,55 @@ if __name__ == '__main__':
 
         model = model.cuda(device=device)
 
+        if args.train_mode == 'linear':
+            #print(model)
+
+            assert args.dropout == 0.0
+
+            print('=> [optimizer] only train last layer')
+            params = []
+            for name, param in model.named_parameters():
+                #print(name)
+                if 'linear' not in name:
+                    param.requires_grad = False
+                else:
+                    params.append({'params': param})
+
+            print('\n===========Check Grad============')
+            for name, param in model.named_parameters():
+                if param.requires_grad:
+                    print(name, param.requires_grad)
+            print('=================================\n')
+
+        elif args.train_mode == 'finetune':
+            params = []
+            print('=> [optimizer] train all layers')
+            for name, param in model.named_parameters():
+                params.append({'params': param})
+
+        else:
+            raise NotImplementedError
+
+
+        ### loss funciton, optimizer and scheduler ###
+        criterion = nn.CrossEntropyLoss()
+        #optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.wd)
+        if args.optim == 'adam':
+            print('Using adam optimizer with lr {}, wd {}'.format(args.lr, args.wd))
+            optimizer = optim.Adam(params, lr=args.lr, weight_decay=args.wd)
+        elif args.optim == 'sgd':
+            print('Using sgd optimizer with lr {}, wd {}, momen {}'.format(args.lr, args.wd, args.momentum))
+            optimizer = optim.SGD(params, lr=args.lr, weight_decay=args.wd, momentum=args.momentum)
+        else:
+            raise NotImplementedError
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', min_lr=1e-5, patience=50, factor=0.1)
+
 
         # train_transforms = transforms.Compose([
         #     transforms.Resize((128, 171)),
         #     transforms.RandomCrop(128),
         #     transforms.ToTensor()
         # ])
-
 
         def get_spatial_transforms(normalize=normalize):
             print("==> Applying augmentation & normalization")
@@ -383,10 +425,6 @@ if __name__ == '__main__':
             # for name, param in model.named_parameters():
             #     writer.add_histogram('params/{}'.format(name), param, 0)
 
-        ### loss funciton, optimizer and scheduler ###
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.wd)
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', min_lr=1e-5, patience=50, factor=0.1)
 
         prev_best_val_acc = -float('inf')
         prev_best_model_path = None

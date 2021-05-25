@@ -187,8 +187,8 @@ class ResNet(nn.Module):
             self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
             self.bn_proj = nn.BatchNorm1d(hidden_layer)
             self.fc2 = nn.Linear(hidden_layer, out_dim)
-        else:
-            self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
+        #else:
+        #    self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
 
         if self.predict_temporal_ds:
             print('==> setting up temporal ds prediction heads')

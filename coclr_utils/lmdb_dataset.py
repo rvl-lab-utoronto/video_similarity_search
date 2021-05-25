@@ -105,7 +105,6 @@ class UCF101LMDB_2CLIP(object):
                                      ['%09d'%i for i in range(len(self.db_order))]))
         # self.get_video_id = dict(zip([i for i in self.db_order], 
                                 # ['%09d'%i for i in range(len(self.db_order))])) #EDIT: removed the decode
-
         drop_idx = []
         print('filter out too short videos ...')
         for idx, row in tqdm(video_info.iterrows(), total=len(video_info), disable=True):
@@ -160,9 +159,11 @@ class UCF101LMDB_2CLIP(object):
         return np.concatenate([seq1, seq2])
 
     def __getitem__(self, index):
+        print('getting item')
         vpath, vlen, vlabel, vname = self.video_subset.iloc[index]
         env = self.env
         with env.begin(write=False) as txn:
+            # print(self.get_video_id[vname])
             raw = msgpack.loads(txn.get(self.get_video_id[vname].encode('ascii')))
         
         frame_index = self.double_sampler(vlen)

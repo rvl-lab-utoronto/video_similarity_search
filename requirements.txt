@@ -22,3 +22,6 @@ torchviz
 pyflann-py3
 seaborn
 pp-ez
+
+msgpack==0.6.2
+lmdb

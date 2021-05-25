@@ -205,7 +205,7 @@ def test(args, model, criterion, device, test_dataloader, stdout=True):
     avg_loss = total_loss / len(test_dataloader)
     avg_acc = correct / len(test_dataloader.dataset)
     print('[TEST] loss: {:.3f}, acc: {:.3f}'.format(avg_loss, avg_acc))
-    return avg_loss
+    return avg_loss, avg_acc
 
 def run_test(args, model, device, stdout=True):
     test_transforms = transforms.Compose([
@@ -216,19 +216,20 @@ def run_test(args, model, device, stdout=True):
         ])
 
     if args.dataset == 'ucf101':
-        test_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101',
+        test_dataset = UCF101Dataset(os.path.join(args.dataset_root, 'UCF101'),
                 args.cl, args.split, False, test_transforms,
                 test_sample_num=args.test_sample_num) #10
     elif args.dataset == 'hmdb51':
-        test_dataset = HMDB51Dataset('/media/diskstation/datasets/HMDB51',
+        test_dataset = HMDB51Dataset(os.path.join(args.dataset_root, 'HMDB51'),
                 args.cl, args.split, False, test_transforms, args.test_sample_num)
 
     test_dataloader = DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False,
                             num_workers=args.workers, pin_memory=True)
     print('TEST video number: {}.'.format(len(test_dataset)))
     criterion = nn.CrossEntropyLoss()
-    test(args, model, criterion, device, test_dataloader, stdout=stdout) #EDIT
+    avg_loss, avg_acc = test(args, model, criterion, device, test_dataloader, stdout=stdout) #EDIT
     # test_backup(args, model, criterion, device, test_dataloader)
+    return avg_loss, avg_acc
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Video Classification')
@@ -261,6 +262,7 @@ def parse_args():
         nargs=argparse.REMAINDER,
         help="See config/defaults.py for all options",
     )
+    parser.add_argument('--dataset_root', type=str, default='/media/diskstation/datasets', help='ucf/hmdb dataset root path')
     args = parser.parse_args()
     return args
 
@@ -351,19 +353,20 @@ if __name__ == '__main__':
 
 
         if args.dataset == 'ucf101':
-            train_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101', args.cl, args.split, True, train_transforms)
-            val_size = 800
-            train_dataset, val_dataset = random_split(train_dataset, (len(train_dataset)-val_size, val_size))
+            train_dataset = UCF101Dataset(os.path.join(args.dataset_root, 'UCF101'), args.cl, args.split, True, train_transforms)
+            #val_size = 800
+            #train_dataset, val_dataset = random_split(train_dataset, (len(train_dataset)-val_size, val_size))
         elif args.dataset == 'hmdb51':
-            train_dataset = HMDB51Dataset('/media/diskstation/datasets/HMDB51', args.cl, args.split, True, train_transforms)
-            val_size = 400
-            train_dataset, val_dataset = random_split(train_dataset, (len(train_dataset)-val_size, val_size))
+            train_dataset = HMDB51Dataset(os.path.join(args.dataset_root, 'HMDB51'), args.cl, args.split, True, train_transforms)
+            #val_size = 400
+            #train_dataset, val_dataset = random_split(train_dataset, (len(train_dataset)-val_size, val_size))
 
-        print('TRAIN video number: {}, VAL video number: {}.'.format(len(train_dataset), len(val_dataset)))
+        print('TRAIN video number: {}'.format(len(train_dataset)))
+        #print('TRAIN video number: {}, VAL video number: {}.'.format(len(train_dataset), len(val_dataset)))
         train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,
                                     num_workers=args.workers, pin_memory=True)
-        val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,
-                                    num_workers=args.workers, pin_memory=True)
+        #val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False,
+        #                            num_workers=args.workers, pin_memory=True)
 
         if args.checkpoint_path:
             pass
@@ -385,35 +388,54 @@ if __name__ == '__main__':
         optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.wd)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', min_lr=1e-5, patience=50, factor=0.1)
 
-        prev_best_val_loss = float('inf')
+        prev_best_val_acc = -float('inf')
         prev_best_model_path = None
         for epoch in range(args.start_epoch, args.start_epoch+args.epochs):
             time_start = time.time()
             train(args, model, criterion, optimizer, device, train_dataloader, writer, epoch)
             print('Epoch time: {:.2f} hr.'.format((time.time() - time_start)/3600))
-            val_loss = validate(args, model, criterion, device, val_dataloader, writer, epoch)
+            #val_loss = validate(args, model, criterion, device, val_dataloader, writer, epoch)
             # scheduler.step(val_loss)         
             writer.add_scalar('train/lr', optimizer.param_groups[0]['lr'], epoch)
-            # save model every 10 epoches
+
+            # save checkpoint
+            checkpoint_state = {
+                'epoch': epoch+1,
+                'state_dict': model.state_dict(),
+                'best_prec1': prev_best_val_acc,
+            }
+            checkpoint_path = os.path.join(log_dir, 'checkpoint.pt')
+            torch.save(checkpoint_state, checkpoint_path)
+            print('Saved checkpoint to', checkpoint_path)
+
             if epoch % 10 == 0:
                 torch.save(model.state_dict(), os.path.join(log_dir, 'model_{}.pt'.format(epoch)))
-                run_test(args, model, device, stdout=False)
+                avg_loss, avg_acc = run_test(args, model, device, stdout=False)
+
+                if avg_acc > prev_best_val_acc:
+                    model_path = os.path.join(log_dir, 'best_model_{}.pt'.format(epoch))
+                    torch.save(model.state_dict(), model_path)
+                    print('saved best model to', model_path)
+                    prev_best_val_acc = avg_acc
+                    if prev_best_model_path:
+                        os.remove(prev_best_model_path)
+                    prev_best_model_path = model_path
 
             # save model for the best val
-            if val_loss < prev_best_val_loss:
-                model_path = os.path.join(log_dir, 'best_model_{}.pt'.format(epoch))
-                torch.save(model.state_dict(), model_path)
-                prev_best_val_loss = val_loss
-                if prev_best_model_path:
-                    os.remove(prev_best_model_path)
-                prev_best_model_path = model_path
+            #if val_loss < prev_best_val_loss:
+            #    model_path = os.path.join(log_dir, 'best_model_{}.pt'.format(epoch))
+            #    torch.save(model.state_dict(), model_path)
+            #    prev_best_val_loss = val_loss
+            #    if prev_best_model_path:
+            #        os.remove(prev_best_model_path)
+            #    prev_best_model_path = model_path
 
     elif args.mode == 'test':  ########### Test #############
         model.load_state_dict(torch.load(args.checkpoint_path))
         model = model.cuda(device=device)
 
 
-        run_test(args, model, device)
+        avg_loss, avg_acc = run_test(args, model, device)
         # test_transforms = transforms.Compose([
         #     transforms.Resize((128, 171)),
         #     transforms.CenterCrop(128),
@@ -437,11 +459,11 @@ if __name__ == '__main__':
 
 
         if args.dataset == 'ucf101':
-            test_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101',
+            test_dataset = UCF101Dataset(os.path.join(args.dataset_root, 'UCF101'),
                     args.cl, args.split, False,
                     test_sample_num=args.test_sample_num) #10
         elif args.dataset == 'hmdb51':
-            test_dataset = HMDB51Dataset('/media/diskstation/datasets/HMDB51',
+            test_dataset = HMDB51Dataset(os.path.join(args.dataset_root,'HMDB51'),
                     args.cl, args.split, False, args.test_sample_num)
 
 

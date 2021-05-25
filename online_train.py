@@ -946,7 +946,6 @@ def train(args, cfg):
             }, is_best, cfg.MODEL.ARCH, args.checkpoint_path, is_master_proc)
 
 
-
 if __name__ == '__main__':
 
     torch.manual_seed(7)

@@ -20,3 +20,4 @@ test_evaluate/*
 optical_llc_contd.sh
 *.npy
 *topk_correct.json
+*.log

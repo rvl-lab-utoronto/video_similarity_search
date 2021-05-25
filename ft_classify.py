@@ -144,13 +144,34 @@ def test(args, model, criterion, device, test_dataloader, stdout=True):
         targets = idxs - 1
         targets = targets.to(device)
         outputs = []
-        for clips in sampled_clips:
-            inputs = clips.to(device)
-            # forward
-            o = model(inputs)
+
+        # stack, forward pass, and divide
+
+        batch_size = sampled_clips.shape[0]
+        num_test_samples = sampled_clips.shape[1]
+
+        sampled_clips = sampled_clips.reshape((sampled_clips.shape[0]*sampled_clips.shape[1],sampled_clips.shape[2],
+            sampled_clips.shape[3], sampled_clips.shape[4], sampled_clips.shape[5]))
+
+        if i == 1:
+            print(sampled_clips.shape)
+
+        stacked_inputs = sampled_clips.to(device)
+        stacked_o = model(stacked_inputs)
+        for j in range(batch_size):
+            o = stacked_o[j*num_test_samples:(j+1)*num_test_samples]
             o = torch.mean(o, dim=0)
-            # exit()
             outputs.append(o)
+
+        #for clips in sampled_clips:
+        #    inputs = clips.to(device)
+        #    # forward
+        #    #print(inputs.shape)
+        #    o = model(inputs)
+        #    o = torch.mean(o, dim=0)
+        #    # exit()
+        #    outputs.append(o)
+
         outputs = torch.stack(outputs)
         loss = criterion(outputs, targets)
         # compute loss and acc
@@ -161,11 +182,14 @@ def test(args, model, criterion, device, test_dataloader, stdout=True):
         # (unique, count) = torch.unique(pts, return_counts=True)
         # for i in range(len(unique)):
         #     confusion_matrix[targets[0], unique[i]] += count[i]
-        for i in range(targets.shape[0]):
-            confusion_matrix[targets[i], pts[i]] += 1
+        for j in range(targets.shape[0]):
+            confusion_matrix[targets[j], pts[j]] += 1
 
         # print(confusion_matrix[targets, pts])
-        if stdout: print('correct: {}, {}, {}'.format(correct, targets, pts))
+        #if stdout: print('{}/{} | correct: {}, {}, {}'.format(i,
+        #    len(test_dataloader), correct, targets, pts))
+        if stdout: print('{}/{} | correct: {}'.format(i,
+            len(test_dataloader), correct))
     
     #plot confusion matrix
     print(confusion_matrix)
@@ -192,11 +216,14 @@ def run_test(args, model, device, stdout=True):
         ])
 
     if args.dataset == 'ucf101':
-        test_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101', args.cl, args.split, False, test_transforms, test_sample_num=10) #10
+        test_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101',
+                args.cl, args.split, False, test_transforms,
+                test_sample_num=args.test_sample_num) #10
     elif args.dataset == 'hmdb51':
-        test_dataset = HMDB51Dataset('/media/diskstation/datasets/HMDB51', args.cl, args.split, False, test_transforms, 10)
+        test_dataset = HMDB51Dataset('/media/diskstation/datasets/HMDB51',
+                args.cl, args.split, False, test_transforms, args.test_sample_num)
 
-    test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
+    test_dataloader = DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False,
                             num_workers=args.workers, pin_memory=True)
     print('TEST video number: {}.'.format(len(test_dataset)))
     criterion = nn.CrossEntropyLoss()
@@ -226,6 +253,8 @@ def parse_args():
     parser.add_argument('--pf', type=int, default=10, help='print frequency every batch')
     parser.add_argument('--seed', type=int, default=632, help='seed for initializing training.')
     parser.add_argument('--top_k', type=int, default=5, help='plot top k classes in confusion matrix')
+    parser.add_argument('--test_sample_num', type=int, default=10, help='number of clips to sample per video in test mode')
+    parser.add_argument('--test_batch_size', type=int, default=8, help='mini-batch size')
     parser.add_argument(
         "opts",
         default=None,
@@ -264,7 +293,8 @@ if __name__ == '__main__':
     cfg = get_cfg()
     if args.cfg_file is not None:
         cfg.merge_from_file(args.cfg_file)
-    model=model_selector(cfg, projection_head=False, classifier=True, dropout=args.dropout, num_classes=class_num)
+    model=model_selector(cfg, projection_head=False, classifier=True, dropout=args.dropout, 
+            num_classes=class_num)
 
     # define normalize (used for train/test split)
     mean, std = get_mean_std(1, dataset=cfg.TRAIN.DATASET)
@@ -360,7 +390,7 @@ if __name__ == '__main__':
         for epoch in range(args.start_epoch, args.start_epoch+args.epochs):
             time_start = time.time()
             train(args, model, criterion, optimizer, device, train_dataloader, writer, epoch)
-            print('Epoch time: {:.2f} s.'.format(time.time() - time_start))
+            print('Epoch time: {:.2f} hr.'.format((time.time() - time_start)/3600))
             val_loss = validate(args, model, criterion, device, val_dataloader, writer, epoch)
             # scheduler.step(val_loss)         
             writer.add_scalar('train/lr', optimizer.param_groups[0]['lr'], epoch)
@@ -407,9 +437,12 @@ if __name__ == '__main__':
 
 
         if args.dataset == 'ucf101':
-            test_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101', args.cl, args.split, False, test_sample_num=10) #10
+            test_dataset = UCF101Dataset('/media/diskstation/datasets/UCF101',
+                    args.cl, args.split, False,
+                    test_sample_num=args.test_sample_num) #10
         elif args.dataset == 'hmdb51':
-            test_dataset = HMDB51Dataset('/media/diskstation/datasets/HMDB51', args.cl, args.split, False, 10)
+            test_dataset = HMDB51Dataset('/media/diskstation/datasets/HMDB51',
+                    args.cl, args.split, False, args.test_sample_num)
 
 
         confusion_matrix = pd.read_csv("confusion_matrix.csv")

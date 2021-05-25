@@ -110,6 +110,8 @@ _C.DATA.SAMPLE_DURATION = 8
 # Input frame channel dimension.
 _C.DATA.INPUT_CHANNEL_NUM = 3
 
+#select ['center', 'random', 'avg'] for temporal cropping in data preprocessing
+_C.DATA.TEMPORAL_CROP='random'
 
 # -----------------------------------------------------------------------------
 # Loss Options

@@ -3,7 +3,7 @@
 #SBATCH --time=2-20:10:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=resnet_ucf_mask_iterclusterlr0.05
+#SBATCH --job-name=resnet_ucf_mask_iterclusterlr0.01
 #SBATCH --output=%x-%j.out
 #SBATCH --gres=gpu:v100l:4
 #SBATCH --mem=48G
@@ -34,7 +34,7 @@ srun python /home/cheny257/projects/def-florian7/cheny257/code/video_similarity_
 --cfg '/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_search/config/custom_configs/cc_resnet_ucf_itercluster_mask.yaml' \
 --gpu 0,1,2,3 \
 --num_data_workers 4 \
---batch_size 40 \
+--batch_size 120 \
 --output '/home/cheny257/projects/def-florian7/cheny257/output/resnet_ucf_mask_itercluster_lr0.05' \
 --checkpoint_path '/home/cheny257/projects/def-florian7/cheny257/output/resnet_ucf_mask_itercluster_lr0.05/tnet_checkpoints/3dresnet/checkpoint.pth.tar' \
 --num_shards 2 \

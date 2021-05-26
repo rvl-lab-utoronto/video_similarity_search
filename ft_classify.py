@@ -379,7 +379,16 @@ if __name__ == '__main__':
                 prev_best_model_path = model_path
 
     elif args.mode == 'test':  ########### Test #############
-        model.load_state_dict(torch.load(args.checkpoint_path))
+        try:
+            model.load_state_dict(torch.load(args.checkpoint_path))
+        except Exception as e:
+            print('==> model loading failed, trying again!')
+            checkpoint = torch.load(args.checkpoint_path, map_location=torch.device('cpu'))
+            epoch = checkpoint['epoch']
+            state_dict = checkpoint['state_dict']
+            # state_dict = checkpoint
+            model.load_state_dict(state_dict)
+
         model = model.cuda(device=device)
 
 

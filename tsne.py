@@ -19,6 +19,7 @@ import pickle as pkl
 from models.s3d.select_backbone import select_backbone
 from coclr_utils.utils import neq_load_customized
 from coclr_utils.classifier import LinearClassifier
+import torch.nn.functional as F 
 
 if __name__ == '__main__':
     args = arg_parser().parse_args()
@@ -46,7 +47,10 @@ if __name__ == '__main__':
     split = 'train'
 
     ################
-    feature_dir = 'tsne_feature_dir'
+    feature_dir = 'tsne_proj_feature_dir'
+
+    if not os.path.exists(feature_dir):
+        os.makedirs(feature_dir)
 
     embeddings_pkl = os.path.join(feature_dir, '{}_embeddings.pkl'.format(split))
     idxs_pkl = os.path.join(feature_dir, '{}_idxs.pkl'.format(split))
@@ -90,10 +94,10 @@ if __name__ == '__main__':
             #print(model_without_dp)
 
         else:
-            model=model_selector(cfg, projection_head=False, classifier=False)
+            model=model_selector(cfg, projection_head=True, classifier=False)
             #print(model)
             #exit()
-            start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, classifier=True)
+            start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, classifier=False)
             model = model.cuda(device=device)
             print("start_epoch:{}, best_acc:{}".format(start_epoch, best_acc))
 
@@ -135,6 +139,16 @@ if __name__ == '__main__':
 
     print(len(set(labels)))
 
+    #######
+
+
+    if cfg.MODEL.ARCH == 'coclr':
+        print('normalizing embeddings')
+        embeddings = F.normalize(embeddings, p=2, dim=1)
+
+
+    #####
+
     X = embeddings
     y = labels
 
@@ -143,6 +157,7 @@ if __name__ == '__main__':
     feat_cols = [ 'pixel'+str(i) for i in range(X.shape[1]) ]
     df = pd.DataFrame(X,columns=feat_cols)
     df['y'] = y
+    #df['style'] = y%2
     #df['label'] = df['y'].apply(lambda i: str(i))
     #df['label'] = df['y'].apply(lambda i: label_to_class_map[i])
     df['label'] = labels
@@ -190,13 +205,16 @@ if __name__ == '__main__':
     sns.scatterplot(
         x="tsne-2d-one", y="tsne-2d-two",
         hue="label",
+        style="label",
+        s=100,
         palette=sns.color_palette("hls", N_CLASS_SUBSET),
+        #palette=sns.color_palette("husl", N_CLASS_SUBSET),
         data=df_subset,
-        legend="full",
-        alpha=0.3
+        legend="brief",
+        alpha=1.0
     )
 
-    plt.savefig('tsne_{}.png'.format(split), dpi=300)
+    plt.savefig('tsne_proj_{}_tight.png'.format(split), dpi=300, bbox_inches ='tight')
     #plt.show()
 
     #print(X_embedded.shape)

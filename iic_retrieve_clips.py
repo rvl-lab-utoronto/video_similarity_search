@@ -201,12 +201,13 @@ def extract_feature(args, split='train'):
             normalize
         ])
         if args.dataset == 'ucf101':
-            train_dataset = UCF101ClipRetrievalDataset('/media/synology/datasets/UCF101', args.cl, 10, True, train_transforms)
+            train_dataset = UCF101ClipRetrievalDataset('/media/diskstation/datasets/UCF101', args.cl, 10, True, train_transforms)
         elif args.dataset == 'hmdb51':
-            train_dataset = HMDB51ClipRetrievalDataset('/media/synology/datasets/HMDB51', args.cl, 10, True, train_transforms)
+            train_dataset = HMDB51ClipRetrievalDataset('/media/diskstation/datasets/HMDB51', args.cl, 10, True, train_transforms)
 
         train_dataloader = DataLoader(train_dataset, batch_size=args.bs, shuffle=False,
-                                        num_workers=args.workers, pin_memory=True, drop_last=True)
+                                        num_workers=args.workers,
+                                        pin_memory=True, drop_last=True)
         
         features = []
         classes = []
@@ -238,11 +239,12 @@ def extract_feature(args, split='train'):
             normalize
         ])
         if args.dataset == 'ucf101':
-            test_dataset = UCF101ClipRetrievalDataset('/media/synology/datasets/UCF101', args.cl, 10, False, test_transforms)
+            test_dataset = UCF101ClipRetrievalDataset('/media/diskstation/datasets/UCF101', args.cl, 10, False, test_transforms)
         elif args.dataset == 'hmdb51':
-            test_dataset = HMDB51ClipRetrievalDataset('/media/synology/datasets/HMDB51', args.cl, 10, False, test_transforms)
+            test_dataset = HMDB51ClipRetrievalDataset('/media/diskstation/datasets/HMDB51', args.cl, 10, False, test_transforms)
         test_dataloader = DataLoader(test_dataset, batch_size=args.bs, shuffle=False,
-                                        num_workers=args.workers, pin_memory=True, drop_last=True)
+                                        num_workers=args.workers,
+                                        pin_memory=True, drop_last=True)
 
         features = []
         classes = []

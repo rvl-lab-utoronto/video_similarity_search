@@ -184,6 +184,7 @@ def main(args):
                 print(name, args.lr/10)
                 params.append({'params': param, 'lr': args.lr/10})
             else:
+                print(name, args.lr)
                 params.append({'params': param})
             # params.append({'params': param})
 
@@ -235,7 +236,7 @@ def main(args):
             checkpoint = torch.load(args.checkpoint_path, map_location=torch.device('cpu'))
             epoch = checkpoint['epoch']
             state_dict = checkpoint['state_dict']
-            
+
             # epoch = args.start_epoch
             # state_dict = checkpoint
 
@@ -662,7 +663,8 @@ def test_retrieval(model, criterion, transforms_cuda, device, epoch, args):
                             transform=transform, 
                             num_frames=args.num_seq*args.seq_len,
                             ds=args.ds,
-                            which_split=1,
+                            # which_split=1,
+                            which_split=args.which_split,
                             return_label=True,
                             return_path=True)
         print('train dataset size: %d' % len(train_dataset))
@@ -671,7 +673,8 @@ def test_retrieval(model, criterion, transforms_cuda, device, epoch, args):
                             transform=transform, 
                             num_frames=args.num_seq*args.seq_len,
                             ds=args.ds,
-                            which_split=1,
+                            # which_split=1,
+                            which_split=args.which_split,
                             return_label=True,
                             return_path=True)
         print('test dataset size: %d' % len(test_dataset))

@@ -120,6 +120,7 @@ class ResNet(nn.Module):
                  num_classes=101,
                  hyperbolic=False,
                  classifier=False,
+                 use_l2_norm=False,
                  dropout=None):
         super().__init__()
 
@@ -181,14 +182,22 @@ class ResNet(nn.Module):
         self.classifier = classifier
         self.num_classes=num_classes
         self.dropout = dropout
+        self.use_l2_norm = use_l2_norm
 
+        self.output_dim = 512
+
+        
         if projection_head:
             print('==> setting up non-linear project heads')
             self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
             self.bn_proj = nn.BatchNorm1d(hidden_layer)
             self.fc2 = nn.Linear(hidden_layer, out_dim)
+            self.output_dim=out_dim
         else:
             self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
+
+        if self.use_l2_norm:
+            print('==> use l2 norm:{}'.format(self.use_l2_norm))
 
         if self.predict_temporal_ds:
             print('==> setting up temporal ds prediction heads')
@@ -200,14 +209,15 @@ class ResNet(nn.Module):
             self.e2p = ToPoincare(c=1.0, train_c=False, train_x=False)
         
         if self.classifier:
-            print('==> setting up linear layer for classification')
+            print('==> setting up linear layer for classification with input dimension:{}'.format(self.output_dim))
+        
             if self.dropout is not None and self.dropout > 0.0:
                 print('==> setting up Dropout layer')
                 self.linear = nn.Sequential(
                                     nn.Dropout(dropout),
-                                    nn.Linear(512, self.num_classes))
+                                    nn.Linear(self.output_dim, self.num_classes))
             else:
-                self.linear = nn.Linear(512, self.num_classes)
+                self.linear = nn.Linear(self.output_dim, self.num_classes)
             self._initialize_weights(self.linear) #CoCLR does this
 
         for m in self.modules():
@@ -301,12 +311,14 @@ class ResNet(nn.Module):
         x = x.view(x.size(0), -1)
         # x = self.fc(x)
         #add projection head
+        output = x
         if self.projection_head:
             #add batchnorm layer
             h = self.fc1(x)
             h = self.bn_proj(h)
             h = self.relu(h)
             h = self.fc2(h)
+            output = h
         
         if self.hyperbolic:
             h = self.e2p(h)
@@ -315,9 +327,14 @@ class ResNet(nn.Module):
             predicted_ds = self.temporal_ds_linear(x)
             return h, predicted_ds
 
-        if self.classifier:
-            x = x.view(-1, 512)
-            h = self.linear(x)
+        if self.classifier:        
+            # print('output shape', output.shape)
+            output = output.view(-1, self.output_dim)
+    
+            if self.use_l2_norm:
+                output = F.normalize(output, p=2, dim=1)
+            # print(output.shape)
+            h = self.linear(output)
         return h
 
 

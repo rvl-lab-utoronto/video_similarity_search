@@ -64,7 +64,9 @@ def parse_args():
     parser.add_argument('--print_freq', default=5, type=int, help='frequency of printing output during training')
     parser.add_argument('--eval_freq', default=1, type=int)
     parser.add_argument('--reset_lr', action='store_true', help='Reset learning rate when resume training?')
-    
+    parser.add_argument('--use_l2_norm', action='store_true')
+    parser.add_argument('--use_projection_head', action='store_true')
+
     parser.add_argument('--prefix', default='linclr', type=str)
     parser.add_argument('-j', '--workers', default=8, type=int)
     parser.add_argument('--cos', action='store_true', help='use cosine lr schedule')
@@ -159,7 +161,7 @@ def main(args):
     cfg = get_cfg()
     if args.cfg_file is not None:
         cfg.merge_from_file(args.cfg_file)
-    model=model_selector(cfg, projection_head=False, classifier=True, dropout=args.dropout, num_classes=class_num)
+    model=model_selector(cfg, projection_head=args.use_projection_head, classifier=True, dropout=args.dropout, use_l2_norm=args.use_l2_norm, num_classes=class_num)
 
     model.to(device)
 
@@ -177,12 +179,14 @@ def main(args):
         print('=> [optimizer] finetune backbone with smaller lr')
         params = []
         for name, param in model.named_parameters():
-            # print(name)
-            if 'layer' in name:
+            print(name, args.lr)
+            if 'linear' not in name:
                 print(name, args.lr/10)
                 params.append({'params': param, 'lr': args.lr/10})
             else:
                 params.append({'params': param})
+            # params.append({'params': param})
+
     
     else: # train all
         params = []
@@ -198,8 +202,10 @@ def main(args):
         print('=================================\n')
 
     if args.optim == 'adam':
+        print('==> using Adam optimizer')
         optimizer = optim.Adam(params, lr=args.lr, weight_decay=args.wd)
     elif args.optim == 'sgd':
+        print('==> using SDG optimizer')
         optimizer = optim.SGD(params, lr=args.lr, weight_decay=args.wd, momentum=0.9)
     else:
         raise NotImplementedError
@@ -819,7 +825,8 @@ def adjust_learning_rate(optimizer, epoch, args):
     ratio = 0.1 if epoch in args.schedule else 1.
     for param_group in optimizer.param_groups:
         param_group['lr'] = param_group['lr'] * ratio
-
+    if epoch in args.schedule:
+        print('==> reducing lr by 0.1')
 
 def get_transform(mode, args):
     if mode == 'train':

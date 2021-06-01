@@ -187,8 +187,8 @@ class ResNet(nn.Module):
             self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
             self.bn_proj = nn.BatchNorm1d(hidden_layer)
             self.fc2 = nn.Linear(hidden_layer, out_dim)
-        else:
-            self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
+        #else:
+        #    self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
 
         if self.predict_temporal_ds:
             print('==> setting up temporal ds prediction heads')
@@ -318,7 +318,11 @@ class ResNet(nn.Module):
         if self.classifier:
             x = x.view(-1, 512)
             h = self.linear(x)
-        return h
+
+        if self.projection_head or self.hyperbolic or self.classifier:
+            return h
+        else:
+            return x
 
 
 ## channel-temporal + spatio-temporal attention

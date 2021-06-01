@@ -3,6 +3,11 @@ Created by Sherry Chen on Jul 3, 2020
 Build and Train Triplet network. Supports saving and loading checkpoints,
 """
 
+#def warn(*args, **kwargs):
+#        pass
+#import warnings
+#warnings.warn = warn
+
 import sys, os
 #import gc
 import numpy as np
@@ -667,8 +672,15 @@ def train(args, cfg):
         return model
 
     # Load similarity network checkpoint if path exists
-    if args.checkpoint_path is not None:
-        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
+
+    if args.vector:
+        load_path = "tnet_checkpoints/%s/checkpoint.pth.tar"%(cfg.MODEL.ARCH)
+        load_path = os.path.join(args.checkpoint_path, load_path)
+    else:
+        load_path = args.checkpoint_path
+
+    if args.checkpoint_path is not None and os.path.exists(load_path):
+        start_epoch, best_acc = load_checkpoint(model, load_path, is_master_proc)
 
     if cuda:
         model = DDP(model)
@@ -910,32 +922,47 @@ def train(args, cfg):
                 best_acc = max(top1_acc, best_acc)
 
         # Save checkpoint
-        if epoch % 200 == 0:
-            filename = 'checkpoint_{}.pth.tar'.format(epoch)
-        else:
-            filename = 'checkpoint.pth.tar'
 
         if torch.cuda.device_count() > 1:
-            save_checkpoint({
-                'epoch': epoch+1,
-                'state_dict':model.module.state_dict(),
-                'best_prec1': best_acc,
-            }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc, filename=filename)
+            state_dict = model.module.state_dict()
         else:
+            state_dict = model.state_dict()
+
+        if not args.vector or (args.vector and (epoch % 100 == 0 or is_best or epoch == cfg.TRAIN.EPOCHS - 1)):
             save_checkpoint({
                 'epoch': epoch+1,
-                'state_dict':model.state_dict(),
+                'state_dict': state_dict,
                 'best_prec1': best_acc,
-            }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc, filename=filename)
+            }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
+
+            if epoch % 200 == 0:
+                filename = 'checkpoint_{}.pth.tar'.format(epoch)
+                save_checkpoint({
+                    'epoch': epoch+1,
+                    'state_dict': state_dict,
+                    'best_prec1': best_acc,
+                }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc, filename)
+
+        if args.vector:
+            save_checkpoint({
+                'epoch': epoch+1,
+                'state_dict': state_dict,
+                'best_prec1': best_acc,
+            }, is_best, cfg.MODEL.ARCH, args.checkpoint_path, is_master_proc)
 
 
 if __name__ == '__main__':
 
     torch.manual_seed(7)
+    np.random.seed(7)
+    torch.cuda.manual_seed_all(7)
 
     print ('\n==> Parsing parameters:')
     args = arg_parser().parse_args()
     cfg = load_config(args)
+
+    if args.vector:
+        assert args.checkpoint_path is not None
 
     # If iteratively clustering, overwrite the cluster_path
     print('Iteratively clustering?: {}, warmup epochs = {}'.format(args.iterative_cluster,

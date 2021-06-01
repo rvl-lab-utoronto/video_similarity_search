@@ -3,8 +3,8 @@ TRAIN:
 
 DATASET:
     VID_PATH: ./jpg
-    ANNOTATION_PATH: /home/salar77h/projects/def-florian7/datasets/UCF101/json/ucf101_01.json
-    #CLUSTER_PATH: '/home/salar77h/projects/def-florian7/datasets/UCF101/vid_clusters.txt'
+    ANNOTATION_PATH: /home/salar77h/projects/def-florian7/datasets/UCF101/flow_json/ucf101_01.json
+    CLUSTER_PATH: '/home/salar77h/projects/def-florian7/datasets/UCF101/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'
@@ -12,7 +12,7 @@ DATASET:
     SAMPLING_STRATEGY: 'random_semi_hard'
     POSITIVE_SAMPLING_P: 0.2
 
-    #POS_CHANNEL_REPLACE: True
+    POS_CHANNEL_REPLACE: True
     CHANNEL_EXTENSIONS: 'optical_u'
     OPTICAL_U_PATH: tvl1_flow/u
 
@@ -32,11 +32,15 @@ RESNET:
 DATA:
     SAMPLE_SIZE: 128
     SAMPLE_DURATION: 16
-    INPUT_CHANNEL_NUM: 4
+    INPUT_CHANNEL_NUM: 3
 
 LOSS:
     MARGIN: 0.2
+    LOCAL_LOCAL_CONTRAST: True
 
 OPTIM:
     LR: 0.1
     MOMENTUM: 0.5
+
+ITERCLUSTER:
+    METHOD: 'finch'

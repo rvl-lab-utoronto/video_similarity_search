@@ -22,6 +22,7 @@ torchviz
 pyflann-py3
 seaborn
 pp-ez
-
+tensorboardX
 msgpack==0.6.2
 lmdb
+scikit-video

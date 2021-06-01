@@ -123,13 +123,18 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
         num_plots += 2
 
     # print(top1_5_epoch)
-    f = plt.figure(figsize=(18,5))
+    f = plt.figure(figsize=(22,6))
+    #f = plt.figure()
+
+    #font = {'size':20}
+    #plt.rc('font', **font)
+
     ax1 =  plt.subplot(1, num_plots, 1)
     ax1.plot(np.arange(len(train_losses)), train_losses)
     ax1.plot(np.arange(len(val_losses)), val_losses)
     ax1.set_xlabel('Epoch')
-    ax1.set_ylabel('Loss')
-    ax1.set_title('Train/Val Loss vs. Epoch')
+    ax1.set_ylabel('Training Loss')
+    ax1.set_title('Training Curve')
     ax1.legend(['Training', 'Validation'])
 
     ax2 = plt.subplot(1, num_plots, 2)
@@ -139,6 +144,7 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     ax2.set_ylabel('Accuracy (%)')
     ax2.set_title('Val Triplet Acc vs. Epoch')
     #ax2.legend(['Training', 'Validation'])
+    plt.grid()
 
     ax3 = plt.subplot(1, num_plots, 3)
     # ax3.plot(np.arange(len(top1_acc)), top1_acc)
@@ -146,9 +152,10 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     ax3.plot(top1_5_epoch, global_top1_acc)
     ax3.plot(top1_5_epoch, global_top5_acc)
     ax3.set_xlabel('Epoch')
-    ax3.set_ylabel('Accuracy (%)')
-    ax3.set_title('Val Top 1/5 Retrieval Acc vs. Epoch')
-    ax3.legend(['Top1', 'Top5'])
+    ax3.set_ylabel('Top-k Retrieval Accuracy (%)')
+    ax3.set_title('Top-1/5 Retrieval Accuracy')
+    ax3.legend(['Top-1', 'Top-5'])
+    plt.grid()
 
     if (os.path.exists(os.path.join(result_dir, nmi_progress_file))):
 
@@ -157,8 +164,8 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
         ax4 = plt.subplot(1, num_plots, 4)
         ax4.plot(cluster_interval*np.arange(len(nmis)), nmis)
         ax4.set_xlabel('Epoch')
-        ax4.set_ylabel('Cluster Assignment vs True Label NMI')
-        ax4.set_title('NMI vs. Epoch')
+        ax4.set_ylabel('NMI - Cluster Assign. / Labels')
+        ax4.set_title('Clustering Quality')
 
         ax5 = plt.subplot(1, num_plots, 5)
         ax5.plot(cluster_interval*np.arange(len(amis)), amis)
@@ -166,8 +173,10 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
         ax5.set_ylabel('Cluster Assignment vs True Label AMI')
         ax5.set_title('AMI vs. Epoch')
 
+    plt.grid()
+
     plot_name = '{}_train_val_loss.png'.format(name)
-    f.savefig(plot_name)
+    f.savefig(plot_name, bbox_inches ='tight')
     print('plots saved to:{}'.format(plot_name))
     if service:
         service.upload_file_to_gdrive(plot_name, 'evaluate')

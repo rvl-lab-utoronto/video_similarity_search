@@ -263,7 +263,7 @@ def parse_args():
         help="See config/defaults.py for all options",
     )
     parser.add_argument('--dataset_root', type=str, default='/media/diskstation/datasets', help='ucf/hmdb dataset root path')
-    parser.add_argument('--train_mode', type=str, default='finetune', help='finetune/linear')
+    parser.add_argument('--train_mode', type=str, default='finetune', help='finetune/linear/finetune_hybrid')
     parser.add_argument('--optim', type=str, default='sgd', help='sgd/adam')
     args = parser.parse_args()
     return args
@@ -351,6 +351,15 @@ if __name__ == '__main__':
             print('=> [optimizer] train all layers')
             for name, param in model.named_parameters():
                 params.append({'params': param})
+
+        elif args.train_mode == 'finetune_hybrid':
+            print('=> [optimizer] finetune backbone with smaller lr')
+            params = []
+            for name, param in model.named_parameters():
+                if 'linear' not in name:
+                    params.append({'params': param, 'lr': args.lr/10})
+                else:
+                    params.append({'params': param})
 
         else:
             raise NotImplementedError
@@ -469,7 +478,16 @@ if __name__ == '__main__':
             #    prev_best_model_path = model_path
 
     elif args.mode == 'test':  ########### Test #############
-        model.load_state_dict(torch.load(args.checkpoint_path))
+        try:
+            model.load_state_dict(torch.load(args.checkpoint_path))
+        except Exception as e:
+            print('==> model loading failed, trying again!')
+            checkpoint = torch.load(args.checkpoint_path, map_location=torch.device('cpu'))
+            epoch = checkpoint['epoch']
+            state_dict = checkpoint['state_dict']
+            # state_dict = checkpoint
+            model.load_state_dict(state_dict)
+
         model = model.cuda(device=device)
 
 

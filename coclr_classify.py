@@ -53,7 +53,8 @@ def parse_args():
     parser.add_argument('--batch_size', default=32, type=int, help='batch size per GPU')
     parser.add_argument('--optim', default='adam', type=str)
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
-    parser.add_argument('--schedule', default=[60, 80], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
+    parser.add_argument('--schedule', default=[], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
+    #parser.add_argument('--schedule', default=[60, 80], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
     parser.add_argument('--wd', default=1e-3, type=float, help='weight decay')
     parser.add_argument('--dropout', default=0.9, type=float, help='dropout')
     parser.add_argument('--epochs', default=10, type=int, help='number of total epochs to run')
@@ -82,39 +83,40 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-# Load model checkpoint from the specified path
-def load_checkpoint(model, checkpoint_path, classifier=False, is_master_proc=True):
-    if os.path.isfile(checkpoint_path):
-        if (is_master_proc):
-            print("=> loading checkpoint '{}'".format(checkpoint_path))
-        checkpoint = torch.load(checkpoint_path)
-        start_epoch = checkpoint['epoch']
-        best_prec1 = checkpoint['best_prec1']
-        state_dict = checkpoint['state_dict']
+# # Load model checkpoint from the specified path
+# def load_checkpoint(model, checkpoint_path, classifier=False, is_master_proc=True):
+#     if os.path.isfile(checkpoint_path):
+#         if (is_master_proc):
+#             print("=> loading checkpoint '{}'".format(checkpoint_path))
+#         checkpoint = torch.load(checkpoint_path)
+#         start_epoch = checkpoint['epoch']
+#         best_prec1 = checkpoint['best_prec1']
+#         state_dict = checkpoint['state_dict']
 
-        # create new OrderedDict that does not contain `module.`
-        from collections import OrderedDict
-        new_state_dict = OrderedDict()
-        for k, v in state_dict.items(): #edit
-            if 'module.' in k:
-                name = k[7:] # remove `module.`
-                new_state_dict[name] = v
-            elif classifier and ('fc' in k or 'bn_proj' in k):
-                continue
-            else:
-                new_state_dict[k] = v
-        # load params
-        if classifier:
-            model.load_state_dict(new_state_dict, strict=False)
-        else:
-            model.load_state_dict(new_state_dict)
+#         # new_state_dict=state_dict
+#         # create new OrderedDict that does not contain `module.`
+#         from collections import OrderedDict
+#         new_state_dict = OrderedDict()
+#         for k, v in state_dict.items(): #edit
+#             if 'module.' in k:
+#                 name = k[7:] # remove `module.`
+#                 new_state_dict[name] = v
+#             elif classifier and ('fc' in k or 'bn_proj' in k):
+#                 continue
+#             else:
+#                 new_state_dict[k] = v
+#         # load params
+#         if classifier:
+#             model.load_state_dict(new_state_dict, strict=True)
+#         else:
+#             model.load_state_dict(new_state_dict)
 
-        if (is_master_proc):
-            print("=> loaded checkpoint '{}' (epoch {})".format(checkpoint_path, checkpoint['epoch']))
-    else:
-        if (is_master_proc):
-            print("=> no checkpoint found at '{}'".format(checkpoint_path))
-    return start_epoch, best_prec1
+#         if (is_master_proc):
+#             print("=> loaded checkpoint '{}' (epoch {})".format(checkpoint_path, checkpoint['epoch']))
+#     else:
+#         if (is_master_proc):
+#             print("=> no checkpoint found at '{}'".format(checkpoint_path))
+#     return start_epoch, best_prec1
 
 
 def main(args):
@@ -141,7 +143,8 @@ def main(args):
     args.num_class = num_class_dict[args.dataset]
 
     if args.train_what == 'last': # for linear probe
-        args.final_bn = True 
+        #args.final_bn = True 
+        args.final_bn = False #Edit 
         args.final_norm = True 
         args.use_dropout = False
     else: # for training the entire network
@@ -149,28 +152,6 @@ def main(args):
         args.final_norm = False 
         args.use_dropout = True
 
-    # if args.model == 'lincls':
-    #     print('model:', args.model)
-    #     model = LinearClassifier(
-    #                 network=args.net, 
-    #                 num_class=args.num_class,
-    #                 dropout=args.dropout,
-    #                 use_dropout=args.use_dropout,
-    #                 use_final_bn=args.final_bn,
-    #                 use_l2_norm=args.final_norm)
-    # elif args.model == 'r18':
-    #     model =  generate_model(model_depth=18,
-    #             hidden_layer=2048,
-    #             out_dim=128,
-    #             n_input_channels=3,
-    #             shortcut_type= 'B',
-    #             conv1_t_size=7,
-    #             conv1_t_stride=1,
-    #             no_max_pool=True,
-    #             widen_factor=1,
-    #             projection_head=True)
-    # else: 
-    #     raise NotImplementedError
 
     if args.dataset == 'ucf101':
         class_num = 101
@@ -182,23 +163,6 @@ def main(args):
         cfg.merge_from_file(args.cfg_file)
     model=model_selector(cfg, projection_head=False, classifier=True, dropout=args.dropout, num_classes=class_num)
 
-    # model=generate_model(model_depth=18,#cfg.RESNET.MODEL_DEPTH,
-    #                 hidden_layer=2048,#cfg.RESNET.HIDDEN_LAYER,
-    #                 out_dim=128,#cfg.RESNET.OUT_DIM,
-    #                 num_classes=101,#num_classes,
-    #                 n_input_channels=3,#cfg.DATA.INPUT_CHANNEL_NUM,
-    #                 shortcut_type='B',#cfg.RESNET.SHORTCUT,
-    #                 conv1_t_size=7,#cfg.RESNET.CONV1_T_SIZE,
-    #                 conv1_t_stride=1,#cfg.RESNET.CONV1_T_STRIDE,
-    #                 no_max_pool=True,#cfg.RESNET.NO_MAX_POOl,
-    #                 widen_factor=1,#cfg.RESNET.WIDEN_FACTOR,
-    #                 projection_head=False,#projection_head,
-    #                 predict_temporal_ds=False, #cfg.MODEL.PREDICT_TEMPORAL_DS,
-    #                 spatio_temporal_attention=False,#cfg.RESNET.ATTENTION,
-    #                 hyperbolic=False,#hyperbolic,
-    #                 classifier=True, #classifier,
-    #                 dropout=args.dropout)
-
     model.to(device)
 
     ### optimizer ###
@@ -206,7 +170,7 @@ def main(args):
         print('=> [optimizer] only train last layer')
         params = []
         for name, param in model.named_parameters():
-            if 'backbone' in name:
+            if 'linear' not in name:
                 param.requires_grad = False
             else: 
                 params.append({'params': param})
@@ -215,7 +179,9 @@ def main(args):
         print('=> [optimizer] finetune backbone with smaller lr')
         params = []
         for name, param in model.named_parameters():
-            if 'backbone' in name:
+            # print(name)
+            if 'linear' not in name:
+                print(name, args.lr/10)
                 params.append({'params': param, 'lr': args.lr/10})
             else:
                 params.append({'params': param})
@@ -263,10 +229,13 @@ def main(args):
         if os.path.isfile(args.checkpoint_path):
             print("=> loading testing checkpoint '{}'".format(args.checkpoint_path))
             checkpoint = torch.load(args.checkpoint_path, map_location=torch.device('cpu'))
-            # epoch = checkpoint['epoch']
-            # state_dict = checkpoint['state_dict']
-            epoch = args.start_epoch
-            state_dict = checkpoint
+            epoch = checkpoint['epoch']
+            state_dict = checkpoint['state_dict']
+            
+            print('loaded checkpoint from epoch:', epoch)
+
+            # epoch = args.start_epoch
+            # state_dict = checkpoint
 
             
             if args.retrieval: # if directly test on pretrained network
@@ -355,11 +324,13 @@ def main(args):
     
     elif args.pretrain:
         if os.path.isfile(args.pretrain):
-            start_epoch, best_acc = load_checkpoint(model, args.pretrain, classifier=True)
-            print("start_eppch:{}, best_acc:{}".format(start_epoch, best_acc))
+            # start_epoch, best_acc = load_checkpoint(model, args.pretrain, classifier=True)
+            # print("start_eppch:{}, best_acc:{}".format(start_epoch, best_acc))
 
-            # checkpoint = torch.load(args.pretrain, map_location='cpu')
-            # state_dict = checkpoint['state_dict']
+            checkpoint = torch.load(args.pretrain, map_location='cpu')
+            state_dict = checkpoint['state_dict']
+
+            print('checkpoint epoch:', checkpoint['epoch'])
 
             # new_dict = {}
             # for k,v in state_dict.items():
@@ -367,9 +338,9 @@ def main(args):
             #     new_dict[k] = v
             # state_dict = new_dict
 
-            # try: model_without_dp.load_state_dict(state_dict)
-            # except: neq_load_customized(model_without_dp, state_dict, verbose=True)
-            print("=> loaded pretrained checkpoint '{}' (epoch {})".format(args.pretrain, start_epoch))
+            try: model_without_dp.load_state_dict(state_dict)
+            except: neq_load_customized(model_without_dp, state_dict, verbose=True)
+            print("=> loaded pretrained checkpoint '{}'".format(args.pretrain))
         else:
             print("[Warning] no checkpoint found at '{}', use random init".format(args.pretrain))
             raise NotImplementedError
@@ -607,10 +578,6 @@ def test_10crop(dataset, model, criterion, transforms_cuda, device, epoch, args)
                     if vname not in prob_dict.keys():
                         prob_dict[vname] = {'mean_prob':[],}
                     prob_dict[vname]['mean_prob'].append(prob_mean)
-                    # print(prob_dict[vname])
-                    # acc_1 = summarize_probability(prob_dict, 
-                    #     data_loader.dataset.encode_action, 'center')
-                    # # print('acc1:', acc_1)
 
                 if (title == 'ten') and (flip_idx == 0) and (aug_idx == 5):
                     print('center-crop result:')

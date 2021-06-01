@@ -954,6 +954,8 @@ def train(args, cfg):
 if __name__ == '__main__':
 
     torch.manual_seed(7)
+    np.random.seed(7)
+    torch.cuda.manual_seed_all(7)
 
     print ('\n==> Parsing parameters:')
     args = arg_parser().parse_args()

@@ -637,7 +637,7 @@ def train(args, cfg):
         print('\n==> Generating {} backbone model (for training)...'.format(cfg.MODEL.ARCH))
 
 
-    model=model_selector(cfg, hyperbolic=args.hyperbolic, is_master_proc=is_master_proc)
+    model=model_selector(cfg, is_master_proc=is_master_proc)
 
     ## SyncBatchNorm
     if cfg.SYNC_BATCH_NORM:

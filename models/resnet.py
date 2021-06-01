@@ -8,9 +8,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from hyptorch.nn import ToPoincare
-from hyptorch.pmath import poincare_mean, dist_matrix
-
 def conv3x3x3(in_planes, out_planes, stride=1):
     return nn.Conv3d(in_planes,
                      out_planes,
@@ -118,7 +115,6 @@ class ResNet(nn.Module):
                  spatio_temporal_attention=False,
                  projection_head=True,
                  num_classes=101,
-                 hyperbolic=False,
                  classifier=False,
                  dropout=None):
         super().__init__()
@@ -177,7 +173,6 @@ class ResNet(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
         self.predict_temporal_ds = predict_temporal_ds
         self.projection_head = projection_head
-        self.hyperbolic = hyperbolic
         self.classifier = classifier
         self.num_classes=num_classes
         self.dropout = dropout
@@ -194,11 +189,6 @@ class ResNet(nn.Module):
             print('==> setting up temporal ds prediction heads')
             self.temporal_ds_linear = nn.Linear(block_inplanes[3] * block.expansion, 4)
 
-        if self.hyperbolic:
-            # from hyptorch.nn import ToPoincare
-            print('==> setting up hyperbolic layer')
-            self.e2p = ToPoincare(c=1.0, train_c=False, train_x=False)
-        
         if self.classifier:
             print('==> setting up linear layer for classification')
             if self.dropout is not None and self.dropout > 0.0:
@@ -307,9 +297,6 @@ class ResNet(nn.Module):
             h = self.bn_proj(h)
             h = self.relu(h)
             h = self.fc2(h)
-        
-        if self.hyperbolic:
-            h = self.e2p(h)
 
         if self.predict_temporal_ds:
             predicted_ds = self.temporal_ds_linear(x)
@@ -319,7 +306,7 @@ class ResNet(nn.Module):
             x = x.view(-1, 512)
             h = self.linear(x)
 
-        if self.projection_head or self.hyperbolic or self.classifier:
+        if self.projection_head or self.classifier:
             return h
         else:
             return x

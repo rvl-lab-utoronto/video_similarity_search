@@ -24,7 +24,6 @@ from datasets.temporal_transforms import Compose as TemporalCompose
 import misc.distributed_helper as du_helper
 from config.m_parser import load_config, arg_parser
 #from misc.upload_gdrive import GoogleDriveUploader
-from hyptorch.pmath import dist_matrix
 
 # num_exemplar = 10
 log_interval = 10
@@ -211,21 +210,13 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
 def get_distance_matrix(x_embeddings, y_embeddings=None, dist_metric='cosine'):
 
     #print('Dist metric:', dist_metric)
-    assert(dist_metric in ['cosine', 'euclidean', 'hyperbolic'])
+    assert(dist_metric in ['cosine', 'euclidean'])
     if dist_metric == 'cosine':
         distance_matrix = cosine_distances(x_embeddings, Y=y_embeddings)
         # print(distance_matrix.size(), distance_matrix[0][0].dtype)
 
     elif dist_metric == 'euclidean':
         distance_matrix = euclidean_distances(x_embeddings, Y=y_embeddings)
-        # print(distance_matrix.size(), distance_matrix[0][0].dtype)
-    elif dist_metric == 'hyperbolic':
-        # print('hyperbolic')
-        if y_embeddings is None:
-            y_embeddings = x_embeddings
-        # print(x_embeddings.size(), y_embeddings.size())
-        distance_matrix = dist_matrix(x_embeddings, y_embeddings)
-        distance_matrix = np.array(distance_matrix.to(int))
         # print(distance_matrix.size(), distance_matrix[0][0].dtype)
     #print('Distance matrix shape:', distance_matrix.shape)
 

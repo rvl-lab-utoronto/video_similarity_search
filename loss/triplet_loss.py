@@ -4,7 +4,6 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from hyptorch.pmath import dist_matrix, dist
 
 
 class MemTripletLoss(nn.Module):
@@ -218,10 +217,6 @@ class OnlineTripletLoss(nn.Module):
                 ap_dists = 1 - F.cosine_similarity(embeddings[triplets[0], :], embeddings[triplets[1], :], dim=1)
                 an_dists = 1 - F.cosine_similarity(embeddings[triplets[0], :], embeddings[triplets[2], :], dim=1)
                 # print('ap_dists:', ap_dists.size(), 'an_dists:', an_dists.size())
-            elif self.dist_metric == 'hyperbolic':
-                ap_dists = dist(embeddings[triplets[0], :], embeddings[triplets[1], :])
-                an_dists = dist(embeddings[triplets[0], :], embeddings[triplets[2], :])
-                # print(ap_dists.size(), an_dists.size())
 
             # Compute margin ranking loss
             if len(triplets[0]) == 0:

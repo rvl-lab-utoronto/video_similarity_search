@@ -21,3 +21,5 @@ optical_llc_contd.sh
 *.npy
 *topk_correct.json
 *.log
+log-eval-linclr/*
+*.csv

@@ -318,7 +318,11 @@ class ResNet(nn.Module):
         if self.classifier:
             x = x.view(-1, 512)
             h = self.linear(x)
-        return h
+
+        if self.projection_head or self.hyperbolic or self.classifier:
+            return h
+        else:
+            return x
 
 
 ## channel-temporal + spatio-temporal attention

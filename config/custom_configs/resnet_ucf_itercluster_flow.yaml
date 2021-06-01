@@ -1,5 +1,7 @@
 TRAIN:
     DATASET: "ucf101"
+    EPOCHS: 600
+    BATCH_SIZE: 32
 
 DATASET:
     VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
@@ -13,7 +15,8 @@ DATASET:
     SAMPLING_STRATEGY: 'random_semi_hard'
     POSITIVE_SAMPLING_P: 0.2
 
-    POS_CHANNEL_REPLACE: False
+    POS_CHANNEL_REPLACE: True
+    PROB_POS_CHANNEL_REPLACE: 0.25
 
     #CHANNEL_EXTENSIONS: 'salient'
     #SALIENT_PATH: /media/diskstation/datasets/UCF101/poolnet_new
@@ -36,11 +39,16 @@ RESNET:
 DATA:
     SAMPLE_SIZE: 128
     SAMPLE_DURATION: 16
-    INPUT_CHANNEL_NUM: 4
+    INPUT_CHANNEL_NUM: 3
 
 LOSS:
     MARGIN: 0.2
+    LOCAL_LOCAL_CONTRAST: True
 
 OPTIM:
     LR: 0.1
     MOMENTUM: 0.5
+    OPTIMIZER: sgd
+
+ITERCLUSTER:
+    METHOD: finch

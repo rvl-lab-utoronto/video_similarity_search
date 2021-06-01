@@ -1,5 +1,3 @@
-OUTPUT_PATH: '/home/sherry/output/hmdb'
-
 TRAIN:
     DATASET: "hmdb51"
 

@@ -53,7 +53,8 @@ def parse_args():
     parser.add_argument('--batch_size', default=32, type=int, help='batch size per GPU')
     parser.add_argument('--optim', default='adam', type=str)
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
-    parser.add_argument('--schedule', default=[60, 80], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
+    parser.add_argument('--schedule', default=[], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
+    #parser.add_argument('--schedule', default=[60, 80], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
     parser.add_argument('--wd', default=1e-3, type=float, help='weight decay')
     parser.add_argument('--dropout', default=0.9, type=float, help='dropout')
     parser.add_argument('--epochs', default=10, type=int, help='number of total epochs to run')
@@ -142,7 +143,8 @@ def main(args):
     args.num_class = num_class_dict[args.dataset]
 
     if args.train_what == 'last': # for linear probe
-        args.final_bn = True 
+        #args.final_bn = True 
+        args.final_bn = False #Edit 
         args.final_norm = True 
         args.use_dropout = False
     else: # for training the entire network
@@ -168,7 +170,7 @@ def main(args):
         print('=> [optimizer] only train last layer')
         params = []
         for name, param in model.named_parameters():
-            if 'backbone' in name:
+            if 'linear' not in name:
                 param.requires_grad = False
             else: 
                 params.append({'params': param})
@@ -178,7 +180,7 @@ def main(args):
         params = []
         for name, param in model.named_parameters():
             # print(name)
-            if 'layer' in name:
+            if 'linear' not in name:
                 print(name, args.lr/10)
                 params.append({'params': param, 'lr': args.lr/10})
             else:
@@ -230,6 +232,8 @@ def main(args):
             epoch = checkpoint['epoch']
             state_dict = checkpoint['state_dict']
             
+            print('loaded checkpoint from epoch:', epoch)
+
             # epoch = args.start_epoch
             # state_dict = checkpoint
 
@@ -325,6 +329,8 @@ def main(args):
 
             checkpoint = torch.load(args.pretrain, map_location='cpu')
             state_dict = checkpoint['state_dict']
+
+            print('checkpoint epoch:', checkpoint['epoch'])
 
             # new_dict = {}
             # for k,v in state_dict.items():

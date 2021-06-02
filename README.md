@@ -14,6 +14,17 @@
 python online_train.py --cfg config/custom_configs/resnet_ucf_itercluster_optical_llc.yaml \
 --gpu 0,1 --batch_size 32 --output ~/output/path --iterative_cluster
 ```
+* generate train/val acc & cluster quality plot (NMI)
+
+```
+python misc/generate_report.py -p
+```
+
+* Nearest Neighbor Retrieval
+```
+python evaluate.py --cfg config/custom_configs/resnet_ucf_itercluster_optical_llc.yaml \
+--checkpoint_path /pth/to/ckpt.pth.tar --gpu 0 
+```
 
 ## Finetune
 ### Method 1 (Adapted from IIC/VCOP/CMC)

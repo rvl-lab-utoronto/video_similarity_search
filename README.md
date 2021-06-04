@@ -6,7 +6,7 @@
   * TVL1 Optical Flow: [LMDB](http://thor.robots.ox.ac.uk/~vgg/data/CoCLR/ucf101_flow_lmdb.tar)
 
 ## Pretrain
-* ResNet-18 pretrain on UCF-RGB & Optical Flow w/ Iterative Clustering and Temporal Discrimination Loss
+* ResNet-18 pretrain on UCF-RGB & Optical Flow with Iterative Clustering and Temporal Discrimination Loss
  
 ```
 python online_train.py --cfg config/custom_configs/resnet_ucf_itercluster_flow.yaml \

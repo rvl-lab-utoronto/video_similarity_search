@@ -1,5 +1,4 @@
 """
-Created by Sherry Chen on Jul 3, 2020
 Load training and validation data and apply temporal/spatial transformation
 """
 

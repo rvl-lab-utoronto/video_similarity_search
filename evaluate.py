@@ -1,5 +1,4 @@
 """
-Created by Sherry Chen on Jul 14, 2020
 retrieve the most similar clips
 """
 import os
@@ -29,7 +28,6 @@ from config.m_parser import load_config, arg_parser
 log_interval = 10
 top_k = 5
 exemplar_file = None
-#exemplar_file = '/home/sherry/output/u_exemplar.txt'
 # np.random.seed(1)
 
 

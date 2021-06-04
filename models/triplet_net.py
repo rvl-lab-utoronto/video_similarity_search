@@ -1,6 +1,3 @@
-"""
-Created by Sherry Chen on Jul 3, 2020
-"""
 
 import torch
 import torch.nn as nn

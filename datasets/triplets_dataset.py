@@ -1,5 +1,4 @@
 """
-Created by Sherry Chen on Jul 3, 2020
 Sample triplet pair and apply temporal/spatial transformation
 """
 

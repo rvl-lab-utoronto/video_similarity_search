@@ -1,3 +1,6 @@
+# This script is adapted from
+# https://github.com/BestJuly/IIC/blob/master/datasets/hmdb51.py
+
 """Dataset utils for NN."""
 import os
 import random

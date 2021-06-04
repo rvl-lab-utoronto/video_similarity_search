@@ -1,3 +1,6 @@
+# This script is adapted from
+# https://github.com/TengdaHan/CoCLR/blob/main/utils/transforms.py
+
 # from references/video_classification
 # and torchvision/transforms/functional_tensor.py
 

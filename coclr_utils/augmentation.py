@@ -1,3 +1,6 @@
+# This script is adapted from
+# https://github.com/TengdaHan/CoCLR/blob/main/utils/augmentation.py
+
 import random
 import numbers
 import math

@@ -1,3 +1,6 @@
+# This script is adapted from
+# https://github.com/TengdaHan/CoCLR/blob/main/model/classifier.py
+
 import sys
 import math
 import torch

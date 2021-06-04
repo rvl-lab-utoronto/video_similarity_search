@@ -1,5 +1,10 @@
+# This script is adapted from
+# https://github.com/BestJuly/IIC/blob/master/retrieve_clips.py
+
 """Video retrieval experiment, top-k."""
 import os
+import sys
+sys.path.append('../')
 import math
 import itertools
 import argparse

@@ -1,3 +1,6 @@
+# This script is adapted from
+# https://github.com/TengdaHan/CoCLR/blob/main/backbone/s3dg.py
+
 # modified from https://raw.githubusercontent.com/qijiezhao/s3d.pytorch/master/S3DG_Pytorch.py 
 import torch.nn as nn
 import torch

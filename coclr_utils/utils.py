@@ -1,3 +1,6 @@
+# This script is adapted from
+# https://github.com/TengdaHan/CoCLR/blob/main/utils/utils.py
+
 import os
 import glob
 import math

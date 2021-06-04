@@ -4,7 +4,6 @@ TRAIN:
 DATASET:
     VID_PATH: '/media/synology/datasets/HMDB51/jpg'
     ANNOTATION_PATH: '/media/synology/datasets/HMDB51/json/hmdb51_1.json'
-    # CLUSTER_PATH: '/media/synology/datasets/UCF101/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'

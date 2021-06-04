@@ -1,3 +1,6 @@
+# This script is adapted from
+# https://github.com/TengdaHan/CoCLR/blob/main/eval/main_classifier.py
+
 import os
 import sys
 sys.path.append('../')

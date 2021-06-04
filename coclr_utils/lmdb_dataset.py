@@ -1,3 +1,6 @@
+# This script is adapted from
+# https://github.com/TengdaHan/CoCLR/blob/main/dataset/lmdb_dataset.py
+
 import os
 import sys
 import glob

@@ -10,44 +10,32 @@
 * ResNet-18 pretrain on UCF-RGB & Optical Flow w/ Iterative Clustering and Temporal Discrimination Loss
  
 ```
-python online_train.py --cfg config/custom_configs/resnet_ucf_itercluster_optical_llc.yaml \
---gpu 0,1 --batch_size 32 --output ~/output/path --iterative_cluster
+python online_train.py --cfg config/custom_configs/resnet_ucf_itercluster_flow.yaml \
+--gpu 0,1 --batch_size 32 --output ./output/path --iterative_cluster
 ```
 
-## Finetune
-### Method 1 (Adapted from IIC/VCOP/CMC)
-* end-to-end finetune
-```
-python ft_classify.py -cfg config/custom_configs/resnet_ucf.yaml --checkpoint_path /pth/to/ckpt.pth.tar --gpu 1
-```
-
-* test
-```
-python ft_classify.py -cfg config/custom_configs/resnet_ucf.yaml --checkpoint_path /pth/to/ckpt.pth.tar --gpu 1 \
---mode test
-```
-* plot confusion matrix (after running test)
-```
-python ft_classify.py -cfg config/custom_configs/resnet_ucf.yaml --checkpoint_path /pth/to/ckpt.pth.tar --gpu 1 \
---mode plot
-```
-### Method 2 (Adapted from CoCLR)
+## Finetune (Adapted from CoCLR)
 
 * end-to-end finetune
 ```
-python coclr_classify.py --cfg config/custom_configs/resnet_ucf.yaml --train_what ft \
---epochs 200 --schedule 60 100 --pretrain/resume /pth/to/ckpt.pth.tar --gpu 0 
+python coclr_classify.py --cfg config/custom_configs/resnet_ucf_itercluster_flow.yaml \
+--train_what ft --epochs 150 --schedule 60 100 --pretrain/resume /pth/to/ckpt.pth.tar --gpu 0 
 ```
 * linear probe
 ```
-python coclr_classify.py -cfg config/custom_configs/resnet_ucf.yaml --train_what last \
---epochs 200 --schedule 60 100 --pretrain/resume /pth/to/ckpt.pth.tar --gpu 0
+python coclr_classify.py --cfg config/custom_configs/resnet_ucf_itercluster_flow.yaml \
+--train_what last --epochs 150 --schedule 60 100 --pretrain/resume /pth/to/ckpt.pth.tar --gpu 0
 ```
 * test
 ```
-python coclr_classify.py --cfg config/custom_configs/resnet_ucf.yaml --train_what ft \
---checkpoint_path /pth/to/ckpt.pth.tar --ten_crop --gpu 0
+python coclr_classify.py --cfg config/custom_configs/resnet_ucf_itercluster_flow.yaml \
+--train_what ft --checkpoint_path /pth/to/ckpt.pth.tar --ten_crop --gpu 0
 ```
 
+## Evaluate retrieval (Adapted from IIC)
+
+```
+python iic_retrieve_clips.py --checkpoint_path /pth/to/ckpt.pth.tar --cfg config/custom_configs/resnet_ucf_itercluster_flow.yaml --gpu 0 --feature_dir eval_output --dataset ucf101
+```
 
 

@@ -1,3 +1,6 @@
+# This script is adapted from
+# https://github.com/BestJuly/IIC/blob/master/datasets/ucf101.py
+
 """Dataset utils for NN."""
 import os
 import random
@@ -131,7 +134,7 @@ class UCF101ClipRetrievalDataset(Dataset):
         self.train = train
         self.transforms_ = transforms_
         self.toPIL = transforms.ToPILImage()
-        class_idx_path = os.path.join(root_dir, 'split', 'ClassInd.txt')
+        class_idx_path = os.path.join(root_dir, 'split', 'classInd.txt')
         self.class_idx2label = pd.read_csv(class_idx_path, header=None, sep=' ').set_index(0)[1]
         self.class_label2idx = pd.read_csv(class_idx_path, header=None, sep=' ').set_index(1)[0]
 

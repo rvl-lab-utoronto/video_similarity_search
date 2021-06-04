@@ -391,7 +391,8 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
             png_file = os.path.join(evaluate_output, '{}_plot.png'.format(os.path.basename(evaluate_output)))
             fig.tight_layout(pad=3.5)
             plt.savefig(png_file, dpi=300)
-            service.upload_file_to_gdrive(png_file, 'evaluate')
+            if service is not None:
+                service.upload_file_to_gdrive(png_file, 'evaluate')
             print('figure saved to: {}, and uploaded to GoogleDrive'.format(png_file))
 
         # print(acc)
@@ -582,5 +583,5 @@ if __name__ == '__main__':
     else:
         k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
                         train_data, val_data, cfg, test_split=test_split, evaluate_output=evaluate_output,
-                        num_exemplar=num_exemplar, service=GoogleDriveUploader(), load_pkl=args.load_pkl)
+                        num_exemplar=num_exemplar, load_pkl=args.load_pkl)
         print('total runtime: {}s'.format(time.time()-start))

@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from httplib2 import Http
 from oauth2client.service_account import ServiceAccountCredentials
 
-from upload_gdrive import GoogleDriveUploader#upload_file_to_gdrive, SCOPES
+#from upload_gdrive import GoogleDriveUploader#upload_file_to_gdrive, SCOPES
 
 
 SOURCE_CODE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -184,46 +184,6 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
 
     if (show_plot):
         plt.show()
-
-def write_to_google_sheet(result_dir, client, worksheet_name):
-    epoch, runtime, train_losses, _, _, _, _, _ = parse_file(result_dir, 'train')
-    _, _, val_losses, val_acc, top1_acc, top5_acc, _, _ = parse_file(result_dir, 'val')
-    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc, _, _ = parse_file(result_dir, 'global_retrieval')
-
-
-    # best_idx = np.argmax(np.array(top1_acc))
-    # print('best epoch:{}, triplet accuracy:{}, val_top1 accuracy:{}, val_top5 accuracy:{}'.format(epoch[best_idx],
-    #                     val_acc[best_idx], top1_acc[best_idx], top5_acc[best_idx]))
-
-    # best_idx = np.argmax(np.array(global_top1_acc))
-    # print('best epoch:{}, global top1 acc:{}, global top5 acc:{}'.format(top1_5_epoch[best_idx], global_top1_acc[best_idx], global_top5_acc[best_idx]))
-
-    sh = client.open('training_results')
-
-    try:
-        worksheet = sh.worksheet(worksheet_name)
-    except Exception as e:
-        print('creating worksheet: {}'.format(worksheet_name))
-        worksheet = sh.add_worksheet(title=worksheet_name, rows=1000, cols=20)
-
-    df = pd.DataFrame()
-    df['epoch'] = epoch
-    df['train_loss'] = train_losses
-    # df['train_acc'] = train_acc
-    # df['val_losses'] = val_losses
-    # df['val_acc'] = val_acc
-    # df['runtime'] = runtime
-    # df['top1_acc'] = top1_acc
-    # df['top5_acc'] = top5_acc
-    worksheet.update([df.columns.values.tolist()] + df.values.tolist())
-
-def gs_report(result_dir, name):
-    scope = ['https://spreadsheets.google.com/feeds',
-            'https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name(os.path.join(SOURCE_CODE_DIR, 'gs_credentials.json'), scope)
-    client = gspread.authorize(creds)
-    write_to_google_sheet(result_dir, client, name)
-    print('updated to worksheet:{}'.format(name))
 
 
 if __name__ == '__main__':

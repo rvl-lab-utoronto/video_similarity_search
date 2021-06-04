@@ -14,9 +14,7 @@ from models.r3d.r3d import R3DNet
 
 import copy
 import torchvision
-from models.baselines.inflate_src.i3res import I3ResNet
-from models.baselines.simclr_pytorch.resnet_wider import resnet50x1
-from models.multiview import Multiview
+#from models.multiview import Multiview
 
 def create_output_dirs(cfg):
     if not os.path.exists(cfg.OUTPUT_PATH):
@@ -31,64 +29,9 @@ class Flatten(torch.nn.Module):
         return input.view(input.size(0), -1)
 
 
-def imagenet_inflated(num_frames, center_init=False):
-    resnet = torchvision.models.resnet50(pretrained=True)
-
-    # Inflate with time dimensions of kernels initialized with copied weights /
-    # size_time_dim
-    i3resnet = I3ResNet(copy.deepcopy(resnet), num_frames, center=center_init)
-
-    # Discard FC (last kept is avg pool)
-    i3resnet = torch.nn.Sequential(*(list(i3resnet.children())[:-1]), Flatten())
-    return i3resnet
-
-
-def simclr_inflated(num_frames, center_init=False):
-    sd = 'models/baselines/simclr_pytorch/resnet50-1x.pth'
-    resnet = resnet50x1()
-    sd = torch.load(sd, map_location='cpu')
-    resnet.load_state_dict(sd['state_dict'])
-
-    # Inflate with time dimensions of kernels initialized with copied weights /
-    # size_time_dim
-    i3resnet = I3ResNet(copy.deepcopy(resnet), num_frames, center=center_init)
-
-    # Discard FC (last kept is avg pool)
-    i3resnet = torch.nn.Sequential(*(list(i3resnet.children())[:-1]), Flatten())
-    return i3resnet
-
-
-def mocov2_inflated(num_frames, center_init=True):
-    model = torchvision.models.__dict__['resnet50']()
-
-    sd = 'models/baselines/mocov2_pytorch/moco_v2_200ep_pretrain.pth.tar'
-    checkpoint = torch.load(sd, map_location='cpu')
-    state_dict = checkpoint['state_dict']
-    for k in list(state_dict.keys()):
-        # return only encoder_q up to before the embedding layer
-        if k.startswith('module.encoder_q') and not k.startswith('module.encoder_q.fc'):
-            # remove prefix
-            state_dict[k[len("module.encoder_q."):]] = state_dict[k]
-        # delete renamed or unused k
-        del state_dict[k]
-    msg = model.load_state_dict(state_dict, strict=False)
-    assert set(msg.missing_keys) == {"fc.weight", "fc.bias"}
-
-    # Inflate with time dimensions of kernels initialized with copied weights /
-    # size_time_dim
-    i3resnet = I3ResNet(copy.deepcopy(model), num_frames, center=center_init)
-
-    # Discard FC (last kept is avg pool)
-    i3resnet = torch.nn.Sequential(*(list(i3resnet.children())[:-1]), Flatten())
-    return i3resnet
-
-
 # Select the appropriate model with the specified cfg parameters
 def model_selector(cfg, projection_head=True, classifier=False, dropout=None, num_classes=101, is_master_proc=True):
-    assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast', 'info_nce', "uber_nce", 's3d', 'r3d',
-            'simclr_pretrained_inflated_res50',
-            'imagenet_pretrained_inflated_res50',
-            'mocov2_pretrained_inflated_res50']
+    assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast', 'info_nce', "uber_nce", 's3d', 'r3d']
     print('n input channel: ', cfg.DATA.INPUT_CHANNEL_NUM)
     if cfg.MODEL.ARCH == '3dresnet':
         model=generate_model(model_depth=cfg.RESNET.MODEL_DEPTH,
@@ -107,8 +50,12 @@ def model_selector(cfg, projection_head=True, classifier=False, dropout=None, nu
                         classifier=classifier,
                         dropout=dropout)
 
-        #only resnet supports multiview for now
+        #multimodal input fusion
         if cfg.DATASET.MODALITY == True:
+
+            assert False, 'not supported'
+
+            '''
             encoder1 = model
             encoder2 = generate_model(model_depth=cfg.RESNET.MODEL_DEPTH,
                         hidden_layer=cfg.RESNET.HIDDEN_LAYER,
@@ -124,7 +71,7 @@ def model_selector(cfg, projection_head=True, classifier=False, dropout=None, nu
                         spatio_temporal_attention=cfg.RESNET.ATTENTION)
 
             model = Multiview(encoder1, encoder2, cfg.RESNET.OUT_DIM)
-
+            '''
 
     elif cfg.MODEL.ARCH == 's3d':
         dim = 128
@@ -176,16 +123,6 @@ def model_selector(cfg, projection_head=True, classifier=False, dropout=None, nu
 
     elif cfg.MODEL.ARCH == 'uber_nce':
         model = UberNCE('s3d', dim=128, K=2048, m=0.999, T=0.07)
-
-    elif cfg.MODEL.ARCH == 'simclr_pretrained_inflated_res50':
-        model = simclr_inflated(cfg.DATA.SAMPLE_DURATION)
-
-    elif cfg.MODEL.ARCH == 'imagenet_pretrained_inflated_res50':
-        model = imagenet_inflated(cfg.DATA.SAMPLE_DURATION)
-
-    elif cfg.MODEL.ARCH == 'mocov2_pretrained_inflated_res50':
-        model = mocov2_inflated(cfg.DATA.SAMPLE_DURATION)
-    
 
     return model
 

@@ -53,10 +53,10 @@ def parse_args():
     parser.add_argument('--batch_size', default=32, type=int, help='batch size per GPU')
     parser.add_argument('--optim', default='adam', type=str)
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
-    parser.add_argument('--schedule', default=[60, 80], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
+    parser.add_argument('--schedule', default=[60, 100], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
     parser.add_argument('--wd', default=1e-3, type=float, help='weight decay')
     parser.add_argument('--dropout', default=0.9, type=float, help='dropout')
-    parser.add_argument('--epochs', default=10, type=int, help='number of total epochs to run')
+    parser.add_argument('--epochs', default=200, type=int, help='number of total epochs to run')
     parser.add_argument('--start_epoch', default=0, type=int, help='manual epoch number (useful on restarts)')
     parser.add_argument('--gpu', default=None, type=str)
     parser.add_argument('--train_what', default='last', type=str)
@@ -170,7 +170,7 @@ def main(args):
         print('=> [optimizer] only train last layer')
         params = []
         for name, param in model.named_parameters():
-            if 'backbone' in name:
+            if 'linear' not in name:
                 param.requires_grad = False
             else: 
                 params.append({'params': param})

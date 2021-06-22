@@ -95,6 +95,10 @@ class UCF101Dataset(Dataset):
             for i in np.linspace(self.clip_len/2, length-self.clip_len/2, self.test_sample_num):
                 clip_start = int(i - self.clip_len/2)
                 clip = videodata[clip_start: clip_start + self.clip_len]
+                # if clip.shape[0] < self.clip_len:
+                #     print("skipping clip with shape:{}".format(clip.shape))
+                #     continue
+
                 if self.transforms_:
                     trans_clip = []
                     # fix seed, apply the sample `random transformation` for all frames in the clip 
@@ -158,16 +162,27 @@ class UCF101ClipRetrievalDataset(Dataset):
             videoname = self.train_split[idx]
         else:
             videoname = self.test_split[idx]
+
         class_idx = self.class_label2idx[videoname[:videoname.find('/')]]
         filename = os.path.join(self.root_dir, 'videos', videoname)
         videodata = skvideo.io.vread(filename)
+
         length, height, width, channel = videodata.shape
-        
+
+        if length < self.clip_len:
+            last_frame = np.expand_dims(videodata[-1], axis=0)
+            videodata = np.concatenate((videodata, np.repeat(last_frame, self.clip_len-length+1, axis=0)))
+            print('repeating last frame of {}, original frame length:{}'.format(filename, videodata.shape))
+            # videodata = torch.cat((videodata[-1].unsqueeze(dim=0).repeat(self.clip_len - length + 1, 1, 1, 1), videodata))
+
+        length, height, width, channel = videodata.shape
+
         all_clips = []
         all_idx = []
         for i in np.linspace(self.clip_len/2, length-self.clip_len/2, self.sample_num):
             clip_start = int(i - self.clip_len/2)
             clip = videodata[clip_start: clip_start + self.clip_len]
+            # if clip
             if self.transforms_:
                 trans_clip = []
                 # fix seed, apply the sample `random transformation` for all frames in the clip 

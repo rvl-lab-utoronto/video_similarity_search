@@ -170,7 +170,7 @@ def main(args):
         print('=> [optimizer] only train last layer')
         params = []
         for name, param in model.named_parameters():
-            if 'backbone' in name:
+            if 'linear' not in name:
                 param.requires_grad = False
             else: 
                 params.append({'params': param})
@@ -179,11 +179,12 @@ def main(args):
         print('=> [optimizer] finetune backbone with smaller lr')
         params = []
         for name, param in model.named_parameters():
-            print(name, args.lr)
+            # print(name, args.lr)
             if 'linear' not in name:
                 print(name, args.lr/10)
                 params.append({'params': param, 'lr': args.lr/10})
             else:
+                print(name, args.lr)
                 params.append({'params': param})
             # params.append({'params': param})
 

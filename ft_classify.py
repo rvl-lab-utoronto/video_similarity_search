@@ -32,6 +32,7 @@ from models.model_utils import (model_selector, multipathway_input,
                             AverageMeter, accuracy, create_output_dirs)
 from config.m_parser import load_config, arg_parser
 from config.default_params import get_cfg
+from coclr_utils.utils import neq_load_customized
 
 
 def train(args, model, criterion, optimizer, device, train_dataloader, writer, epoch):
@@ -387,7 +388,9 @@ if __name__ == '__main__':
             epoch = checkpoint['epoch']
             state_dict = checkpoint['state_dict']
             # state_dict = checkpoint
-            model.load_state_dict(state_dict)
+            # model.load_state_dict(state_dict)
+            neq_load_customized(model, state_dict, verbose=True)
+
 
         model = model.cuda(device=device)
 

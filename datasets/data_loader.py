@@ -157,7 +157,13 @@ def build_temporal_transformation(cfg, triplets=True, split=None):
 
     else:
         temporal_transform = []
-        temporal_transform.append(TemporalCenterCrop(cfg.DATA.SAMPLE_DURATION)) #opt.n_val_samples)) #EDIT: CenterCrop
+        if cfg.DATA.TEMPORAL_CROP == 'random':
+            print('==> using Temporal Random Crop')
+            temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION)) #opt.n_val_samples))
+        else: #center/avg
+            print('==> using Temporal Center Crop')
+            temporal_transform.append(TemporalCenterCrop(cfg.DATA.SAMPLE_DURATION))
+
         temporal_transform = TemporalCompose(temporal_transform)
         TempTransform = temporal_transform
 
@@ -179,6 +185,8 @@ def get_channel_extension(cfg):
     elif cfg.TRAIN.DATASET == 'kinetics':
         kp_img_name_formatter = datasets.kinetics.kp_img_name_formatter
         salient_img_name_formatter = datasets.kinetics.salient_img_name_formatter
+        optical_img_name_formatter = datasets.kinetics.optical_img_name_formatter
+
     else:
         print("channel extension not implemented for {}".format(cfg.TRAIN.DATASET))
 

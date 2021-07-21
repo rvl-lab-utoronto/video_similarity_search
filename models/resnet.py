@@ -117,7 +117,10 @@ class ResNet(nn.Module):
                  predict_temporal_ds =False,
                  spatio_temporal_attention=False,
                  projection_head=True,
-                 hyperbolic=False):
+                 num_classes=101,
+                 hyperbolic=False,
+                 classifier=False,
+                 dropout=None):
         super().__init__()
 
         block_inplanes = [int(x * widen_factor) for x in block_inplanes]
@@ -175,14 +178,17 @@ class ResNet(nn.Module):
         self.predict_temporal_ds = predict_temporal_ds
         self.projection_head = projection_head
         self.hyperbolic = hyperbolic
+        self.classifier = classifier
+        self.num_classes=num_classes
+        self.dropout = dropout
 
         if projection_head:
             print('==> setting up non-linear project heads')
             self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
             self.bn_proj = nn.BatchNorm1d(hidden_layer)
             self.fc2 = nn.Linear(hidden_layer, out_dim)
-        else:
-            self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
+        #else:
+        #    self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
 
         if self.predict_temporal_ds:
             print('==> setting up temporal ds prediction heads')
@@ -192,6 +198,17 @@ class ResNet(nn.Module):
             # from hyptorch.nn import ToPoincare
             print('==> setting up hyperbolic layer')
             self.e2p = ToPoincare(c=1.0, train_c=False, train_x=False)
+        
+        if self.classifier:
+            print('==> setting up linear layer for classification')
+            if self.dropout is not None and self.dropout > 0.0:
+                print('==> setting up Dropout layer')
+                self.linear = nn.Sequential(
+                                    nn.Dropout(dropout),
+                                    nn.Linear(512, self.num_classes))
+            else:
+                self.linear = nn.Linear(512, self.num_classes)
+            self._initialize_weights(self.linear) #CoCLR does this
 
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
@@ -236,6 +253,14 @@ class ResNet(nn.Module):
             layers.append(block(self.in_planes, planes))
 
         return nn.Sequential(*layers)
+
+    def _initialize_weights(self, module):
+        for name, param in module.named_parameters():
+            if 'bias' in name:
+                nn.init.constant_(param, 0.0)
+            elif 'weight' in name:
+                nn.init.normal_(param, mean=0.0, std=0.01)
+
 
     def forward(self, x):
         # print('forwarding in resnet module')
@@ -290,9 +315,14 @@ class ResNet(nn.Module):
             predicted_ds = self.temporal_ds_linear(x)
             return h, predicted_ds
 
-        
+        if self.classifier:
+            x = x.view(-1, 512)
+            h = self.linear(x)
 
-        return h
+        if self.projection_head or self.hyperbolic or self.classifier:
+            return h
+        else:
+            return x
 
 
 ## channel-temporal + spatio-temporal attention

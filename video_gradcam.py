@@ -383,9 +383,10 @@ def show_cams_on_images(vid1, masks1, vid2, masks2, grads1, grads2):
 
             all_imgs = np.hstack((imgs, cams, grads, cam_grads))
 
-            cv2.imshow('Videos and their Similarity Heatmaps', all_imgs)
-            cv2.waitKey(int(1.0/fps*1000.0))
-        cv2.waitKey(2000)
+            cv2.imwrite('grad_cam/grad_{}.png'.format(i), all_imgs)
+        #     cv2.imshow('Videos and their Similarity Heatmaps', all_imgs)
+        #     cv2.waitKey(int(1.0/fps*1000.0))
+        # cv2.waitKey(2000)
     #cv2.waitKey()
 
 #=================================== Main =====================================#

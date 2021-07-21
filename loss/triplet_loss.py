@@ -97,7 +97,7 @@ class OnlineTripletLoss(nn.Module):
 
         if sampling_strategy == 'noise_contrastive':
             # Compute temperature-scaled similarity matrix 
-            temperature = 0.5
+            temperature = 0.1
             sim_matrix = 1 - pdist(embeddings, eps=0, dist_metric=self.dist_metric)
             sim_matrix.masked_fill_(torch.eye(sim_matrix.size(0), dtype=bool).cuda(), 0)
             sim_matrix = sim_matrix / temperature
@@ -118,7 +118,7 @@ class OnlineTripletLoss(nn.Module):
 
         elif sampling_strategy == 'all_semi_hard':
 
-            NUM_NEGATIVES = 5
+            NUM_NEGATIVES = 16
 
             distance_matrix = pdist(embeddings, eps=0, dist_metric=self.dist_metric)
 
@@ -159,14 +159,18 @@ class OnlineTripletLoss(nn.Module):
                     ap_dist = distance_matrix[anchor_idx, pos_idx]
                     an_dists = distance_matrix[anchor_idx, negative_indices]
 
+                    NUM_NEGATIVES = min(NUM_NEGATIVES, an_dists.shape[0])
+
                     # all random semi hard indices (or hardest easy if not enough semi hard)
                     neg_list_idx = all_semi_hard(ap_dist, an_dists, self.margin)
+
                     if neg_list_idx is None:
                         num_missing_negatives = NUM_NEGATIVES
                         num_picked_negatives = 0
                     else:
                         num_picked_negatives = neg_list_idx.shape[0]
                         num_missing_negatives = NUM_NEGATIVES - num_picked_negatives
+
                     if num_missing_negatives > 0:
                         hardest_easy_neg_idx = torch.topk(an_dists, NUM_NEGATIVES, largest=False)[1]
                         added_negs = hardest_easy_neg_idx[num_picked_negatives:NUM_NEGATIVES]
@@ -201,7 +205,7 @@ class OnlineTripletLoss(nn.Module):
             else:
                 loss = torch.zeros(1, requires_grad=True)
 
-            return loss, anchor_pos_count
+            return loss.mean(), anchor_pos_count
 
         else:
             # Get list of (anchor idx, postitive idx, negative idx) triplets

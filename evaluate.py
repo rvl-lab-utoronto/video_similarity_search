@@ -23,7 +23,7 @@ from datasets.temporal_transforms import TemporalCenterFrame, TemporalSpecificCr
 from datasets.temporal_transforms import Compose as TemporalCompose
 import misc.distributed_helper as du_helper
 from config.m_parser import load_config, arg_parser
-from misc.upload_gdrive import GoogleDriveUploader
+#from misc.upload_gdrive import GoogleDriveUploader
 from hyptorch.pmath import dist_matrix
 
 # num_exemplar = 10
@@ -82,7 +82,7 @@ def m_arg_parser(parser):
         help='load computed embeddings from the pickle file'
     )
     parser.add_argument(
-        "--eval",
+        "--crop",
         default='avg',
         type=str,
         help='avg, center, random'
@@ -177,12 +177,18 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
                 targets = targets.to(device)
                 indexes = indexes.to(device)
 
+            #print(input.shape)
+
             embedd = model(input)
-            if isinstance(embedd, tuple): #for multiview
-                embedd = embedd[0]
+            if cfg.MODEL.ARCH == 'coclr':
+                embedd = embedd[1]
+            else:
+                if isinstance(embedd, tuple): #for multiview
+                    embedd = embedd[0]
             embedd = embedd.flatten(1)
 
-            
+            #print(embedd.shape)
+
             if cfg.NUM_GPUS > 1:
                 embedd, targets, indexes = du_helper.all_gather([embedd, targets, indexes])
             embedding.append(embedd.detach().cpu())
@@ -561,8 +567,9 @@ if __name__ == '__main__':
 
     print('=> finished generating similarity network...')
 
-    print('=> Using evaluation method: {}'.format(args.eval))
-    if args.eval=='avg': #COCLR eval metric
+    cfg.DATA.TEMPORAL_CROP = args.crop
+    print('=> Using evaluation method: {}'.format(cfg.DATA.TEMPORAL_CROP))
+    if args.crop=='avg': #COCLR eval metric
         test_split='test'
     else:
         test_split='val'

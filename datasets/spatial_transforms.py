@@ -189,6 +189,22 @@ class RandomResizedCrop(transforms.RandomResizedCrop):
     def randomize_parameters(self):
         self.randomize = True
 
+class Lambda:
+    """Apply a user-defined lambda as a transform. This transform does not support torchscript.
+    Args:
+        lambd (function): Lambda/function to be used for transform.
+    """
+
+    def __init__(self, lambd):
+        if not callable(lambd):
+            raise TypeError("Argument lambd should be callable, got {}".format(repr(type(lambd).__name__)))
+        self.lambd = lambd
+
+    def __call__(self, img):
+        return self.lambd(img)
+
+    def __repr__(self):
+        return self.__class__.__name__ + '()'
 
 class Lambda:
     """Apply a user-defined lambda as a transform. This transform does not support torchscript.

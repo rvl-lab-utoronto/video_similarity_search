@@ -64,7 +64,7 @@ class UCF101Dataset(Dataset):
         else:
             videoname = self.test_split[idx]
         class_idx = self.class_label2idx[videoname[:videoname.find('/')]]
-        filename = os.path.join(self.root_dir, 'video', videoname)
+        filename = os.path.join(self.root_dir, 'videos', videoname)
         videodata = skvideo.io.vread(filename)
         length, height, width, channel = videodata.shape
 

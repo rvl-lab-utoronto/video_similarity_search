@@ -53,7 +53,7 @@ def parse_args():
     parser.add_argument('--batch_size', default=32, type=int, help='batch size per GPU')
     parser.add_argument('--optim', default='adam', type=str)
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
-    parser.add_argument('--schedule', default=[], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
+    parser.add_argument('--schedule', default=[60, 100], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
     #parser.add_argument('--schedule', default=[60, 80], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
     parser.add_argument('--wd', default=1e-3, type=float, help='weight decay')
     parser.add_argument('--dropout', default=0.9, type=float, help='dropout')

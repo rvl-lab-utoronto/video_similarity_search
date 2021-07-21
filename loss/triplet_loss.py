@@ -97,7 +97,7 @@ class OnlineTripletLoss(nn.Module):
 
         if sampling_strategy == 'noise_contrastive':
             # Compute temperature-scaled similarity matrix 
-            temperature = 0.5
+            temperature = 0.1
             sim_matrix = 1 - pdist(embeddings, eps=0, dist_metric=self.dist_metric)
             sim_matrix.masked_fill_(torch.eye(sim_matrix.size(0), dtype=bool).cuda(), 0)
             sim_matrix = sim_matrix / temperature

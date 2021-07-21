@@ -12,7 +12,7 @@ def salient_img_name_formatter(x):
     return f'{x:06d}_sal_fuse.png'
 
 def optical_img_name_formatter(x):
-    return f'{x:06d}_flow_u.png'
+    return f'{x:06d}_flow_u.jpg'
 
 def parse_categories(annotation_path):
     idx_to_class = {}

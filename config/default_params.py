@@ -124,7 +124,7 @@ _C.LOSS.DIST_METRIC = 'cosine'
 
 # NCE loss params
 _C.LOSS.K = 1024 #num of negatives
-_C.LOSS.T = 0.07 #temperature
+_C.LOSS.T = 0.1 #temperature
 _C.LOSS.M = 0.5 #momentum
 _C.LOSS.FEAT_DIM = 128
 

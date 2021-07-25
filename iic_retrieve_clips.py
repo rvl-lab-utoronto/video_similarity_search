@@ -242,6 +242,8 @@ def extract_feature(args, split='train'):
             test_dataset = UCF101ClipRetrievalDataset('/media/diskstation/datasets/UCF101', args.cl, 10, False, test_transforms)
         elif args.dataset == 'hmdb51':
             test_dataset = HMDB51ClipRetrievalDataset('/media/diskstation/datasets/HMDB51', args.cl, 10, False, test_transforms)
+
+
         test_dataloader = DataLoader(test_dataset, batch_size=args.bs, shuffle=False,
                                         num_workers=args.workers,
                                         pin_memory=True, drop_last=True)

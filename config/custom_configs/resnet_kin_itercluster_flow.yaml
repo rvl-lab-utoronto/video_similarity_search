@@ -1,10 +1,10 @@
 TRAIN:
-    DATASET: "ucf101"
+    DATASET: kinetics
 
 DATASET:
-    VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
-    ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/UCF101_Flow/json/ucf101_01.json' #optical flow
-    #CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
+    VID_PATH: /media/diskstation/datasets/kinetics400/frames_shortedge320px_25fps
+    ANNOTATION_PATH: /media/diskstation/datasets/kinetics400/vid_paths_and_labels/frame_paths
+    #CLUSTER_PATH: '/media/diskstation/datasets/kinetics400/cluster_output_kin_train2/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'
@@ -13,10 +13,8 @@ DATASET:
     POSITIVE_SAMPLING_P: 0.2
 
     POS_CHANNEL_REPLACE: True
-    PROB_POS_CHANNEL_REPLACE: 0.25
-
     CHANNEL_EXTENSIONS: 'optical_u'
-    OPTICAL_U_PATH: /media/diskstation/datasets/UCF101/UCF101_Flow/tvl1_flow/u
+    OPTICAL_U_PATH: /media/diskstation/datasets/kinetics400/FLOW/u
 
 MODEL:
     ARCH: '3dresnet'
@@ -34,11 +32,10 @@ RESNET:
 DATA:
     SAMPLE_SIZE: 128
     SAMPLE_DURATION: 16
-    INPUT_CHANNEL_NUM: 3
+    INPUT_CHANNEL_NUM: 4
 
 LOSS:
     MARGIN: 0.2
-    LOCAL_LOCAL_CONTRAST: True
 
 OPTIM:
     LR: 0.1

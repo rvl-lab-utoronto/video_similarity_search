@@ -185,6 +185,8 @@ def get_channel_extension(cfg):
     elif cfg.TRAIN.DATASET == 'kinetics':
         kp_img_name_formatter = datasets.kinetics.kp_img_name_formatter
         salient_img_name_formatter = datasets.kinetics.salient_img_name_formatter
+        optical_img_name_formatter = datasets.kinetics.optical_img_name_formatter
+
     else:
         print("channel extension not implemented for {}".format(cfg.TRAIN.DATASET))
 

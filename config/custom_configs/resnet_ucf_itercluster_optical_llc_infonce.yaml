@@ -4,12 +4,13 @@ TRAIN:
 DATASET:
     VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
     ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/UCF101_Flow/json/ucf101_01.json' #optical flow
-    #CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
+    # CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt' #EDIT DELETE THIS!x
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'
 
-    SAMPLING_STRATEGY: 'random_semi_hard'
+    # SAMPLING_STRATEGY: 'random_semi_hard'
+    SAMPLING_STRATEGY: 'noise_contrastive'
     POSITIVE_SAMPLING_P: 0.2
 
     POS_CHANNEL_REPLACE: True
@@ -20,6 +21,9 @@ DATASET:
 
 MODEL:
     ARCH: '3dresnet'
+
+ITERCLUSTER:
+    METHOD: 'finch'
 
 RESNET:
     MODEL_DEPTH: 18
@@ -33,7 +37,7 @@ RESNET:
 
 DATA:
     SAMPLE_SIZE: 128
-    SAMPLE_DURATION: 16
+    SAMPLE_DURATION: 32
     INPUT_CHANNEL_NUM: 3
 
 LOSS:

@@ -144,8 +144,9 @@ def main(args):
     args.num_class = num_class_dict[args.dataset]
 
     if args.train_what == 'last': # for linear probe
-        args.final_bn = False 
-        args.final_norm = True #not used?
+        #args.final_bn = True 
+        args.final_bn = False #Edit 
+        args.final_norm = True 
         args.use_dropout = False
     else: # for training the entire network
         args.final_bn = False 
@@ -179,7 +180,7 @@ def main(args):
         print('=> [optimizer] finetune backbone with smaller lr')
         params = []
         for name, param in model.named_parameters():
-            print(name, args.lr)
+            # print(name, args.lr)
             if 'linear' not in name:
                 print(name, args.lr/10)
                 params.append({'params': param, 'lr': args.lr/10})
@@ -236,6 +237,8 @@ def main(args):
             checkpoint = torch.load(args.checkpoint_path, map_location=torch.device('cpu'))
             epoch = checkpoint['epoch']
             state_dict = checkpoint['state_dict']
+            
+            print('loaded checkpoint from epoch:', epoch)
 
             # epoch = args.start_epoch
             # state_dict = checkpoint
@@ -332,6 +335,8 @@ def main(args):
 
             checkpoint = torch.load(args.pretrain, map_location='cpu')
             state_dict = checkpoint['state_dict']
+
+            print('checkpoint epoch:', checkpoint['epoch'])
 
             # new_dict = {}
             # for k,v in state_dict.items():

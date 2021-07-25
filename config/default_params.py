@@ -111,7 +111,7 @@ _C.DATA.SAMPLE_DURATION = 8
 _C.DATA.INPUT_CHANNEL_NUM = 3
 
 #select ['center', 'random', 'avg'] for temporal cropping in data preprocessing
-_C.DATA.TEMPORAL_CROP='random'
+_C.DATA.TEMPORAL_CROP='center'
 
 # -----------------------------------------------------------------------------
 # Loss Options
@@ -124,7 +124,7 @@ _C.LOSS.DIST_METRIC = 'cosine'
 
 # NCE loss params
 _C.LOSS.K = 1024 #num of negatives
-_C.LOSS.T = 0.07 #temperature
+_C.LOSS.T = 0.1 #temperature
 _C.LOSS.M = 0.5 #momentum
 _C.LOSS.FEAT_DIM = 128
 

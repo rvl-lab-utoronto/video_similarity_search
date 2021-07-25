@@ -97,7 +97,7 @@ class OnlineTripletLoss(nn.Module):
 
         if sampling_strategy == 'noise_contrastive':
             # Compute temperature-scaled similarity matrix 
-            temperature = 0.5
+            temperature = 0.1
             sim_matrix = 1 - pdist(embeddings, eps=0, dist_metric=self.dist_metric)
             sim_matrix.masked_fill_(torch.eye(sim_matrix.size(0), dtype=bool).cuda(), 0)
             sim_matrix = sim_matrix / temperature
@@ -105,11 +105,14 @@ class OnlineTripletLoss(nn.Module):
             # Construct targets (i.e. list containing idx of positive for each
             # anchor)
             pos_idx_targets = torch.empty(embeddings.size(0), dtype=torch.long)
+
             num_anchors = embeddings.size(0)//2
             for i in range (0, embeddings.size(0)):
                 pos_idx_targets[i] = (num_anchors + i) % embeddings.size(0)
             pos_idx_targets = pos_idx_targets.cuda()
             # print(pos_idx_targets)
+
+            
 
             # Compute normalized temperature-scaled cross entropy loss (InfoNCE)
             loss = F.cross_entropy(sim_matrix, pos_idx_targets)

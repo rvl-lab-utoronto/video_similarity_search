@@ -318,7 +318,7 @@ def parse_args():
     parser.add_argument('--checkpoint_path', type=str, help='checkpoint path')
     parser.add_argument('--bs', type=int, default=16, help='mini-batch size')
     parser.add_argument('--workers', type=int, default=2, help='number of data loading workers')
-    parser.add_argument('--model', type=str, default='ICVR', help='mainly used to differentiate CoCLR model from our model!')
+    parser.add_argument('--model', type=str, default='SLIC', help='mainly used to differentiate CoCLR model from our model!')
     args = parser.parse_args()
     args.feature_dir = os.path.join(args.feature_dir, args.dataset)
     return args

@@ -68,12 +68,12 @@ def UberNCE_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         # print(x.shape)
         B = x.shape[0]
         x = torch.tensor(x)
-        return x.view(B, 3, 2, cfg.DATA.SAMPLE_DURATION, cfg.LOSS.FEAT_DIM, cfg.LOSS.FEAT_DIM).transpose(1,2).contiguous() #TODO: make it configureable
+        return x.view(B, 3, 2, cfg.DATA.SAMPLE_DURATION, cfg.DATA.SAMPLE_SIZE, cfg.DATA.SAMPLE_SIZE).transpose(1,2).contiguous() #TODO: make it configureable
 
     # Training loop
     start = time.time()
     for batch_idx, (inputs, labels, index) in enumerate(train_loader):
-        inputs = np.concatenate(inputs, axis=1) # [ B, N, C, W, H]
+        inputs = np.concatenate(inputs[:-1], axis=1) # [ B, N, C, W, H] #inputs = (anchor, positive, negative) only concatenate anchor and positive
         input_seq = tr(inputs)
         batch_size = torch.tensor(input_seq.size(0)).to(device)
 
@@ -88,9 +88,12 @@ def UberNCE_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
 
         if cfg.MODEL.ARCH == 'uber_nce':
             # optimize all positive pairs, compute the mean for num_pos and for batch_size 
+            # print("input_seq:", input_seq.shape)
             output, target = model(input_seq, label)
+        
             loss = - (F.log_softmax(output, dim=1) * target).sum(1) / target.sum(1)
             loss = loss.mean()
+            print(loss)
             top1, top5 = calc_mask_accuracy(output, target, (1,5))
 
         # Compute gradient and perform optimization step
@@ -873,6 +876,8 @@ def train(args, cfg):
                     contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
 
         elif cfg.LOSS.TYPE == 'UberNCE':
+            if (is_master_proc):
+                print("==> Training with UberNCE Loss")
             criterion = nn.CrossEntropyLoss().to(device)
             UberNCE_train_epoch(train_loader, model, criterion, optimizer,
                     epoch, cfg, cuda, device, is_master_proc)

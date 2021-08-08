@@ -2,9 +2,9 @@ TRAIN:
     DATASET: kinetics
 
 DATASET:
-    VID_PATH: .
-    ANNOTATION_PATH: /home/salar77h/projects/def-florian7/datasets/kinetics400/vid_paths_and_labels/frame_paths
-    #CLUSTER_PATH: '/home/salar77h/projects/def-florian7/datasets/kinetics400/vid_clusters.txt'
+    VID_PATH: /media/diskstation/datasets/kinetics400/frames_shortedge320px_25fps
+    ANNOTATION_PATH: /media/diskstation/datasets/kinetics400/vid_paths_and_labels/frame_paths
+    #CLUSTER_PATH: '/media/diskstation/datasets/kinetics400/cluster_output_kin_train2/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'
@@ -12,9 +12,9 @@ DATASET:
     SAMPLING_STRATEGY: 'random_semi_hard'
     POSITIVE_SAMPLING_P: 0.2
 
-    #POS_CHANNEL_REPLACE: True
-    #CHANNEL_EXTENSIONS: 'optical_u'
-    #OPTICAL_U_PATH: tvl1_flow/u
+    POS_CHANNEL_REPLACE: True
+    CHANNEL_EXTENSIONS: 'optical_u'
+    OPTICAL_U_PATH: /media/diskstation/datasets/kinetics400/FLOW/u
 
 MODEL:
     ARCH: '3dresnet'
@@ -32,15 +32,11 @@ RESNET:
 DATA:
     SAMPLE_SIZE: 128
     SAMPLE_DURATION: 16
-    INPUT_CHANNEL_NUM: 3
+    INPUT_CHANNEL_NUM: 4
 
 LOSS:
     MARGIN: 0.2
-    LOCAL_LOCAL_CONTRAST: True
 
 OPTIM:
     LR: 0.1
     MOMENTUM: 0.5
-
-ITERCLUSTER:
-    METHOD: 'finch'

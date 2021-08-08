@@ -3,18 +3,18 @@ TRAIN:
 
 DATASET:
     VID_PATH: .
-    ANNOTATION_PATH: /home/salar77h/projects/def-florian7/datasets/kinetics400/vid_paths_and_labels/frame_paths
-    #CLUSTER_PATH: '/home/salar77h/projects/def-florian7/datasets/kinetics400/vid_clusters.txt'
+    ANNOTATION_PATH: /home/cheny257/projects/def-florian7/datasets/kinetics400/vid_paths_and_labels/frame_paths
+    #CLUSTER_PATH: '/home/cheny257/projects/def-florian7/datasets/kinetics400/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'
 
     SAMPLING_STRATEGY: 'random_semi_hard'
-    POSITIVE_SAMPLING_P: 0.2
+    POSITIVE_SAMPLING_P: 0.5 #EDIT: 0.2
 
-    #POS_CHANNEL_REPLACE: True
-    #CHANNEL_EXTENSIONS: 'optical_u'
-    #OPTICAL_U_PATH: tvl1_flow/u
+    POS_CHANNEL_REPLACE: True
+    CHANNEL_EXTENSIONS: 'optical_u'
+    OPTICAL_U_PATH: ./u
 
 MODEL:
     ARCH: '3dresnet'

@@ -3,6 +3,11 @@ Created by Sherry Chen on Jul 3, 2020
 Build and Train Triplet network. Supports saving and loading checkpoints,
 """
 
+#def warn(*args, **kwargs):
+#        pass
+#import warnings
+#warnings.warn = warn
+
 import sys, os
 #import gc
 import numpy as np
@@ -29,7 +34,7 @@ from clustering.cluster_masks import fit_cluster
 from sklearn.metrics import normalized_mutual_info_score, adjusted_mutual_info_score
 
 #TODO: add this to config file
-modality = 'res'
+modality = 'rgb'
 intra_neg = False #True
 moco = False #True
 neg_type='repeat'
@@ -68,12 +73,12 @@ def UberNCE_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         # print(x.shape)
         B = x.shape[0]
         x = torch.tensor(x)
-        return x.view(B, 3, 2, cfg.DATA.SAMPLE_DURATION, cfg.LOSS.FEAT_DIM, cfg.LOSS.FEAT_DIM).transpose(1,2).contiguous() #TODO: make it configureable
+        return x.view(B, 3, 2, cfg.DATA.SAMPLE_DURATION, cfg.DATA.SAMPLE_SIZE, cfg.DATA.SAMPLE_SIZE).transpose(1,2).contiguous() #TODO: make it configureable
 
     # Training loop
     start = time.time()
     for batch_idx, (inputs, labels, index) in enumerate(train_loader):
-        inputs = np.concatenate(inputs, axis=1) # [ B, N, C, W, H]
+        inputs = np.concatenate(inputs[:-1], axis=1) # [ B, N, C, W, H] #inputs = (anchor, positive, negative) only concatenate anchor and positive
         input_seq = tr(inputs)
         batch_size = torch.tensor(input_seq.size(0)).to(device)
 
@@ -88,9 +93,12 @@ def UberNCE_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
 
         if cfg.MODEL.ARCH == 'uber_nce':
             # optimize all positive pairs, compute the mean for num_pos and for batch_size 
+            # print("input_seq:", input_seq.shape)
             output, target = model(input_seq, label)
+        
             loss = - (F.log_softmax(output, dim=1) * target).sum(1) / target.sum(1)
             loss = loss.mean()
+            print(loss)
             top1, top5 = calc_mask_accuracy(output, target, (1,5))
 
         # Compute gradient and perform optimization step
@@ -146,11 +154,12 @@ def contrastive_train_epoch(train_loader, model, criterion_1, criterion_2, contr
     # Training loop
     start = time.time()
     for batch_idx, (inputs, labels, index) in enumerate(train_loader):
-        view1 = inputs[0]
+        #view1 = inputs[0]
         if modality=='rgb':
-            view2 = inputs[1]
+            view1, view2 = inputs
         elif modality == 'res':
-            view2 = diff(view1)
+            assert False, 'not supported'
+            #view2 = diff(view1)
 
         batch_size = torch.tensor(view1.size(0)).to(device)
         # Prepare input and send to gpu
@@ -170,6 +179,7 @@ def contrastive_train_epoch(train_loader, model, criterion_1, criterion_2, contr
         # Get embeddings of view1s and view2s
         feat_1 = model(view1)
         feat_2 = model(view2)
+
         if intra_neg:
             intra_negative = preprocess(view1, neg_type)
             feat_neg = model(intra_negative)
@@ -611,6 +621,9 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
 
 # Setup training and run training loop
 def train(args, cfg):
+
+    #torch.autograd.set_detect_anomaly(True)
+
     best_acc = 0
     start_epoch = 0
     cudnn.benchmark = True
@@ -667,8 +680,15 @@ def train(args, cfg):
         return model
 
     # Load similarity network checkpoint if path exists
-    if args.checkpoint_path is not None:
-        start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, is_master_proc)
+
+    if args.vector:
+        load_path = "tnet_checkpoints/%s/checkpoint.pth.tar"%(cfg.MODEL.ARCH)
+        load_path = os.path.join(args.checkpoint_path, load_path)
+    else:
+        load_path = args.checkpoint_path
+
+    if args.checkpoint_path is not None and os.path.exists(load_path):
+        start_epoch, best_acc = load_checkpoint(model, load_path, is_master_proc)
 
     if cuda:
         model = DDP(model)
@@ -874,6 +894,8 @@ def train(args, cfg):
                     contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
 
         elif cfg.LOSS.TYPE == 'UberNCE':
+            if (is_master_proc):
+                print("==> Training with UberNCE Loss")
             criterion = nn.CrossEntropyLoss().to(device)
             UberNCE_train_epoch(train_loader, model, criterion, optimizer,
                     epoch, cfg, cuda, device, is_master_proc)
@@ -911,32 +933,47 @@ def train(args, cfg):
                 best_acc = max(top1_acc, best_acc)
 
         # Save checkpoint
-        if epoch % 200 == 0:
-            filename = 'checkpoint_{}.pth.tar'.format(epoch)
-        else:
-            filename = 'checkpoint.pth.tar'
 
         if torch.cuda.device_count() > 1:
-            save_checkpoint({
-                'epoch': epoch+1,
-                'state_dict':model.module.state_dict(),
-                'best_prec1': best_acc,
-            }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc, filename=filename)
+            state_dict = model.module.state_dict()
         else:
+            state_dict = model.state_dict()
+
+        if not args.vector or (args.vector and (epoch % 100 == 0 or is_best or epoch == cfg.TRAIN.EPOCHS - 1)):
             save_checkpoint({
                 'epoch': epoch+1,
-                'state_dict':model.state_dict(),
+                'state_dict': state_dict,
                 'best_prec1': best_acc,
-            }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc, filename=filename)
+            }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
+
+            if epoch % 200 == 0:
+                filename = 'checkpoint_{}.pth.tar'.format(epoch)
+                save_checkpoint({
+                    'epoch': epoch+1,
+                    'state_dict': state_dict,
+                    'best_prec1': best_acc,
+                }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc, filename)
+
+        if args.vector:
+            save_checkpoint({
+                'epoch': epoch+1,
+                'state_dict': state_dict,
+                'best_prec1': best_acc,
+            }, is_best, cfg.MODEL.ARCH, args.checkpoint_path, is_master_proc)
 
 
 if __name__ == '__main__':
 
     torch.manual_seed(7)
+    np.random.seed(7)
+    torch.cuda.manual_seed_all(7)
 
     print ('\n==> Parsing parameters:')
     args = arg_parser().parse_args()
     cfg = load_config(args)
+
+    if args.vector:
+        assert args.checkpoint_path is not None
 
     # If iteratively clustering, overwrite the cluster_path
     print('Iteratively clustering?: {}, warmup epochs = {}'.format(args.iterative_cluster,

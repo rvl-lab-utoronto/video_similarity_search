@@ -1,10 +1,10 @@
 TRAIN:
-    DATASET: kinetics
+    DATASET: "ucf101"
 
 DATASET:
-    VID_PATH: .
-    ANNOTATION_PATH: /home/salar77h/projects/def-florian7/datasets/kinetics400/vid_paths_and_labels/frame_paths
-    #CLUSTER_PATH: '/home/salar77h/projects/def-florian7/datasets/kinetics400/vid_clusters.txt'
+    VID_PATH: /scratch/ssd004/scratch/salarh/datasets/UCF101/jpg
+    ANNOTATION_PATH: /scratch/ssd004/scratch/salarh/datasets/UCF101/flow_json/ucf101_01.json
+    CLUSTER_PATH: '/scratch/ssd004/scratch/salarh/datasets/UCF101/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'
@@ -12,9 +12,9 @@ DATASET:
     SAMPLING_STRATEGY: 'random_semi_hard'
     POSITIVE_SAMPLING_P: 0.2
 
-    #POS_CHANNEL_REPLACE: True
-    #CHANNEL_EXTENSIONS: 'optical_u'
-    #OPTICAL_U_PATH: tvl1_flow/u
+    POS_CHANNEL_REPLACE: True
+    CHANNEL_EXTENSIONS: 'optical_u'
+    OPTICAL_U_PATH: /scratch/ssd004/scratch/salarh/datasets/UCF101/tvl1_flow/u
 
 MODEL:
     ARCH: '3dresnet'

@@ -35,7 +35,7 @@ class HMDB51Dataset(Dataset):
         self.transforms_ = transforms_
         self.test_sample_num = test_sample_num
         self.toPIL = transforms.ToPILImage()
-        class_idx_path = os.path.join(root_dir, 'prev_split', 'classInd.txt')
+        class_idx_path = os.path.join(root_dir, 'prev_split', 'ClassInd.txt')
         self.class_idx2label = pd.read_csv(class_idx_path, header=None, sep=' ').set_index(0)[1]
         self.class_label2idx = pd.read_csv(class_idx_path, header=None, sep=' ').set_index(1)[0]
 

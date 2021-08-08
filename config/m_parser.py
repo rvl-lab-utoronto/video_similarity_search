@@ -126,6 +126,11 @@ def arg_parser():
         action='store_true',
         help="map to hyperbolic"
     )
+    parser.add_argument(
+        '--vector',
+        action='store_true',
+        help="running on vector cluster"
+    )
     return parser
 
 

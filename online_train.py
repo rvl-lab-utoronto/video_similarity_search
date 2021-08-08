@@ -24,7 +24,7 @@ from models.model_utils import (model_selector, multipathway_input,
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from loss.triplet_loss import OnlineTripletLoss, MemTripletLoss
-from loss.NCE_loss import NCEAverage, NCEAverage_intra_neg, NCESoftmaxLoss
+from loss.NCE_loss import NCEAverage, NCEAverage_intra_neg, NCESoftmaxLoss, MemoryMoCo
 from clustering.cluster_masks import fit_cluster
 from sklearn.metrics import normalized_mutual_info_score, adjusted_mutual_info_score
 
@@ -869,6 +869,7 @@ def train(args, cfg):
             if(is_master_proc):
                 print('Using criterion:{} for training'.format(criterion_1, criterion_2))
                 print('Using criterion:{} for validation'.format(val_criterion))
+            torch.autograd.set_detect_anomaly(True)  #EDIT: delete
             contrastive_train_epoch(train_loader, model, criterion_1, criterion_2,
                     contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
 

@@ -107,6 +107,8 @@ _C.DATA.SAMPLE_SIZE = 224
 # The number of frames of the input clip.
 _C.DATA.SAMPLE_DURATION = 8
 
+_C.DATA.SKIP_RATE = 1
+
 # Input frame channel dimension.
 _C.DATA.INPUT_CHANNEL_NUM = 3
 

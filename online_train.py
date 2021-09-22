@@ -746,7 +746,7 @@ def train(args, cfg):
             m_iter_cluster = True
             cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
 
-    if not m_iter_cluster or start_epoch != 0:
+    if not m_iter_cluster or (start_epoch != 0 and os.path.exists(cfg.DATASET.CLUSTER_PATH)):
         if(is_master_proc):
             print('\n==> Building training data loader (triplet)...')
         train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
@@ -784,7 +784,7 @@ def train(args, cfg):
             m_iter_cluster = True
             cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
 
-        if m_iter_cluster and epoch % cfg.ITERCLUSTER.INTERVAL == 0:
+        if m_iter_cluster and (epoch % cfg.ITERCLUSTER.INTERVAL == 0 or not os.path.exists(cfg.DATASET.CLUSTER_PATH)):
             # Get embeddings using current model
             if is_master_proc:
                 print('\n=> Computing embeddings')

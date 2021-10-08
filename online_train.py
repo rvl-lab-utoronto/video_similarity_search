@@ -798,11 +798,14 @@ def train(args, cfg):
                 if is_master_proc:
                     print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
 
+            if not is_master_proc:
+                del embeddings
+
             if is_master_proc:
                 # Cluster
                 print('\n=> Clustering')
                 start_time = time.time()
-                print('embeddings shape', embeddings.size())
+                print('embeddings shape', embeddings.size(), embeddings.dtype)
 
                 cluster_labels = fit_cluster(embeddings, cfg.ITERCLUSTER.METHOD,
                                         cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE,

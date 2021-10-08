@@ -245,7 +245,7 @@ def load_checkpoint(model, checkpoint_path, classifier=False, is_master_proc=Tru
     if os.path.isfile(checkpoint_path):
         if (is_master_proc):
             print("=> loading checkpoint '{}'".format(checkpoint_path))
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
         start_epoch = checkpoint['epoch']
         best_prec1 = checkpoint['best_prec1']
         state_dict = checkpoint['state_dict']

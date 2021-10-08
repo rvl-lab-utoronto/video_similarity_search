@@ -798,8 +798,8 @@ def train(args, cfg):
                 if is_master_proc:
                     print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
 
-            if not is_master_proc:
-                del embeddings
+            #if not is_master_proc:
+            #    del embeddings
 
             if is_master_proc:
                 # Cluster

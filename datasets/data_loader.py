@@ -160,13 +160,16 @@ def build_temporal_transformation(cfg, triplets=True, split=None):
         #    TempTransform['intra_negative'] = intra_neg_temporal_transform
 
     else:
+
+        print('DURATION_MULTIPLIER:', cfg.DATA.DURATION_MULTIPLIER)
+
         temporal_transform = []
         if cfg.DATA.TEMPORAL_CROP == 'random':
             print('==> using Temporal Random Crop')
-            temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION,skip_rate=cfg.DATA.SKIP_RATE)) #opt.n_val_samples))
+            temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION*cfg.DATA.DURATION_MULTIPLIER,skip_rate=cfg.DATA.SKIP_RATE)) #opt.n_val_samples))
         else: #center/avg
             print('==> using Temporal Center Crop')
-            temporal_transform.append(TemporalCenterCrop(cfg.DATA.SAMPLE_DURATION,
+            temporal_transform.append(TemporalCenterCrop(cfg.DATA.SAMPLE_DURATION*cfg.DATA.DURATION_MULTIPLIER,
                 skip_rate=cfg.DATA.SKIP_RATE))
 
         temporal_transform = TemporalCompose(temporal_transform)
@@ -302,6 +305,10 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
         else:
             shuffle=(False if sampler else True)
 
+        #EVAL_BATCHSIZE_MULTIPLIER = 6
+
+        print('EVAL_BATCHSIZE_MULTIPLIER:', cfg.DATA.EVAL_BATCHSIZE_MULTIPLIER)
+
         print('Shuffle:{}'.format(shuffle))
         if split == 'train':
             if triplets:
@@ -310,7 +317,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 if cfg.TRAIN.EVAL_BATCH_SIZE:
                     batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
                 else:
-                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
+                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * cfg.DATA.EVAL_BATCHSIZE_MULTIPLIER
         else:
             if triplets:
                 batch_size = int(cfg.VAL.BATCH_SIZE)
@@ -318,7 +325,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 if cfg.TRAIN.EVAL_BATCH_SIZE:
                     batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
                 else:
-                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
+                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * cfg.DATA.EVAL_BATCHSIZE_MULTIPLIER
 
         if is_master_proc:
             print(split, 'batch size for this process:', batch_size)

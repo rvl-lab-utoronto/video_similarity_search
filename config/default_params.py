@@ -115,6 +115,10 @@ _C.DATA.INPUT_CHANNEL_NUM = 3
 #select ['center', 'random', 'avg'] for temporal cropping in data preprocessing
 _C.DATA.TEMPORAL_CROP='center'
 
+# Duration multiplier for clustered embeddings and retrieved embeddings
+_C.DATA.DURATION_MULTIPLIER = 1
+_C.DATA.EVAL_BATCHSIZE_MULTIPLIER = 6
+
 # -----------------------------------------------------------------------------
 # Loss Options
 # -----------------------------------------------------------------------------

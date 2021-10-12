@@ -34,7 +34,7 @@ from clustering.cluster_masks import fit_cluster
 from sklearn.metrics import normalized_mutual_info_score, adjusted_mutual_info_score
 
 #TODO: add this to config file
-modality = 'res'
+modality = 'rgb'
 intra_neg = False #True
 moco = False #True
 neg_type='repeat'
@@ -151,11 +151,12 @@ def contrastive_train_epoch(train_loader, model, criterion_1, criterion_2, contr
     # Training loop
     start = time.time()
     for batch_idx, (inputs, labels, index) in enumerate(train_loader):
-        view1 = inputs[0]
+        #view1 = inputs[0]
         if modality=='rgb':
-            view2 = inputs[1]
+            view1, view2 = inputs
         elif modality == 'res':
-            view2 = diff(view1)
+            assert False, 'not supported'
+            #view2 = diff(view1)
 
         batch_size = torch.tensor(view1.size(0)).to(device)
         # Prepare input and send to gpu
@@ -175,6 +176,7 @@ def contrastive_train_epoch(train_loader, model, criterion_1, criterion_2, contr
         # Get embeddings of view1s and view2s
         feat_1 = model(view1)
         feat_2 = model(view2)
+
         if intra_neg:
             intra_negative = preprocess(view1, neg_type)
             feat_neg = model(intra_negative)
@@ -616,6 +618,9 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
 
 # Setup training and run training loop
 def train(args, cfg):
+
+    #torch.autograd.set_detect_anomaly(True)
+
     best_acc = 0
     start_epoch = 0
     cudnn.benchmark = True
@@ -741,7 +746,7 @@ def train(args, cfg):
             m_iter_cluster = True
             cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
 
-    if not m_iter_cluster or start_epoch != 0:
+    if not m_iter_cluster or (start_epoch != 0 and os.path.exists(cfg.DATASET.CLUSTER_PATH)):
         if(is_master_proc):
             print('\n==> Building training data loader (triplet)...')
         train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
@@ -779,7 +784,7 @@ def train(args, cfg):
             m_iter_cluster = True
             cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
 
-        if m_iter_cluster and epoch % cfg.ITERCLUSTER.INTERVAL == 0:
+        if m_iter_cluster and (epoch % cfg.ITERCLUSTER.INTERVAL == 0 or not os.path.exists(cfg.DATASET.CLUSTER_PATH)):
             # Get embeddings using current model
             if is_master_proc:
                 print('\n=> Computing embeddings')
@@ -793,11 +798,14 @@ def train(args, cfg):
                 if is_master_proc:
                     print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
 
+            #if not is_master_proc:
+            #    del embeddings
+
             if is_master_proc:
                 # Cluster
                 print('\n=> Clustering')
                 start_time = time.time()
-                print('embeddings shape', embeddings.size())
+                print('embeddings shape', embeddings.size(), embeddings.dtype)
 
                 cluster_labels = fit_cluster(embeddings, cfg.ITERCLUSTER.METHOD,
                                         cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE,

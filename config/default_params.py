@@ -107,11 +107,17 @@ _C.DATA.SAMPLE_SIZE = 224
 # The number of frames of the input clip.
 _C.DATA.SAMPLE_DURATION = 8
 
+_C.DATA.SKIP_RATE = 1
+
 # Input frame channel dimension.
 _C.DATA.INPUT_CHANNEL_NUM = 3
 
 #select ['center', 'random', 'avg'] for temporal cropping in data preprocessing
 _C.DATA.TEMPORAL_CROP='center'
+
+# Duration multiplier for clustered embeddings and retrieved embeddings
+_C.DATA.DURATION_MULTIPLIER = 1
+_C.DATA.EVAL_BATCHSIZE_MULTIPLIER = 6
 
 # -----------------------------------------------------------------------------
 # Loss Options
@@ -124,7 +130,7 @@ _C.LOSS.DIST_METRIC = 'cosine'
 
 # NCE loss params
 _C.LOSS.K = 1024 #num of negatives
-_C.LOSS.T = 0.07 #temperature
+_C.LOSS.T = 0.1 #temperature
 _C.LOSS.M = 0.5 #momentum
 _C.LOSS.FEAT_DIM = 128
 

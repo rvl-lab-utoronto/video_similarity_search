@@ -123,16 +123,25 @@ def build_spatial_transformation(cfg, split, triplets, is_master_proc=True):
 def build_temporal_transformation(cfg, triplets=True, split=None):
     if triplets:
         TempTransform = {}
-        #anchor
+
         anchor_temporal_transform = []
-        anchor_temporal_transform.append(TemporalBeginCrop(cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
+        positive_temporal_transform = []
+        if cfg.DATA.ANCHOR_TEMPORAL_CROP == 'begin':
+            #anchor
+            anchor_temporal_transform.append(TemporalBeginCrop(cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
+            #positive
+            positive_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION,
+                start_index=cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
+        elif cfg.DATA.ANCHOR_TEMPORAL_CROP == 'random':
+            #anchor
+            anchor_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
+            #positive
+            positive_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
+        else:
+            assert False, 'anchor_temporal_crop setting not supported'
+
         anchor_temporal_transform = TemporalCompose(anchor_temporal_transform)
         TempTransform['anchor'] = anchor_temporal_transform
-
-        #positive
-        positive_temporal_transform = []
-        positive_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION,
-            start_index=cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
         positive_temporal_transform = TemporalCompose(positive_temporal_transform)
         TempTransform['positive'] = positive_temporal_transform
 

@@ -794,9 +794,14 @@ def train(args, cfg):
                 embeddings, true_labels, idxs = get_embeddings_and_labels(args, cfg,
                         encoder, cuda, device, eval_train_loader, split='train',
                         is_master_proc=is_master_proc,
-                        load_pkl=embeddings_computed, save_pkl=False)
+                        load_pkl=embeddings_computed, save_pkl=True)
                 if is_master_proc:
                     print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
+
+                #embeddings_pkl = os.path.join(cfg.OUTPUT_PATH, 'train_embeddings.pkl')
+                #with open(embeddings_pkl, 'rb') as handle:
+                #    embeddings = torch.load(handle)
+                #print('retrieved train_embeddings', embeddings.size())
 
             if is_master_proc:
                 # Cluster

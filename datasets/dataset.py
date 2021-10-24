@@ -38,7 +38,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
              negative_sampling=False, positive_sampling_p=1.0,
              pos_channel_replace=False, prob_pos_channel_replace=None, modality=False, predict_temporal_ds=False, 
              relative_speed_perception=False, 
-             local_local_contrast=False, intra_negative=False, is_master_proc=True):
+             local_local_contrast=False, intra_negative=False, flow_only=False, is_master_proc=True):
 
 
     '''
@@ -53,6 +53,9 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
 
     if file_type == 'jpg':
         assert input_type == 'rgb', 'flow input is supported only when input type is hdf5.'
+
+    if flow_only:
+        assert triplets == False, 'flow-only inputs only supported for non-triplet loader'
 
     if split == 'train':
         ret_collate_fn = None
@@ -137,7 +140,8 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                             normalize=normalize,
                             video_loader=loader,
                             image_name_formatter=Dataset.image_name_formatter,
-                            sample_duration=sample_duration)
+                            sample_duration=sample_duration,
+                            flow_only=flow_only)
 
     if (is_master_proc):
         print('{}_data: {}'.format(split, len(data)))

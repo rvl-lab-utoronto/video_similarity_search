@@ -169,13 +169,16 @@ def build_temporal_transformation(cfg, triplets=True, split=None):
         #    TempTransform['intra_negative'] = intra_neg_temporal_transform
 
     else:
+
+        print('DURATION_MULTIPLIER:', cfg.DATA.DURATION_MULTIPLIER)
+
         temporal_transform = []
         if cfg.DATA.TEMPORAL_CROP == 'random':
             print('==> using Temporal Random Crop')
-            temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION,skip_rate=cfg.DATA.SKIP_RATE)) #opt.n_val_samples))
+            temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION*cfg.DATA.DURATION_MULTIPLIER,skip_rate=cfg.DATA.SKIP_RATE)) #opt.n_val_samples))
         else: #center/avg
             print('==> using Temporal Center Crop')
-            temporal_transform.append(TemporalCenterCrop(cfg.DATA.SAMPLE_DURATION,
+            temporal_transform.append(TemporalCenterCrop(cfg.DATA.SAMPLE_DURATION*cfg.DATA.DURATION_MULTIPLIER,
                 skip_rate=cfg.DATA.SKIP_RATE))
 
         temporal_transform = TemporalCompose(temporal_transform)
@@ -221,7 +224,8 @@ def get_channel_extension(cfg):
 # Return a pytorch DataLoader
 def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                       negative_sampling=False, req_spatial_transform=None,
-                      req_train_shuffle=None, val_sample=1, drop_last=True, batch_size=None):
+                      req_train_shuffle=None, val_sample=1, drop_last=True,
+                      batch_size=None, flow_only=False):
 
     # ==================== Transforms and parameter Setup ======================
 
@@ -245,9 +249,10 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     # dictionary and assert that the specified input_channel_num is valid
     
     channel_ext = {}
-    if (triplets and cfg.DATASET.POS_CHANNEL_REPLACE and split == 'train') or not cfg.DATASET.POS_CHANNEL_REPLACE:
+    if (triplets and cfg.DATASET.POS_CHANNEL_REPLACE and split == 'train'
+       ) or not cfg.DATASET.POS_CHANNEL_REPLACE or flow_only:
         channel_ext = get_channel_extension(cfg)
-        assert (cfg.DATASET.MODALITY or cfg.DATASET.POS_CHANNEL_REPLACE or len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
+        assert (flow_only or cfg.DATASET.MODALITY or cfg.DATASET.POS_CHANNEL_REPLACE or len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
         if (is_master_proc):
             print('Channel ext:', channel_ext)
   
@@ -292,6 +297,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 intra_negative=cfg.LOSS.INTRA_NEGATIVE,
                 modality=cfg.DATASET.MODALITY,
                 predict_temporal_ds=cfg.MODEL.PREDICT_TEMPORAL_DS,
+                flow_only=flow_only,
                 is_master_proc=is_master_proc)
 
     # ============================ Build DataLoader ============================
@@ -311,6 +317,10 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
         else:
             shuffle=(False if sampler else True)
 
+        #EVAL_BATCHSIZE_MULTIPLIER = 6
+
+        print('EVAL_BATCHSIZE_MULTIPLIER:', cfg.DATA.EVAL_BATCHSIZE_MULTIPLIER)
+
         print('Shuffle:{}'.format(shuffle))
         if split == 'train':
             if triplets:
@@ -319,7 +329,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 if cfg.TRAIN.EVAL_BATCH_SIZE:
                     batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
                 else:
-                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
+                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * cfg.DATA.EVAL_BATCHSIZE_MULTIPLIER
         else:
             if triplets:
                 batch_size = int(cfg.VAL.BATCH_SIZE)
@@ -327,7 +337,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 if cfg.TRAIN.EVAL_BATCH_SIZE:
                     batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
                 else:
-                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 6
+                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * cfg.DATA.EVAL_BATCHSIZE_MULTIPLIER
 
         if is_master_proc:
             print(split, 'batch size for this process:', batch_size)

@@ -125,44 +125,52 @@ def build_temporal_transformation(cfg, triplets=True, split=None):
         TempTransform = {}
         #anchor
         anchor_temporal_transform = []
-        anchor_temporal_transform.append(TemporalBeginCrop(cfg.DATA.SAMPLE_DURATION))
+        anchor_temporal_transform.append(TemporalBeginCrop(cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
         anchor_temporal_transform = TemporalCompose(anchor_temporal_transform)
         TempTransform['anchor'] = anchor_temporal_transform
 
         #positive
         positive_temporal_transform = []
-        positive_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION, start_index=cfg.DATA.SAMPLE_DURATION))
+        positive_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION,
+            start_index=cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
         positive_temporal_transform = TemporalCompose(positive_temporal_transform)
         TempTransform['positive'] = positive_temporal_transform
 
         if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
-            fast_positive_temporal_transform = []
-            fast_positive_temporal_transform.append(TemporalRandomCrop2xSpeed(cfg.DATA.SAMPLE_DURATION, start_index=cfg.DATA.SAMPLE_DURATION))
-            fast_positive_temporal_transform = TemporalCompose(fast_positive_temporal_transform)
-            TempTransform['fast_positive'] = fast_positive_temporal_transform
+            assert False, 'not supported'
+        #    fast_positive_temporal_transform = []
+        #    fast_positive_temporal_transform.append(TemporalRandomCrop2xSpeed(cfg.DATA.SAMPLE_DURATION, start_index=cfg.DATA.SAMPLE_DURATION))
+        #    fast_positive_temporal_transform = TemporalCompose(fast_positive_temporal_transform)
+        #    TempTransform['fast_positive'] = fast_positive_temporal_transform
 
         #negative
         neg_temporal_transform = []
-        neg_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
+        neg_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION,
+            skip_rate=cfg.DATA.SKIP_RATE))
         neg_temporal_transform = TemporalCompose(neg_temporal_transform)
         TempTransform['negative'] = neg_temporal_transform
 
         #intra-negative
         if cfg.LOSS.INTRA_NEGATIVE:
-            intra_neg_temporal_transform = []
-            intra_neg_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
-            intra_neg_temporal_transform = TemporalCompose(intra_neg_temporal_transform)
-            # intra_neg_temporal_transform = Shuffle(intra_neg_temporal_transform)
-            TempTransform['intra_negative'] = intra_neg_temporal_transform
+            assert False, 'not supported'
+        #    intra_neg_temporal_transform = []
+        #    intra_neg_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION))
+        #    intra_neg_temporal_transform = TemporalCompose(intra_neg_temporal_transform)
+        #    # intra_neg_temporal_transform = Shuffle(intra_neg_temporal_transform)
+        #    TempTransform['intra_negative'] = intra_neg_temporal_transform
 
     else:
+
+        print('DURATION_MULTIPLIER:', cfg.DATA.DURATION_MULTIPLIER)
+
         temporal_transform = []
         if cfg.DATA.TEMPORAL_CROP == 'random':
             print('==> using Temporal Random Crop')
-            temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION)) #opt.n_val_samples))
+            temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION*cfg.DATA.DURATION_MULTIPLIER,skip_rate=cfg.DATA.SKIP_RATE)) #opt.n_val_samples))
         else: #center/avg
             print('==> using Temporal Center Crop')
-            temporal_transform.append(TemporalCenterCrop(cfg.DATA.SAMPLE_DURATION))
+            temporal_transform.append(TemporalCenterCrop(cfg.DATA.SAMPLE_DURATION*cfg.DATA.DURATION_MULTIPLIER,
+                skip_rate=cfg.DATA.SKIP_RATE))
 
         temporal_transform = TemporalCompose(temporal_transform)
         TempTransform = temporal_transform
@@ -268,7 +276,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
     data, (collate_fn, _) = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
-                cfg.DATA.SAMPLE_DURATION, spatial_transform, TempTransform, normalize=normalize,
+                cfg.DATA.SAMPLE_DURATION, cfg.DATA.SKIP_RATE, spatial_transform, TempTransform, normalize=normalize,
                 channel_ext=channel_ext, cluster_path=cluster_path,
                 target_type=target_type, val_sample=val_sample,
                 negative_sampling=negative_sampling,
@@ -300,6 +308,10 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
         else:
             shuffle=(False if sampler else True)
 
+        #EVAL_BATCHSIZE_MULTIPLIER = 6
+
+        print('EVAL_BATCHSIZE_MULTIPLIER:', cfg.DATA.EVAL_BATCHSIZE_MULTIPLIER)
+
         print('Shuffle:{}'.format(shuffle))
         if split == 'train':
             if triplets:
@@ -308,7 +320,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 if cfg.TRAIN.EVAL_BATCH_SIZE:
                     batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
                 else:
-                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 7
+                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * cfg.DATA.EVAL_BATCHSIZE_MULTIPLIER
         else:
             if triplets:
                 batch_size = int(cfg.VAL.BATCH_SIZE)
@@ -316,7 +328,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 if cfg.TRAIN.EVAL_BATCH_SIZE:
                     batch_size = cfg.TRAIN.EVAL_BATCH_SIZE
                 else:
-                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * 7
+                    batch_size = int(cfg.TRAIN.BATCH_SIZE / cfg.NUM_GPUS) * cfg.DATA.EVAL_BATCHSIZE_MULTIPLIER
 
         if is_master_proc:
             print(split, 'batch size for this process:', batch_size)

@@ -107,11 +107,17 @@ _C.DATA.SAMPLE_SIZE = 224
 # The number of frames of the input clip.
 _C.DATA.SAMPLE_DURATION = 8
 
+_C.DATA.SKIP_RATE = 1
+
 # Input frame channel dimension.
 _C.DATA.INPUT_CHANNEL_NUM = 3
 
 #select ['center', 'random', 'avg'] for temporal cropping in data preprocessing
 _C.DATA.TEMPORAL_CROP='center'
+
+# Duration multiplier for clustered embeddings and retrieved embeddings
+_C.DATA.DURATION_MULTIPLIER = 1
+_C.DATA.EVAL_BATCHSIZE_MULTIPLIER = 6
 
 # -----------------------------------------------------------------------------
 # Loss Options

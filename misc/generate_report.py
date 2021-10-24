@@ -82,6 +82,12 @@ def parse_file(result_dir, f_type='train'):
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
                 cur_epoch = float(row[0].replace('epoch:', '').replace(',',''))
+
+                if len(processed_epoch) == 0 and cur_epoch != 0:
+                    cluster_interval = 5  # TODO: don't hardcode
+                    for i in range(0,int(cur_epoch),cluster_interval):
+                        nmis.append(0.0)
+
                 if cur_epoch in processed_epoch:
                     continue
                 processed_epoch.append(cur_epoch)
@@ -91,6 +97,12 @@ def parse_file(result_dir, f_type='train'):
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
                 cur_epoch = float(row[0].replace('epoch:', '').replace(',',''))
+
+                if len(processed_epoch) == 0 and cur_epoch != 0:
+                    cluster_interval = 5  # TODO: don't hardcode
+                    for i in range(0,int(cur_epoch),cluster_interval):
+                        amis.append(0.0)
+
                 if cur_epoch in processed_epoch:
                     continue
                 processed_epoch.append(cur_epoch)

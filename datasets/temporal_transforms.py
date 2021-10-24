@@ -43,11 +43,12 @@ class LoopPadding(object):
 
 class TemporalBeginCrop(object):
 
-    def __init__(self, size):
+    def __init__(self, size, skip_rate=1):
         self.size = size
+        self.skip_rate = skip_rate
 
     def __call__(self, frame_indices):
-        out = frame_indices[:self.size]
+        out = frame_indices[:self.size*self.skip_rate:self.skip_rate]
 
         for index in out:
             if len(out) >= self.size:
@@ -72,16 +73,17 @@ class TemporalEndCrop(object):
 
 class TemporalCenterCrop(object):
 
-    def __init__(self, size):
+    def __init__(self, size, skip_rate=1):
         self.size = size
+        self.skip_rate = skip_rate
 
     def __call__(self, frame_indices):
 
         center_index = len(frame_indices) // 2
-        begin_index = max(0, center_index - (self.size // 2))
-        end_index = min(begin_index + self.size, len(frame_indices))
+        begin_index = max(0, center_index - (self.size*self.skip_rate // 2))
+        end_index = min(begin_index + self.size*self.skip_rate, len(frame_indices))
 
-        out = frame_indices[begin_index:end_index]
+        out = frame_indices[begin_index:end_index:self.skip_rate]
 
         for index in out:
             if len(out) >= self.size:
@@ -110,19 +112,20 @@ class TemporalSpecificCrop(object):
 
 class TemporalRandomCrop(object):
 
-    def __init__(self, size, start_index=0):
+    def __init__(self, size, start_index=0, skip_rate=1):
         self.size = size
         self.loop = LoopPadding(size)
         self.start_index = start_index
+        self.skip_rate = skip_rate
 
     def __call__(self, frame_indices):
-        rand_end = max(0, len(frame_indices) - self.size)
+        rand_end = max(0, len(frame_indices) - self.skip_rate*self.size)
         rand_start = min(rand_end, self.start_index)
 
         begin_index = random.randint(rand_start, rand_end)
-        end_index = min(begin_index + self.size, len(frame_indices))
+        end_index = min(begin_index + self.skip_rate*self.size, len(frame_indices))
 
-        out = frame_indices[begin_index:end_index]
+        out = frame_indices[begin_index:end_index:self.skip_rate]
         # if len(out) < self.size:
         #     out = self.loop(out)
         return out

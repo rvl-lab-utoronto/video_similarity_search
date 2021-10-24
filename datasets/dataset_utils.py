@@ -19,21 +19,50 @@ def cv_f32_to_u8 (img):
     return img
 '''
 
+def get_channel_clip(channel_ext, channel_paths, frame_indices,
+        spatial_transform, key):
+
+    channel_path = channel_paths[key]
+    channel_loader = channel_ext[key][1]
+    channel_clip = channel_loader(channel_path, frame_indices)
+    if spatial_transform is not None:
+        channel_clip = [spatial_transform(img) for img in channel_clip]
+
+    if key != 'salient' or key == 'salient' and \
+            torch.mean(torch.stack(channel_clip, 0)) >= SALIENT_MASK_THRESHOLD:
+
+        channel_clip = [torch.cat((channel_clip[i], channel_clip[i], channel_clip[i]), dim=0) for i in
+            range(len(channel_clip))]
+
+    else:
+        assert False, 'not supported'
+
+    return channel_clip
+
+
 def construct_net_input(vid_loader, channel_ext, spatial_transform,
         normalize_fn, path, frame_indices, channel_paths={},
         pos_channel_replace=False, prob_pos_channel_replace=None,
-        modality=False, split='train'):
+        modality=False, split='train', flow_only=False):
 
     assert not (split != 'train' and pos_channel_replace)
 
     if prob_pos_channel_replace is None:
         prob_pos_channel_replace = 0.25  # default val
 
-    clip = vid_loader(path, frame_indices)
+    if flow_only:
+        assert not modality and not pos_channel_replace
+        assert len(channel_paths) >= 1, 'the channel path is empty!'
+        key = np.random.choice(list(channel_paths)) #randomly select a view as positive
+        clip = get_channel_clip(channel_ext, channel_paths,
+                    frame_indices, spatial_transform, key)
 
-    if spatial_transform is not None:
-        spatial_transform.randomize_parameters()
-        clip = [spatial_transform(img) for img in clip]
+    else:
+        clip = vid_loader(path, frame_indices)
+
+        if spatial_transform is not None:
+            spatial_transform.randomize_parameters()
+            clip = [spatial_transform(img) for img in clip]
 
     SALIENT_MASK_THRESHOLD = 0.01
 
@@ -79,19 +108,33 @@ def construct_net_input(vid_loader, channel_ext, spatial_transform,
             #     for key_i in channel_paths:
             #         key = key_i
             #         break
-            channel_path = channel_paths[key]
-            channel_loader = channel_ext[key][1]
-            channel_clip = channel_loader(channel_path, frame_indices)
-            if spatial_transform is not None:
-                channel_clip = [spatial_transform(img) for img in channel_clip]
 
-            if key != 'salient' or key == 'salient' and \
-                    torch.mean(torch.stack(channel_clip, 0)) >= SALIENT_MASK_THRESHOLD:
 
-                clip = [torch.cat((channel_clip[i], channel_clip[i], channel_clip[i]), dim=0) for i in
-                    range(len(channel_clip))]
+            U_ONLY = True
 
-    else: 
+            if U_ONLY:
+                clip = get_channel_clip(channel_ext, channel_paths,
+                        frame_indices, spatial_transform, key)
+            else:
+                channel_path_u = channel_paths[key]
+                channel_path_v = channel_path_u.replace("/u/", "/v/")
+
+                channel_loader = channel_ext[key][1]
+
+                channel_clip_u = channel_loader(channel_path_u, frame_indices)
+                channel_clip_v = channel_loader(channel_path_v, frame_indices)
+
+                if spatial_transform is not None:
+                    channel_clip_u = [spatial_transform(img) for img in channel_clip_u]
+                    channel_clip_v = [spatial_transform(img) for img in channel_clip_v]
+
+                #if key != 'salient' or key == 'salient' and \
+                #        torch.mean(torch.stack(channel_clip, 0)) >= SALIENT_MASK_THRESHOLD:
+
+                clip = [torch.cat((channel_clip_u[i], channel_clip_v[i],
+                                torch.zeros(channel_clip_u[i].shape)), dim=0) for i in range(len(channel_clip_u))]
+
+    elif not flow_only:
         for key in channel_paths:
             channel_path = channel_paths[key]
             channel_loader = channel_ext[key][1]

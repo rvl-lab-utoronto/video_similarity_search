@@ -161,6 +161,7 @@ _C.ITERCLUSTER.ADAPTIVEP = False
 _C.ITERCLUSTER.WARMUP_EPOCHS = 0
 _C.ITERCLUSTER.L2_NORMALIZE = True
 _C.ITERCLUSTER.FINCH_PARTITION = 0
+_C.ITERCLUSTER.DUAL_MODALITY_CLUSTERS = False
 
 # -----------------------------------------------------------------------------
 # Misc options

@@ -616,6 +616,48 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
 # =========================== Running Training Loop ========================== #
 
 
+def cluster_and_save(cfg, epoch, embeddings, true_labels, idxs, eval_train_loader, file_exten=''):
+    # Cluster
+    print('\n=> Clustering')
+    start_time = time.time()
+    print('embeddings shape', embeddings.size())
+
+    cluster_labels = fit_cluster(embeddings, cfg.ITERCLUSTER.METHOD,
+                            cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE,
+                            cfg.ITERCLUSTER.FINCH_PARTITION)
+
+    print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
+
+    # Calculate NMI for true labels vs cluster assignments
+    #true_labels = train_data.get_total_labels()
+    NMI = normalized_mutual_info_score(true_labels, cluster_labels)
+    print('NMI between true labels and cluster assignments: {:.3f}'.format(NMI))
+    with open('{}/tnet_checkpoints/NMIs{}.txt'.format(cfg.OUTPUT_PATH, file_exten), "a") as f:
+        f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
+
+    # Calculate Adjusted NMI for true labels vs cluster assignements
+    AMI = adjusted_mutual_info_score(true_labels, cluster_labels)
+    print('AMI between true labels and cluster assignments: {:.3f}\n'.format(AMI))
+    with open('{}/tnet_checkpoints/AMIs{}.txt'.format(cfg.OUTPUT_PATH, file_exten), "a") as f:
+        f.write('epoch:{} {:.3f}\n'.format(epoch, AMI))
+
+    # Update probability of sampling positive from same video using NMI
+    if cfg.ITERCLUSTER.ADAPTIVEP:
+        cfg.DATASET.POSITIVE_SAMPLING_P = float(1.0 - NMI)
+
+    # Get cluster assignments in unshuffled order of dataset
+    cluster_assignments_unshuffled_order = [None] * len(eval_train_loader.dataset)
+    for i in range(len(cluster_labels)):
+        cluster_assignments_unshuffled_order[idxs[i]] = cluster_labels[i]
+
+    # Save cluster assignments corresponding to unshuffled order of dataset
+    cluster_output_path = os.path.join(cfg.OUTPUT_PATH, 'vid_clusters{}.txt'.format(file_exten))
+    with open(cluster_output_path, "w") as f:
+        for label in cluster_assignments_unshuffled_order:
+            f.write('{}\n'.format(label))
+    print('Saved cluster labels to', cluster_output_path)
+
+
 # Setup training and run training loop
 def train(args, cfg):
 
@@ -764,6 +806,13 @@ def train(args, cfg):
             cfg, is_master_proc, triplets=False, req_train_shuffle=False,
             drop_last=False)
 
+    if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+        if(is_master_proc):
+            print('\n==> Building training data loader (single video) (flow)...')
+        eval_flow_train_loader, (flow_train_data, _) = data_loader.build_data_loader('train',
+                cfg, is_master_proc, triplets=False, req_train_shuffle=False,
+                drop_last=False, flow_only=True)
+
     if(is_master_proc):
         print('\n==> Building validation data loader (single video)...')
     eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg,
@@ -798,46 +847,25 @@ def train(args, cfg):
                 if is_master_proc:
                     print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
 
-            if is_master_proc:
-                # Cluster
-                print('\n=> Clustering')
+            if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS and is_master_proc:
                 start_time = time.time()
-                print('embeddings shape', embeddings.size())
+                flow_embeddings, flow_true_labels, flow_idxs = get_embeddings_and_labels(args, cfg,
+                        encoder, cuda, device, eval_flow_train_loader, split='train',
+                        is_master_proc=is_master_proc,
+                        load_pkl=False, save_pkl=False)
+                if is_master_proc:
+                    print('Time to get embeddings (flow): {:.2f}s'.format(time.time()-start_time))
 
-                cluster_labels = fit_cluster(embeddings, cfg.ITERCLUSTER.METHOD,
-                                        cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE,
-                                        cfg.ITERCLUSTER.FINCH_PARTITION)
+            if is_master_proc:
+                if not cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+                    cluster_and_save(cfg, epoch, embeddings, true_labels, idxs, eval_train_loader)
+                else:
+                    cluster_and_save(cfg, epoch, embeddings, true_labels, idxs,
+                                     eval_train_loader, file_exten='_rgb')
+                    cluster_and_save(cfg, epoch, flow_embeddings, flow_true_labels,
+                                     flow_idxs, eval_flow_train_loader, file_exten='_flow')
 
-                print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
-
-                # Calculate NMI for true labels vs cluster assignments
-                #true_labels = train_data.get_total_labels()
-                NMI = normalized_mutual_info_score(true_labels, cluster_labels)
-                print('NMI between true labels and cluster assignments: {:.3f}'.format(NMI))
-                with open('{}/tnet_checkpoints/NMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
-                    f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
-
-                # Calculate Adjusted NMI for true labels vs cluster assignements
-                AMI = adjusted_mutual_info_score(true_labels, cluster_labels)
-                print('AMI between true labels and cluster assignments: {:.3f}\n'.format(AMI))
-                with open('{}/tnet_checkpoints/AMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
-                    f.write('epoch:{} {:.3f}\n'.format(epoch, AMI))
-
-                # Update probability of sampling positive from same video using NMI
-                if cfg.ITERCLUSTER.ADAPTIVEP:
-                    cfg.DATASET.POSITIVE_SAMPLING_P = float(1.0 - NMI)
-
-                # Get cluster assignments in unshuffled order of dataset
-                cluster_assignments_unshuffled_order = [None] * len(eval_train_loader.dataset)
-                for i in range(len(cluster_labels)):
-                    cluster_assignments_unshuffled_order[idxs[i]] = cluster_labels[i]
-
-                # Save cluster assignments corresponding to unshuffled order of dataset
-                cluster_output_path = os.path.join(cfg.OUTPUT_PATH, 'vid_clusters.txt')
-                with open(cluster_output_path, "w") as f:
-                    for label in cluster_assignments_unshuffled_order:
-                        f.write('{}\n'.format(label))
-                print('Saved cluster labels to', cluster_output_path)
+                    return
 
             # Make processes wait for master process to finish with clustering
             if cfg.NUM_GPUS > 1:

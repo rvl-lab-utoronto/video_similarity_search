@@ -171,7 +171,9 @@ def main(args):
         print('=> [optimizer] only train last layer')
         params = []
         for name, param in model.named_parameters():
-            if 'linear' not in name:
+            if cfg.MODEL.ARCH == 's3d' and '0.' in name:
+                param.requires_grad = False 
+            elif cfg.MODEL.ARCH == 'r3d' and 'linear' not in name:
                 param.requires_grad = False
             else: 
                 params.append({'params': param})
@@ -181,7 +183,10 @@ def main(args):
         params = []
         for name, param in model.named_parameters():
             # print(name, args.lr)
-            if 'linear' not in name:
+            if cfg.MODEL.ARCH == 's3d' and '0.' not in name:
+                print(name, args.lr/10)
+                params.append({'params': param, 'lr': args.lr/10})      
+            elif cfg.MODEL.ARCH ==  '' and 'linear' not in name:
                 print(name, args.lr/10)
                 params.append({'params': param, 'lr': args.lr/10})
             else:
@@ -205,6 +210,8 @@ def main(args):
 
     if args.optim == 'adam':
         print('==> using Adam optimizer')
+        # print(params)
+        # print(args.lr, args.wd)
         optimizer = optim.Adam(params, lr=args.lr, weight_decay=args.wd)
     elif args.optim == 'sgd':
         print('==> using SDG optimizer')

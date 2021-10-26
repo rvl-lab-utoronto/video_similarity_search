@@ -214,7 +214,7 @@ class OnlineTripletLoss(nn.Module):
             # Get list of (anchor idx, postitive idx, negative idx) triplets
             self.triplet_selector = NegativeTripletSelector(self.margin, sampling_strategy, self.dist_metric)
             triplets = self.triplet_selector.get_triplets(embeddings, labels)  # list of dim: [3, batch_size]
-            gt_labels = gt_labels.reshape((16, 1))
+            gt_labels = gt_labels.reshape((-1, 1))
             gt_a = gt_labels[triplets[0],:]
             gt_p = gt_labels[triplets[1],:]
             gt_n = gt_labels[triplets[2],:]

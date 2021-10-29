@@ -843,7 +843,7 @@ def train(args, cfg):
                 embeddings, true_labels, idxs = get_embeddings_and_labels(args, cfg,
                         encoder, cuda, device, eval_train_loader, split='train',
                         is_master_proc=is_master_proc,
-                        load_pkl=embeddings_computed, save_pkl=True)
+                       load_pkl=embeddings_computed, save_pkl=True)
                 if is_master_proc:
                     print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
 
@@ -851,8 +851,10 @@ def train(args, cfg):
                 #with open(embeddings_pkl, 'rb') as handle:
                 #    embeddings = torch.load(handle)
                 #print('retrieved train_embeddings', embeddings.size())
+                #true_labels=None
+                #idxs=None
 
-            if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS and is_master_proc:
+            if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
                 start_time = time.time()
                 flow_embeddings, flow_true_labels, flow_idxs = get_embeddings_and_labels(args, cfg,
                         encoder, cuda, device, eval_flow_train_loader, split='train',
@@ -870,7 +872,8 @@ def train(args, cfg):
                     cluster_and_save(cfg, epoch, flow_embeddings, flow_true_labels,
                                      flow_idxs, eval_flow_train_loader, file_exten='_flow')
 
-                    return
+                    #embeddings = torch.cat((embeddings, flow_embeddings), dim=1)
+                    #cluster_and_save(cfg, epoch, embeddings, true_labels, idxs, eval_train_loader)
 
             # Make processes wait for master process to finish with clustering
             if cfg.NUM_GPUS > 1:

@@ -119,7 +119,7 @@ _C.DATA.ANCHOR_TEMPORAL_CROP='begin'
 
 # Duration multiplier for clustered embeddings and retrieved embeddings
 _C.DATA.DURATION_MULTIPLIER = 1
-_C.DATA.EVAL_BATCHSIZE_MULTIPLIER = 6
+_C.DATA.EVAL_BATCHSIZE_MULTIPLIER = 7
 
 # -----------------------------------------------------------------------------
 # Loss Options

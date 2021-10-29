@@ -262,7 +262,10 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
         # Only need cluster labels if sampling triplets
         if triplets:
-            cluster_path = cfg.DATASET.CLUSTER_PATH
+            if not cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+                cluster_path = cfg.DATASET.CLUSTER_PATH
+            else:
+                cluster_path = (cfg.DATASET.CLUSTER_PATH, cfg.DATASET.CLUSTER_PATH_FLOW)
         else:
             cluster_path = None
     else:
@@ -283,7 +286,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     if (is_master_proc):
         print ('Loading', cfg.TRAIN.DATASET, split, 'split...')
 
-    data, (collate_fn, _) = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
+    data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, cfg.DATA.SKIP_RATE, spatial_transform, TempTransform, normalize=normalize,
                 channel_ext=channel_ext, cluster_path=cluster_path,

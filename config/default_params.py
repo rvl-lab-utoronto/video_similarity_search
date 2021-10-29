@@ -52,6 +52,7 @@ _C.DATASET.VID_PATH = '/media/diskstation/datasets/kinetics400/frames_shortedge3
 _C.DATASET.ANNOTATION_PATH = '/media/diskstation/datasets/kinetics400/vid_paths_and_labels/frame_paths'
 
 _C.DATASET.CLUSTER_PATH = ''
+_C.DATASET.CLUSTER_PATH_FLOW = ''
 _C.DATASET.TARGET_TYPE_T = 'label' #[label, cluster_label], where label refer to the true label
 _C.DATASET.TARGET_TYPE_V = 'label'
 

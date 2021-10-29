@@ -32,7 +32,6 @@ class TripletsData(data.Dataset):
     def __init__(self,
                  data,
                  class_names,
-                 cluster_labels=None,
                  split='train',
                  channel_ext={},
                  spatial_transform=None,
@@ -57,7 +56,6 @@ class TripletsData(data.Dataset):
         self.class_names = class_names
         self.negative_sampling=negative_sampling
         self.positive_sampling_p = positive_sampling_p
-        self.cluster_labels = cluster_labels
         self.split = split
         self.channel_ext = channel_ext
         self.spatial_transform = spatial_transform
@@ -101,7 +99,12 @@ class TripletsData(data.Dataset):
 
         if self.target_type == 'label':
             self.label_to_indices = {label: np.where(self.data_labels == label)[0] for label in self.class_names.keys()}
-        else: #target_type == cluster_labels
+        else: #target_type == cluster_label
+
+            #TODO: FIX THIS FOR DUAL CLUST LABELS
+            #set of cluster labels
+            self.cluster_labels = set(self.data_labels)
+
             self.label_to_indices = {label: np.where(self.data_labels == label)[0] for label in self.cluster_labels}
 
     def __getitem__(self, index):

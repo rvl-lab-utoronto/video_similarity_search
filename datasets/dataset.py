@@ -31,6 +31,35 @@ def collate_fn(batch):
         return default_collate(batch_clips), batch_targets
 
 
+def read_cluster_labels(cluster_path, is_master_proc):
+    if not cluster_path:
+        if is_master_proc:
+            print('cluster_path not defined....')
+        return None
+
+    if type(cluster_path) is not tuple:
+        with open(cluster_path, 'r') as f:
+            cluster_labels = f.readlines()
+        cluster_labels = [int(id.replace('\n', '')) for id in cluster_labels]
+        if is_master_proc:
+            print('retrieved {} cluster id from file: {}'.format(len(cluster_labels), cluster_path))
+        return cluster_labels
+
+    else:
+
+        with open(cluster_path[0], 'r') as f:
+            cluster_labels1 = f.readlines()
+        with open(cluster_path[1], 'r') as f:
+            cluster_labels2 = f.readlines()
+
+        cluster_labels = [(int(id1.replace('\n', '')), int(id2.replace('\n', '')))
+                            for id1, id2 in zip(cluster_labels1, cluster_labels2)]
+        if is_master_proc:
+            print('retrieved {} cluster id from files:{},{}'.format(len(cluster_labels), cluster_path[0],
+                                                                    cluster_path[1]))
+        return cluster_labels
+
+
 def get_data(split, video_path, annotation_path, dataset_name, input_type,
              file_type, triplets, sample_duration, skip_rate, spatial_transform=None,
              temporal_transform=None, normalize=None, target_transform=None, channel_ext={},
@@ -65,21 +94,24 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
     video_path_formatter = (lambda root_path, label, video_id: root_path + '/' +
                         label + '/' + video_id)
 
+    # read cluster labels, may return list or list of tuples for multiple assignments
+    cluster_labels = read_cluster_labels(cluster_path, is_master_proc)
+
     if dataset_name == 'ucf101':
         split2 = split if split!='test' else 'val'
         Dataset = UCF101(video_path, annotation_path, split2, sample_duration*skip_rate,
-                        channel_ext, cluster_path,
+                        channel_ext, cluster_labels,
                         is_master_proc, video_path_formatter, val_sample)
 
     elif dataset_name == 'hmdb51':
         split2 = split if split!='test' else 'val'
         Dataset = HMDB51(video_path, annotation_path, split2, sample_duration*skip_rate,
-                        channel_ext, cluster_path,
+                        channel_ext, cluster_labels,
                         is_master_proc, video_path_formatter, val_sample)
 
     elif dataset_name == 'kinetics':
         Dataset = Kinetics(video_path, annotation_path, split, sample_duration*skip_rate,
-                channel_ext, cluster_path, is_master_proc, video_path_formatter)
+                channel_ext, cluster_labels, is_master_proc, video_path_formatter)
 
     if get_image_backend() == 'accimage':
         from datasets.loader import ImageLoaderAccImage
@@ -91,15 +123,9 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
         if (is_master_proc):
             print('Image loader:', 'ImageLoaderPIL')
 
-    cluster_labels = None
     if triplets:
         if (is_master_proc):
             print('==> Using TripletsData loader...')
-
-        if target_type == 'cluster_label':
-            cluster_labels = set(Dataset.get_cluster_labels())
-        # else:
-        #     cluster_labels = None
 
         # Don't do channel replacements (multiview) for validation
         if split != 'train':
@@ -107,7 +133,6 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
 
         data = TripletsData(data = Dataset.get_dataset(),
                             class_names = Dataset.get_idx_to_class_map(),
-                            cluster_labels = cluster_labels,
                             split=split,
                             channel_ext=channel_ext,
                             spatial_transform=spatial_transform,
@@ -146,4 +171,4 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
     if (is_master_proc):
         print('{}_data: {}'.format(split, len(data)))
 
-    return data, (ret_collate_fn, cluster_labels)
+    return data, ret_collate_fn

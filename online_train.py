@@ -425,13 +425,14 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
     losses = AverageMeter()
     accs = AverageMeter()
     running_n_triplets = AverageMeter()
+    running_num_pos_from_dualclust_intersec = AverageMeter()
     world_size = du_helper.get_world_size()
     # switching to training mode
     model.train()
 
     # Training loop
     start = time.time()
-    for batch_idx, (inputs, targets, idx) in enumerate(train_loader):
+    for batch_idx, (inputs, targets, idx, pos_from_dualclust_intersec) in enumerate(train_loader):
 
         if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
             anchor, positive, fast_positive = inputs
@@ -447,11 +448,18 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         anchor = prepare_input(anchor, cfg, cuda, device)
         positive = prepare_input(positive, cfg, cuda, device)
 
-        a_target, p_target = targets
         batch_size = torch.tensor(anchor.size(0)).to(device)
-        targets = torch.cat((a_target, p_target), 0)
-        if cuda:
-            targets = targets.to(device)
+
+        a_target, p_target = targets
+
+        if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+            targets = (torch.cat((a_target[0], p_target[0]), 0),
+                       torch.cat((a_target[1], p_target[1]), 0))
+
+        else:
+            targets = torch.cat((a_target, p_target), 0)
+            if cuda:
+                targets = targets.to(device)
 
         # Get embeddings of anchors and positives
         if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
@@ -570,6 +578,8 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         # Update running loss
         losses.update(loss.item(), batch_size_world)
         running_n_triplets.update(n_triplets)
+        if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+            running_num_pos_from_dualclust_intersec.update(torch.sum(pos_from_dualclust_intersec)/pos_from_dualclust_intersec.shape[0])
 
         # Log
         if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
@@ -605,11 +615,18 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
                         100. * (losses.count / len(train_loader.dataset)),
                         losses.val, losses.avg, running_n_triplets.avg))
 
+            if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+                print('%IntersecPos: {:.4f}'.format(running_num_pos_from_dualclust_intersec.avg))
+
     if (is_master_proc):
         print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
         print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
             f.write('epoch:{} runtime:{} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg))
+        if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+            with open('{}/tnet_checkpoints/dualclust_stats.txt'.format(cfg.OUTPUT_PATH), "a") as f:
+                f.write('epoch:{} %IntersecPos: {:.4f}\n'.format(epoch,
+                    running_num_pos_from_dualclust_intersec.avg))
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
@@ -656,6 +673,8 @@ def cluster_and_save(cfg, epoch, embeddings, true_labels, idxs, eval_train_loade
         for label in cluster_assignments_unshuffled_order:
             f.write('{}\n'.format(label))
     print('Saved cluster labels to', cluster_output_path)
+
+    return cluster_labels
 
 
 def set_cluster_paths(cfg):
@@ -787,7 +806,7 @@ def train(args, cfg):
         print('Using criterion:{} for validation'.format(val_criterion))
 
     # ============================== Data Loaders ==============================
-    
+
     if args.start_epoch != None:
         start_epoch = args.start_epoch
 
@@ -874,12 +893,18 @@ def train(args, cfg):
 
             if is_master_proc:
                 if not cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
-                    cluster_and_save(cfg, epoch, embeddings, true_labels, idxs, eval_train_loader)
+                    _ = cluster_and_save(cfg, epoch, embeddings, true_labels, idxs, eval_train_loader)
                 else:
-                    cluster_and_save(cfg, epoch, embeddings, true_labels, idxs,
+                    rgb_clus_labels = cluster_and_save(cfg, epoch, embeddings, true_labels, idxs,
                                      eval_train_loader, file_exten='_rgb')
-                    cluster_and_save(cfg, epoch, flow_embeddings, flow_true_labels,
-                                     flow_idxs, eval_flow_train_loader, file_exten='_flow')
+                    flow_clus_labels = cluster_and_save(cfg, epoch, flow_embeddings,
+                                                        flow_true_labels, flow_idxs,
+                                                        eval_flow_train_loader, file_exten='_flow')
+
+                    NMI = normalized_mutual_info_score(rgb_clus_labels, flow_clus_labels)
+                    print('NMI between rgb assignments and flow assignments: {:.3f}'.format(NMI))
+                    with open('{}/tnet_checkpoints/dualclust_NMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
+                        f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
 
                     #embeddings = torch.cat((embeddings, flow_embeddings), dim=1)
                     #cluster_and_save(cfg, epoch, embeddings, true_labels, idxs, eval_train_loader)

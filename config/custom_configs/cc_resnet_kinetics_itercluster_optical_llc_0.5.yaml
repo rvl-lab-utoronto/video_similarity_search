@@ -1,18 +1,20 @@
-OUTPUT_PATH: '/home/sherry/output/hmdb'
-
 TRAIN:
-    DATASET: "hmdb51"
+    DATASET: kinetics
 
 DATASET:
-    VID_PATH: '/media/diskstation/datasets/HMDB51/jpg'
-    ANNOTATION_PATH: '/media/diskstation/datasets/HMDB51/json/hmdb51_1.json'
-    # CLUSTER_PATH: '/media/synology/datasets/UCF101/vid_clusters.txt'
+    VID_PATH: .
+    ANNOTATION_PATH: /home/cheny257/projects/def-florian7/datasets/kinetics400/vid_paths_and_labels/frame_paths
+    #CLUSTER_PATH: '/home/cheny257/projects/def-florian7/datasets/kinetics400/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'
 
     SAMPLING_STRATEGY: 'random_semi_hard'
-    POSITIVE_SAMPLING_P: 0.2
+    POSITIVE_SAMPLING_P: 0.5 #EDIT: 0.2
+
+    POS_CHANNEL_REPLACE: True
+    CHANNEL_EXTENSIONS: 'optical_u'
+    OPTICAL_U_PATH: ./u
 
 MODEL:
     ARCH: '3dresnet'
@@ -34,7 +36,11 @@ DATA:
 
 LOSS:
     MARGIN: 0.2
+    LOCAL_LOCAL_CONTRAST: True
 
 OPTIM:
-    LR: 0.01
+    LR: 0.1
     MOMENTUM: 0.5
+
+ITERCLUSTER:
+    METHOD: 'finch'

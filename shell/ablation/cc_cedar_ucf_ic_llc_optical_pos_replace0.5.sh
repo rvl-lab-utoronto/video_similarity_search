@@ -1,18 +1,18 @@
 #!/bin/bash
 #SBATCH --account=def-florian7_gpu
-#SBATCH --time=0-20:10:00
+#SBATCH --time=1-20:10:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
 #SBATCH --job-name=resnet_ucf_ic_llc_optical_pos_replace_0.5
 #SBATCH --output=%x-%j.out
 #SBATCH --gres=gpu:v100l:2
-#SBATCH --mem=48G
+#SBATCH --mem=40G
 #SBATCH --cpus-per-task=8
 # --wait-all-nodes=1
 
 module load python/3.6
 
-source /home/cheny257/projects/def-florian7/cheny257/vidsim_env/bin/activate
+source /home/cheny257/projects/def-florian7/cheny257/code/resnet_env/bin/activate
 
 
 clush -w $(slurm_hl2hl.py --format PDSH) tar -xf /home/cheny257/projects/def-florian7/datasets/UCF101/jpg.tar.gz -C $SLURM_TMPDIR

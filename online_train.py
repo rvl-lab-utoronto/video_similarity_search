@@ -864,7 +864,6 @@ def train(args, cfg):
             if(is_master_proc):
                 print('Using criterion:{} for training'.format(criterion_1, criterion_2))
                 print('Using criterion:{} for validation'.format(val_criterion))
-            torch.autograd.set_detect_anomaly(True)  #EDIT: delete
             contrastive_train_epoch(train_loader, model, criterion_1, criterion_2,
                     contrast, optimizer, epoch, cfg, cuda, device, is_master_proc)
 

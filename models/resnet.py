@@ -120,7 +120,6 @@ class ResNet(nn.Module):
                  num_classes=101,
                  hyperbolic=False,
                  classifier=False,
-                 use_l2_norm=False,
                  dropout=None):
         super().__init__()
 
@@ -182,7 +181,6 @@ class ResNet(nn.Module):
         self.classifier = classifier
         self.num_classes=num_classes
         self.dropout = dropout
-        self.use_l2_norm = use_l2_norm
 
         self.output_dim = 512
 
@@ -194,9 +192,6 @@ class ResNet(nn.Module):
             self.fc2 = nn.Linear(hidden_layer, out_dim)
         #else:
         #    self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
-
-        if self.use_l2_norm:
-            print('==> use l2 norm:{}'.format(self.use_l2_norm))
 
         if self.predict_temporal_ds:
             print('==> setting up temporal ds prediction heads')
@@ -310,14 +305,12 @@ class ResNet(nn.Module):
         x = x.view(x.size(0), -1)
         # x = self.fc(x)
         #add projection head
-        output = x
         if self.projection_head:
             #add batchnorm layer
             h = self.fc1(x)
             h = self.bn_proj(h)
             h = self.relu(h)
             h = self.fc2(h)
-            output = h
         
         if self.hyperbolic:
             h = self.e2p(h)

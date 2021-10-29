@@ -658,6 +658,15 @@ def cluster_and_save(cfg, epoch, embeddings, true_labels, idxs, eval_train_loade
     print('Saved cluster labels to', cluster_output_path)
 
 
+def set_cluster_paths(cfg):
+
+    if not cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+        cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
+    else:
+        cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters_rgb.txt'.format(cfg.OUTPUT_PATH)
+        cfg.DATASET.CLUSTER_PATH_FLOW = '{}/vid_clusters_flow.txt'.format(cfg.OUTPUT_PATH)
+
+
 # Setup training and run training loop
 def train(args, cfg):
 
@@ -786,7 +795,7 @@ def train(args, cfg):
     if args.iterative_cluster:
         if start_epoch >= cfg.ITERCLUSTER.WARMUP_EPOCHS:
             m_iter_cluster = True
-            cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
+            set_cluster_paths(cfg)
 
     if not m_iter_cluster or (start_epoch != 0 and os.path.exists(cfg.DATASET.CLUSTER_PATH)):
         if(is_master_proc):
@@ -831,7 +840,7 @@ def train(args, cfg):
 
         if args.iterative_cluster and epoch == cfg.ITERCLUSTER.WARMUP_EPOCHS:
             m_iter_cluster = True
-            cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
+            set_cluster_paths(cfg)
 
         if m_iter_cluster and (epoch % cfg.ITERCLUSTER.INTERVAL == 0 or not os.path.exists(cfg.DATASET.CLUSTER_PATH)):
             # Get embeddings using current model
@@ -852,7 +861,7 @@ def train(args, cfg):
                 #    embeddings = torch.load(handle)
                 #print('retrieved train_embeddings', embeddings.size())
 
-            if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS and is_master_proc:
+            if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
                 start_time = time.time()
                 flow_embeddings, flow_true_labels, flow_idxs = get_embeddings_and_labels(args, cfg,
                         encoder, cuda, device, eval_flow_train_loader, split='train',

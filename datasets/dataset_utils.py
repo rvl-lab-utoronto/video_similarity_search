@@ -22,20 +22,40 @@ def cv_f32_to_u8 (img):
 def get_channel_clip(channel_ext, channel_paths, frame_indices,
         spatial_transform, key):
 
-    channel_path = channel_paths[key]
+    U_ONLY = True
     channel_loader = channel_ext[key][1]
-    channel_clip = channel_loader(channel_path, frame_indices)
-    if spatial_transform is not None:
-        channel_clip = [spatial_transform(img) for img in channel_clip]
 
-    if key != 'salient' or key == 'salient' and \
-            torch.mean(torch.stack(channel_clip, 0)) >= SALIENT_MASK_THRESHOLD:
+    if U_ONLY:
+        channel_path = channel_paths[key]
+        channel_clip = channel_loader(channel_path, frame_indices)
+        if spatial_transform is not None:
+            channel_clip = [spatial_transform(img) for img in channel_clip]
 
-        channel_clip = [torch.cat((channel_clip[i], channel_clip[i], channel_clip[i]), dim=0) for i in
-            range(len(channel_clip))]
+        if key != 'salient' or key == 'salient' and \
+                torch.mean(torch.stack(channel_clip, 0)) >= SALIENT_MASK_THRESHOLD:
+
+            channel_clip = [torch.cat((channel_clip[i], channel_clip[i], channel_clip[i]), dim=0) for i in
+                range(len(channel_clip))]
+
+        else:
+            assert False, 'not supported'
 
     else:
-        assert False, 'not supported'
+        channel_path_u = channel_paths[key]
+        channel_path_v = channel_path_u.replace("/u/", "/v/")
+
+        channel_clip_u = channel_loader(channel_path_u, frame_indices)
+        channel_clip_v = channel_loader(channel_path_v, frame_indices)
+
+        if spatial_transform is not None:
+            channel_clip_u = [spatial_transform(img) for img in channel_clip_u]
+            channel_clip_v = [spatial_transform(img) for img in channel_clip_v]
+
+        #if key != 'salient' or key == 'salient' and \
+        #        torch.mean(torch.stack(channel_clip, 0)) >= SALIENT_MASK_THRESHOLD:
+
+        channel_clip = [torch.cat((channel_clip_u[i], channel_clip_v[i],
+                        torch.zeros(channel_clip_u[i].shape)), dim=0) for i in range(len(channel_clip_u))]
 
     return channel_clip
 
@@ -109,30 +129,8 @@ def construct_net_input(vid_loader, channel_ext, spatial_transform,
             #         key = key_i
             #         break
 
-
-            U_ONLY = True
-
-            if U_ONLY:
-                clip = get_channel_clip(channel_ext, channel_paths,
-                        frame_indices, spatial_transform, key)
-            else:
-                channel_path_u = channel_paths[key]
-                channel_path_v = channel_path_u.replace("/u/", "/v/")
-
-                channel_loader = channel_ext[key][1]
-
-                channel_clip_u = channel_loader(channel_path_u, frame_indices)
-                channel_clip_v = channel_loader(channel_path_v, frame_indices)
-
-                if spatial_transform is not None:
-                    channel_clip_u = [spatial_transform(img) for img in channel_clip_u]
-                    channel_clip_v = [spatial_transform(img) for img in channel_clip_v]
-
-                #if key != 'salient' or key == 'salient' and \
-                #        torch.mean(torch.stack(channel_clip, 0)) >= SALIENT_MASK_THRESHOLD:
-
-                clip = [torch.cat((channel_clip_u[i], channel_clip_v[i],
-                                torch.zeros(channel_clip_u[i].shape)), dim=0) for i in range(len(channel_clip_u))]
+            clip = get_channel_clip(channel_ext, channel_paths,
+                    frame_indices, spatial_transform, key)
 
     elif not flow_only:
         for key in channel_paths:

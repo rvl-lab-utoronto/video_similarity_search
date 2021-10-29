@@ -173,7 +173,7 @@ def main(args):
         for name, param in model.named_parameters():
             if cfg.MODEL.ARCH == 's3d' and '0.' in name:
                 param.requires_grad = False 
-            elif cfg.MODEL.ARCH == 'r3d' and 'linear' not in name:
+            elif cfg.MODEL.ARCH == '3dresnet' and 'linear' not in name:
                 param.requires_grad = False
             else: 
                 params.append({'params': param})

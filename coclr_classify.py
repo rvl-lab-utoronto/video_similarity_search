@@ -186,7 +186,7 @@ def main(args):
             if cfg.MODEL.ARCH == 's3d' and '0.' not in name:
                 print(name, args.lr/10)
                 params.append({'params': param, 'lr': args.lr/10})      
-            elif cfg.MODEL.ARCH ==  '' and 'linear' not in name:
+            elif cfg.MODEL.ARCH ==  'r3d' and 'linear' not in name:
                 print(name, args.lr/10)
                 params.append({'params': param, 'lr': args.lr/10})
             else:

@@ -129,12 +129,14 @@ class UCF101LMDB_2CLIP(object):
                 available = total-self.num_frames*self.ds
                 start = np.expand_dims(np.arange(0, available+1, self.num_frames*self.ds//2-1), 1)
                 seq_idx = np.expand_dims(np.arange(self.num_frames)*self.ds, 0) + start # [test_sample, num_frames]
-                # #=====
-                # #randomly select 10 clips
-                # ind = np.random.choice(range(0, seq_idx.shape[0]), 10)
-                # seq_idx = seq_idx[ind,:]
-                # # print('seq_idx:', seq_idx.shape)
-                # #=====
+                # seq_idx = seq_idx.flatten(0)
+                #=====
+                #randomly select 10 clips
+                ind = np.random.choice(range(0, seq_idx.shape[0]), 10)
+                seq_idx = seq_idx[ind,:]
+                # print('seq_idx:', seq_idx.shape)
+                #=====
+
                 seq_idx = seq_idx.flatten()
                 # print('after flatten() seq_idx', seq_idx.shape)
 
@@ -307,15 +309,15 @@ class UCF101Flow_LMDB_2CLIP(object):
                 sequence = sequence[sequence < total]
                 seq_idx[-len(sequence)::] = sequence
             else:
-                available = total-self.num_frames*self.ds
-                start = np.expand_dims(np.arange(0, available+1, self.num_frames*self.ds//2-1), 1)
-                seq_idx = np.expand_dims(np.arange(self.num_frames)*self.ds, 0) + start # [test_sample, num_frames]
-                # seq_idx = seq_idx.flatten(0)
-                # print('prior seq_idx', seq_idx.shape)
-                seq_idx = seq_idx.flatten()
+                # available = total-self.num_frames*self.ds
+                # start = np.expand_dims(np.arange(0, available+1, self.num_frames*self.ds//2-1), 1)
+                # seq_idx = np.expand_dims(np.arange(self.num_frames)*self.ds, 0) + start # [test_sample, num_frames]
+                # # seq_idx = seq_idx.flatten(0)
+                # # print('prior seq_idx', seq_idx.shape)
+                # seq_idx = seq_idx.flatten()
                 # # print('after flatten() seq_idx', seq_idx.shape)
-                # start = np.random.choice(range(total-self.num_frames*self.ds), 1)
-                # seq_idx = np.arange(self.num_frames)*self.ds + start
+                start = np.random.choice(range(total-self.num_frames*self.ds), 1)
+                seq_idx = np.arange(self.num_frames)*self.ds + start
 
         else: # train or val
             if total-self.num_frames*self.ds <= 0: # pad left

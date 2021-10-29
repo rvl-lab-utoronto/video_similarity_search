@@ -103,7 +103,7 @@ class TripletsData(data.Dataset):
 
             #TODO: FIX THIS FOR DUAL CLUST LABELS
             #set of cluster labels
-            self.cluster_labels = set(Dataset.get_cluster_labels())
+            self.cluster_labels = set(self.data_labels)
 
             self.label_to_indices = {label: np.where(self.data_labels == label)[0] for label in self.cluster_labels}
 

@@ -200,7 +200,7 @@ class TripletsData(data.Dataset):
             negative = self.data[negative_idx]
             n_target = negative[self.target_type]
             n_clip = self._load_clip(negative, self.negative_temporal_transform)
-            return (a_clip, p_clip, n_clip), (a_target, p_target, n_target), (index, negative_idx), pos_from_dualclust_intersec
+            return (a_clip, p_clip, n_clip), (a_target, p_target, n_target), (index, negative_idx)
 
         elif self.relative_speed_perception:
             return (a_clip, p_clip, p_fast_clip), (a_target, p_target), index, pos_from_dualclust_intersec

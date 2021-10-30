@@ -310,7 +310,7 @@ class NegativeTripletSelector:
             for i in range(len(labels1)//2):
                 label1 = labels1[i]
                 label2 = labels2[i]
-                anchorpos_indices = np.array([i, i+len(labels)//2])
+                anchorpos_indices = np.array([i, i+len(labels1)//2])
 
                 where_not_label1 = np.where(labels1 != label1)
                 where_not_label2 = np.where(labels2 != label2)

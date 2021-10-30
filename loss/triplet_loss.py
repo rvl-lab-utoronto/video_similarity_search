@@ -94,7 +94,7 @@ class OnlineTripletLoss(nn.Module):
 
     # embeddings: tensor containing concatenated embeddings of anchors and positives with dim: [(batch_size * 2), dim_embedding]
     # labels: tensor containing concatenated labels of anchors and positives with dim: [(batch_size * 2)]
-    def forward(self, embeddings, labels, sampling_strategy="random_negative"):
+    def forward(self, embeddings, labels, gt_labels, sampling_strategy="random_negative"):
 
         if sampling_strategy == 'noise_contrastive':
             # Compute temperature-scaled similarity matrix 
@@ -106,11 +106,14 @@ class OnlineTripletLoss(nn.Module):
             # Construct targets (i.e. list containing idx of positive for each
             # anchor)
             pos_idx_targets = torch.empty(embeddings.size(0), dtype=torch.long)
+
             num_anchors = embeddings.size(0)//2
             for i in range (0, embeddings.size(0)):
                 pos_idx_targets[i] = (num_anchors + i) % embeddings.size(0)
             pos_idx_targets = pos_idx_targets.cuda()
             # print(pos_idx_targets)
+
+            
 
             # Compute normalized temperature-scaled cross entropy loss (InfoNCE)
             loss = F.cross_entropy(sim_matrix, pos_idx_targets)
@@ -212,6 +215,14 @@ class OnlineTripletLoss(nn.Module):
             # Get list of (anchor idx, postitive idx, negative idx) triplets
             self.triplet_selector = NegativeTripletSelector(self.margin, sampling_strategy, self.dist_metric)
             triplets = self.triplet_selector.get_triplets(embeddings, labels)  # list of dim: [3, batch_size]
+            gt_labels = gt_labels.reshape((-1, 1))
+            gt_a = gt_labels[triplets[0],:]
+            gt_p = gt_labels[triplets[1],:]
+            gt_n = gt_labels[triplets[2],:]
+
+            false_positive = (gt_a!=gt_p).sum()
+            false_negatvie = (gt_a==gt_n).sum()
+
 
             # Compute anchor/positive and anchor/negative distances. ap_dists and
             # an_dists are tensors with dim: [batch_size]
@@ -234,7 +245,7 @@ class OnlineTripletLoss(nn.Module):
             else:
                 loss = F.relu(ap_dists - an_dists + self.margin)
 
-            return loss.mean(), len(triplets[0])
+            return loss.mean(), len(triplets[0]), (false_positive, false_negatvie)
 
 
 class NegativeTripletSelector:

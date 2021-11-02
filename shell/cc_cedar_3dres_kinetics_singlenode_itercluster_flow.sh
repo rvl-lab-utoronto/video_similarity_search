@@ -3,7 +3,7 @@
 #SBATCH --time=7-00:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=kin_flow_r18_sr2
+#SBATCH --job-name=kin_flow_r18
 #SBATCH --output=%x-%j.out
 #SBATCH --gres=gpu:p100l:4
 #SBATCH --mem=100G
@@ -32,5 +32,5 @@ ROOTDIR=/home/salar77h/projects/def-florian7/salar77h/repos/video_similarity_sea
 #mkdir $ROOTDIR/output_ucf15-4gpu-s3d-4
 #cp $ROOTDIR/output_ucf15-4gpu-s3d-3/vid_clusters.txt $ROOTDIR/output_ucf15-4gpu-s3d-4/
 
-python $ROOTDIR/online_train.py --iterative_cluster --cfg $ROOTDIR/config/custom_configs/resnet_kinetics_itercluster_flow_cc.yaml --gpu 0,1,2,3 --num_data_workers 4 --batch_size 56 --output $ROOTDIR/output_ucf25-kinetics-iterclus-flow-single2-sr2 --epoch 601 VAL.BATCH_SIZE 80 LOSS.LOCAL_LOCAL_CONTRAST True DATA.INPUT_CHANNEL_NUM 3 ITERCLUSTER.METHOD finch DATA.SKIP_RATE 2
+python $ROOTDIR/online_train.py --iterative_cluster --cfg $ROOTDIR/config/custom_configs/resnet_kinetics_itercluster_flow_cc.yaml --gpu 0,1,2,3 --num_data_workers 4 --batch_size 64 --output $ROOTDIR/output_ucf25-kinetics-iterclus-flow-single2 --epoch 601 --checkpoint_path $ROOTDIR/output_ucf25-kinetics-iterclus-flow-single2/tnet_checkpoints/3dresnet/checkpoint.pth.tar VAL.BATCH_SIZE 80 LOSS.LOCAL_LOCAL_CONTRAST True DATA.INPUT_CHANNEL_NUM 3 ITERCLUSTER.METHOD finch
 #--checkpoint_path $ROOTDIR/output_ucf16-adam-32/tnet_checkpoints/3dresnet/checkpoint.pth.tar

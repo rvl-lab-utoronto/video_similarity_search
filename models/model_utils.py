@@ -106,7 +106,7 @@ def model_selector(cfg, projection_head=True, hyperbolic=False, classifier=False
                         spatio_temporal_attention=cfg.RESNET.ATTENTION,
                         hyperbolic=hyperbolic,
                         classifier=classifier,
-                        use_l2_norm=use_l2_norm, 
+                        # use_l2_norm=use_l2_norm, 
                         dropout=dropout)
 
         #only resnet supports multiview for now

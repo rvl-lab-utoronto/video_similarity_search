@@ -50,6 +50,9 @@ def parse_file(result_dir, f_type='train'):
     runtime = []
     nmis = []
     amis = []
+    fp = []
+    fn = []
+
     assert f_type in ['train', 'val', 'global_retrieval', 'nmi', 'ami'], "f_type:{} is not recognized".format(f_type)
     processed_epoch = []
 
@@ -65,6 +68,9 @@ def parse_file(result_dir, f_type='train'):
                 losses.append(float(row[2]))
                 # acc.append(float(row[3]))
                 runtime.append(float(row[1].replace('runtime:', '').replace(',','')))
+                fp.append(float(row[3]))
+                fn.append(float(row[4]))
+
     elif f_type=='val':
         with open (os.path.join(result_dir, val_progress_file), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
@@ -119,20 +125,23 @@ def parse_file(result_dir, f_type='train'):
                 top1_acc.append(float(row[1]))
                 top5_acc.append(float(row[2]))
 
-    return epoch, runtime, losses, acc, top1_acc, top5_acc, nmis, amis
+    return epoch, runtime, losses, acc, top1_acc, top5_acc, nmis, amis, fp, fn
 
 
 def plot_training_progress(result_dir, name, show_plot=False, service=None):
-    _, _, train_losses, _, _, _, _, _  = parse_file(result_dir, 'train') 
-    _, _, val_losses, val_acc, top1_acc, top5_acc, _, _ = parse_file(result_dir, 'val')
-    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc, _, _ = parse_file(result_dir, 'global_retrieval')
+    _, _, train_losses, _, _, _, _, _, fp, fn  = parse_file(result_dir, 'train') 
+    _, _, val_losses, val_acc, top1_acc, top5_acc, _, _, _, _ = parse_file(result_dir, 'val')
+    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc, _, _, _, _ = parse_file(result_dir, 'global_retrieval')
 
     num_plots = 3
 
     if (os.path.exists(os.path.join(result_dir, nmi_progress_file))):
-        _, _, _, _, _, _, nmis, _ = parse_file(result_dir, 'nmi')
-        _, _, _, _, _, _, _, amis = parse_file(result_dir, 'ami')
+        _, _, _, _, _, _, nmis, _, _, _ = parse_file(result_dir, 'nmi')
+        _, _, _, _, _, _, _, amis, _, _ = parse_file(result_dir, 'ami')
         num_plots += 2
+
+    if len(fp) > 0:
+        num_plots += 1
 
     # print(top1_5_epoch)
     f = plt.figure(figsize=(22,6))
@@ -169,6 +178,7 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     ax3.legend(['Top-1', 'Top-5'])
     plt.grid()
 
+    cur_plot_idx = 4
     if (os.path.exists(os.path.join(result_dir, nmi_progress_file))):
 
         cluster_interval = round(len(train_losses) / len(nmis))
@@ -184,6 +194,18 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
         ax5.set_xlabel('Epoch')
         ax5.set_ylabel('Cluster Assignment vs True Label AMI')
         ax5.set_title('AMI vs. Epoch')
+        cur_plot_idx += 2
+    plt.grid()
+
+    if len(fp) > 0:
+        # print(len(fp), fp)
+        ax6 = plt.subplot(1, num_plots, cur_plot_idx)
+        ax6.plot(np.arange(len(fp)), fp)
+        ax6.plot(np.arange(len(fn)), fn)
+        ax6.set_xlabel('Epoch')
+        ax6.set_ylabel('Num')
+        ax6.set_title('FP, Fn v.s. Epochs\n(batch_size=8, pos_sample=0.2)')
+        ax6.legend(['False Positive', 'False Negative'])  
 
     plt.grid()
 

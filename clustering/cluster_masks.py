@@ -219,14 +219,36 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True,
 
         PARTITION = finch_partition
     
-        if PARTITION == -1:
-            labels = c 
-            n_clusters = num_clust[0]
+        if type(PARTITION) == int:
+            if PARTITION == -1:
+                labels = c 
+                n_clusters = num_clust[0]
+
+            else:
+                labels = c[:,PARTITION]
+                n_clusters = num_clust[PARTITION]
+                print('Taking partition {} from finch'.format(PARTITION))
+            print("Fitted " + str(n_clusters) + " clusters with " + str(method))
 
         else:
-            labels = c[:,PARTITION]
-            n_clusters = num_clust[PARTITION]
-            print('Taking partition {} from finch'.format(PARTITION))
+            labels = []
+            n_clusters = []
+            for p in PARTITION:
+                labels.append(c[:,p])
+                n_cluster = num_clust[p]
+                n_clusters.append(n_cluster)
+                print('Taking partition {} from finch'.format(p))
+                print("Fitted " + str(n_cluster) + " clusters with " + str(method))
+            labels = np.array(labels)
+            labels = np.transpose(labels)
+            # labels_t = []
+            # for j in range(len(labels[0])):
+            #     cur_labels = []
+            #     for i in range(len(labels)):
+            #         cur_labels.append(labels[i][j])
+            #     labels_t.append(cur_labels)
+            # labels = labels_t
+            
 
     elif method == 'OPTICS':
         trained_cluster_obj = OPTICS(min_samples=3, max_eps=0.20, cluster_method='dbscan', metric='cosine', n_jobs=-1).fit(embeddings)
@@ -237,7 +259,6 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True,
         print(labels.shape)
         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
 
-    print("Fitted " + str(n_clusters) + " clusters with " + str(method))
     return labels
 
 

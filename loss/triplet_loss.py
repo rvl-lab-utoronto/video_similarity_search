@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from hyptorch.pmath import dist_matrix, dist
-
+import numpy as np
 
 class MemTripletLoss(nn.Module):
     #outputSize = ndata
@@ -214,6 +214,8 @@ class OnlineTripletLoss(nn.Module):
             # Get list of (anchor idx, postitive idx, negative idx) triplets
             self.triplet_selector = NegativeTripletSelector(self.margin, sampling_strategy, self.dist_metric)
             triplets = self.triplet_selector.get_triplets(embeddings, labels)  # list of dim: [3, batch_size]
+            
+            #get False Positive and False Negative Count
             gt_labels = gt_labels.reshape((-1, 1))
             gt_a = gt_labels[triplets[0],:]
             gt_p = gt_labels[triplets[1],:]
@@ -222,6 +224,7 @@ class OnlineTripletLoss(nn.Module):
             false_positive = (gt_a!=gt_p).sum()
             false_negatvie = (gt_a==gt_n).sum()
 
+            
 
             # Compute anchor/positive and anchor/negative distances. ap_dists and
             # an_dists are tensors with dim: [batch_size]
@@ -298,33 +301,57 @@ class NegativeTripletSelector:
         # tensor with dim: [(batch_size * 2), (batch_size * 2)]
         distance_matrix = pdist(embeddings, eps=0, dist_metric=self.dist_metric)
 
-        # Get tensor with unique labels (<= (batch_size * 2))
-        unique_labels, counts = torch.unique(labels, return_counts=True)
-
-        # Assert that there is no -1 (noise) label
-        assert(-1 not in unique_labels)
-
         triplets_indices = [[] for i in range(3)]
-        for label in unique_labels:
 
-            # Get embeddings indices with current label
-            label_mask = labels == label
-            label_indices = torch.where(label_mask)[0]
-            if label_indices.shape[0] < 2:  # must have at least anchor and positive with same label
-                continue
+        if type(labels) is tuple: #TODO: make it a flag
+            labels1 = labels[0]
+            labels2 = labels[1]
 
-            # Get embeddings indices without current label
-            negative_indices = torch.where(torch.logical_not(label_mask))[0] 
-            if negative_indices.shape[0] == 0:  # must have at least one negative
-                continue
+            for i in range(len(labels2)//2):
+                # label1 = labels1[i]
+                label2 = labels2[i]
+                ap_indices = np.array([i, i+len(labels2)//2])
 
-            # Sample anchor/positive/negative triplet
-            triplet_label_pairs = self.get_one_one_triplets(
-                label_indices, negative_indices, distance_matrix,
-            )
-            triplets_indices[0].extend(triplet_label_pairs[0])
-            triplets_indices[1].extend(triplet_label_pairs[1])
-            triplets_indices[2].extend(triplet_label_pairs[2])
+                # where_not_label1 = np.where(labels1 != label1)
+                negative_indices = np.where(labels2 != label2)[0]
+                if negative_indices.shape[0] == 0:
+                    continue
+
+                # Sample anchor/positive/negative triplet
+                triplet_label_pairs = self.get_one_one_triplets(
+                    ap_indices, negative_indices, distance_matrix,
+                )
+                triplets_indices[0].extend(triplet_label_pairs[0])
+                triplets_indices[1].extend(triplet_label_pairs[1])
+                triplets_indices[2].extend(triplet_label_pairs[2])
+        else:
+            # Get tensor with unique labels (<= (batch_size * 2))
+            unique_labels, counts = torch.unique(labels, return_counts=True)
+
+            # Assert that there is no -1 (noise) label
+            assert(-1 not in unique_labels)
+
+            triplets_indices = [[] for i in range(3)]
+            for label in unique_labels:
+
+                # Get embeddings indices with current label
+                label_mask = labels == label
+                label_indices = torch.where(label_mask)[0]
+                if label_indices.shape[0] < 2:  # must have at least anchor and positive with same label
+                    continue
+
+                # Get embeddings indices without current label
+                negative_indices = torch.where(torch.logical_not(label_mask))[0] 
+                if negative_indices.shape[0] == 0:  # must have at least one negative
+                    continue
+
+                # Sample anchor/positive/negative triplet
+                triplet_label_pairs = self.get_one_one_triplets(
+                    label_indices, negative_indices, distance_matrix,
+                )
+                triplets_indices[0].extend(triplet_label_pairs[0])
+                triplets_indices[1].extend(triplet_label_pairs[1])
+                triplets_indices[2].extend(triplet_label_pairs[2])
 
         return triplets_indices
 

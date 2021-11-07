@@ -128,7 +128,13 @@ class UCF101():
             return None
         with open(self.cluster_path, 'r') as f:
             cluster_labels = f.readlines()
-        cluster_labels = [int(id.replace('\n', '')) for id in cluster_labels]
+        import re
+        cluster_labels = [re.sub(' +', ' ', id.replace('\n', '')) for id in cluster_labels]
+        cluster_labels = [id.replace(' ', ',') for id in cluster_labels]
+        # print(cluster_labels)
+        # print(json.loads(cluster_labels[0]))
+        cluster_labels = [tuple(json.loads(id)) for id in cluster_labels]
+        print(len(cluster_labels), cluster_labels[0])
         if self.is_master_proc:
             print('retrieved {} cluster id from file: {}'.format(len(cluster_labels), self.cluster_path))
         return cluster_labels

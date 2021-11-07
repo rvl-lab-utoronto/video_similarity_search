@@ -166,7 +166,7 @@ _C.ITERCLUSTER.K = 1000
 _C.ITERCLUSTER.ADAPTIVEP = False
 _C.ITERCLUSTER.WARMUP_EPOCHS = 0
 _C.ITERCLUSTER.L2_NORMALIZE = True
-_C.ITERCLUSTER.FINCH_PARTITION = 0
+_C.ITERCLUSTER.FINCH_PARTITION = [0]
 
 # -----------------------------------------------------------------------------
 # Misc options

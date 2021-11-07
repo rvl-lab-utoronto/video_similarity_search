@@ -255,7 +255,12 @@ def triplet_temporal_train_epoch(train_loader, model, criterion, optimizer, epoc
         anchor, positive = inputs
         a_target, p_target = targets
         batch_size = torch.tensor(anchor.size(0)).to(device)
-        targets = torch.cat((a_target, p_target), 0)
+
+        if len(cfg.ITERCLUSTER.FINCH_PARTITION) > 1:
+            targets = (torch.cat((a_target[0], p_target[0]), 0),
+                       torch.cat((a_target[1], p_target[1]), 0))
+        else:
+            targets = torch.cat((a_target, p_target), 0)
 
         anchor, positive = anchor.to(device), positive.to(device)
 
@@ -452,11 +457,19 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         anchor = prepare_input(anchor, cfg, cuda, device)
         positive = prepare_input(positive, cfg, cuda, device)
 
+
+        # targets = torch.tensor(targets)
         a_target, p_target = targets
+        if len(cfg.ITERCLUSTER.FINCH_PARTITION) > 1:
+            targets = (torch.cat((a_target[0], p_target[0]), 0),
+                       torch.cat((a_target[1], p_target[1]), 0))
+        else:
+            targets = torch.cat((a_target, p_target), 0)
+            if cuda:
+                targets = targets.to(device)
+
         batch_size = torch.tensor(anchor.size(0)).to(device)
-        targets = torch.cat((a_target, p_target), 0)
-        if cuda:
-            targets = targets.to(device)
+
 
         a_gt_targets, p_gt_targets = gt_targets
         gt_targets = torch.cat((a_gt_targets, p_gt_targets), 0)
@@ -567,7 +580,7 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
                       'Triplet loss: {:.4f} \t'
                       'llc loss: {:.4f} \t'
                       'N_Triplets: {:.1f} \t'
-                      'FP:{}, FN:{}'.format(epoch, losses.count,
+                      'FP:{:.2f}, FN:{:.2f}'.format(epoch, losses.count,
                         len(train_loader.dataset),
                         100. * (losses.count / len(train_loader.dataset)),
                         losses.val, losses.avg,
@@ -791,22 +804,24 @@ def train(args, cfg):
 
                 print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
 
-                # Calculate NMI for true labels vs cluster assignments
-                #true_labels = train_data.get_total_labels()
-                NMI = normalized_mutual_info_score(true_labels, cluster_labels)
-                print('NMI between true labels and cluster assignments: {:.3f}'.format(NMI))
-                with open('{}/tnet_checkpoints/NMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
-                    f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
+                for i in range(cluster_labels.shape[1]):
+                    # Calculate NMI for true labels vs cluster assignments
+                    #true_labels = train_data.get_total_labels()
+                    partition = cfg.ITERCLUSTER.FINCH_PARTITION[i]
+                    NMI = normalized_mutual_info_score(true_labels, cluster_labels[:,i])
+                    print('NMI between true labels and cluster assignments: {:.3f}'.format(NMI))
+                    with open('{}/tnet_checkpoints/NMIs_p{}.txt'.format(cfg.OUTPUT_PATH, partition), "a") as f:
+                        f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
 
-                # Calculate Adjusted NMI for true labels vs cluster assignements
-                AMI = adjusted_mutual_info_score(true_labels, cluster_labels)
-                print('AMI between true labels and cluster assignments: {:.3f}\n'.format(AMI))
-                with open('{}/tnet_checkpoints/AMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
-                    f.write('epoch:{} {:.3f}\n'.format(epoch, AMI))
+                    # Calculate Adjusted NMI for true labels vs cluster assignements
+                    AMI = adjusted_mutual_info_score(true_labels, cluster_labels[:,i])
+                    print('AMI between true labels and cluster assignments: {:.3f}\n'.format(AMI))
+                    with open('{}/tnet_checkpoints/AMIs_p{}.txt'.format(cfg.OUTPUT_PATH, partition), "a") as f:
+                        f.write('epoch:{} {:.3f}\n'.format(epoch, AMI))
 
-                # Update probability of sampling positive from same video using NMI
-                if cfg.ITERCLUSTER.ADAPTIVEP:
-                    cfg.DATASET.POSITIVE_SAMPLING_P = float(1.0 - NMI)
+                    # Update probability of sampling positive from same video using NMI
+                    if cfg.ITERCLUSTER.ADAPTIVEP:
+                        cfg.DATASET.POSITIVE_SAMPLING_P = float(1.0 - NMI)
 
                 # Get cluster assignments in unshuffled order of dataset
                 cluster_assignments_unshuffled_order = [None] * len(eval_train_loader.dataset)

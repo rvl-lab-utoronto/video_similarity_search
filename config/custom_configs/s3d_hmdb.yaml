@@ -1,0 +1,27 @@
+TRAIN:
+    DATASET: "hmdb51"
+
+DATASET:
+    VID_PATH: '/media/diskstation/datasets/HMDB51/jpg'
+    ANNOTATION_PATH: '/media/diskstation/datasets/HMDB51/json/hmdb51_1.json'
+
+    TARGET_TYPE_T: 'cluster_label'
+    TARGET_TYPE_V: 'label'
+
+    SAMPLING_STRATEGY: 'random_semi_hard'
+    POSITIVE_SAMPLING_P: 0.2
+
+MODEL:
+    ARCH: 's3d'
+
+DATA:
+    SAMPLE_SIZE: 128
+    SAMPLE_DURATION: 16
+    INPUT_CHANNEL_NUM: 3
+
+LOSS:
+    MARGIN: 0.2
+
+OPTIM:
+    LR: 0.01
+    MOMENTUM: 0.5

@@ -32,7 +32,7 @@ def collate_fn(batch):
 
 
 def get_data(split, video_path, annotation_path, dataset_name, input_type,
-             file_type, triplets, sample_duration, spatial_transform=None,
+             file_type, triplets, sample_duration, skip_rate, spatial_transform=None,
              temporal_transform=None, normalize=None, target_transform=None, channel_ext={},
              cluster_path=None, target_type=None, val_sample=1,
              negative_sampling=False, positive_sampling_p=1.0,
@@ -64,18 +64,18 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
 
     if dataset_name == 'ucf101':
         split2 = split if split!='test' else 'val'
-        Dataset = UCF101(video_path, annotation_path, split2, sample_duration,
+        Dataset = UCF101(video_path, annotation_path, split2, sample_duration*skip_rate,
                         channel_ext, cluster_path,
                         is_master_proc, video_path_formatter, val_sample)
 
     elif dataset_name == 'hmdb51':
         split2 = split if split!='test' else 'val'
-        Dataset = HMDB51(video_path, annotation_path, split2, sample_duration,
+        Dataset = HMDB51(video_path, annotation_path, split2, sample_duration*skip_rate,
                         channel_ext, cluster_path,
                         is_master_proc, video_path_formatter, val_sample)
 
     elif dataset_name == 'kinetics':
-        Dataset = Kinetics(video_path, annotation_path, split, sample_duration,
+        Dataset = Kinetics(video_path, annotation_path, split, sample_duration*skip_rate,
                 channel_ext, cluster_path, is_master_proc, video_path_formatter)
 
     if get_image_backend() == 'accimage':

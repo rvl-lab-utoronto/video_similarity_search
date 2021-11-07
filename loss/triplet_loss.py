@@ -93,11 +93,11 @@ class OnlineTripletLoss(nn.Module):
 
     # embeddings: tensor containing concatenated embeddings of anchors and positives with dim: [(batch_size * 2), dim_embedding]
     # labels: tensor containing concatenated labels of anchors and positives with dim: [(batch_size * 2)]
-    def forward(self, embeddings, labels, sampling_strategy="random_negative"):
+    def forward(self, embeddings, labels, gt_labels, sampling_strategy="random_negative"):
 
         if sampling_strategy == 'noise_contrastive':
             # Compute temperature-scaled similarity matrix 
-            temperature = 0.5
+            temperature = 0.1
             sim_matrix = 1 - pdist(embeddings, eps=0, dist_metric=self.dist_metric)
             sim_matrix.masked_fill_(torch.eye(sim_matrix.size(0), dtype=bool).cuda(), 0)
             sim_matrix = sim_matrix / temperature
@@ -105,11 +105,14 @@ class OnlineTripletLoss(nn.Module):
             # Construct targets (i.e. list containing idx of positive for each
             # anchor)
             pos_idx_targets = torch.empty(embeddings.size(0), dtype=torch.long)
+
             num_anchors = embeddings.size(0)//2
             for i in range (0, embeddings.size(0)):
                 pos_idx_targets[i] = (num_anchors + i) % embeddings.size(0)
             pos_idx_targets = pos_idx_targets.cuda()
             # print(pos_idx_targets)
+
+            
 
             # Compute normalized temperature-scaled cross entropy loss (InfoNCE)
             loss = F.cross_entropy(sim_matrix, pos_idx_targets)
@@ -118,7 +121,7 @@ class OnlineTripletLoss(nn.Module):
 
         elif sampling_strategy == 'all_semi_hard':
 
-            NUM_NEGATIVES = 5
+            NUM_NEGATIVES = 16
 
             distance_matrix = pdist(embeddings, eps=0, dist_metric=self.dist_metric)
 
@@ -159,14 +162,18 @@ class OnlineTripletLoss(nn.Module):
                     ap_dist = distance_matrix[anchor_idx, pos_idx]
                     an_dists = distance_matrix[anchor_idx, negative_indices]
 
+                    NUM_NEGATIVES = min(NUM_NEGATIVES, an_dists.shape[0])
+
                     # all random semi hard indices (or hardest easy if not enough semi hard)
                     neg_list_idx = all_semi_hard(ap_dist, an_dists, self.margin)
+
                     if neg_list_idx is None:
                         num_missing_negatives = NUM_NEGATIVES
                         num_picked_negatives = 0
                     else:
                         num_picked_negatives = neg_list_idx.shape[0]
                         num_missing_negatives = NUM_NEGATIVES - num_picked_negatives
+
                     if num_missing_negatives > 0:
                         hardest_easy_neg_idx = torch.topk(an_dists, NUM_NEGATIVES, largest=False)[1]
                         added_negs = hardest_easy_neg_idx[num_picked_negatives:NUM_NEGATIVES]
@@ -201,12 +208,20 @@ class OnlineTripletLoss(nn.Module):
             else:
                 loss = torch.zeros(1, requires_grad=True)
 
-            return loss, anchor_pos_count
+            return loss.mean(), anchor_pos_count
 
         else:
             # Get list of (anchor idx, postitive idx, negative idx) triplets
             self.triplet_selector = NegativeTripletSelector(self.margin, sampling_strategy, self.dist_metric)
             triplets = self.triplet_selector.get_triplets(embeddings, labels)  # list of dim: [3, batch_size]
+            gt_labels = gt_labels.reshape((-1, 1))
+            gt_a = gt_labels[triplets[0],:]
+            gt_p = gt_labels[triplets[1],:]
+            gt_n = gt_labels[triplets[2],:]
+
+            false_positive = (gt_a!=gt_p).sum()
+            false_negatvie = (gt_a==gt_n).sum()
+
 
             # Compute anchor/positive and anchor/negative distances. ap_dists and
             # an_dists are tensors with dim: [batch_size]
@@ -229,7 +244,7 @@ class OnlineTripletLoss(nn.Module):
             else:
                 loss = F.relu(ap_dists - an_dists + self.margin)
 
-            return loss.mean(), len(triplets[0])
+            return loss.mean(), len(triplets[0]), (false_positive, false_negatvie)
 
 
 class NegativeTripletSelector:

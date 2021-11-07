@@ -120,7 +120,6 @@ class ResNet(nn.Module):
                  num_classes=101,
                  hyperbolic=False,
                  classifier=False,
-                 use_l2_norm=False,
                  dropout=None):
         super().__init__()
 
@@ -182,7 +181,6 @@ class ResNet(nn.Module):
         self.classifier = classifier
         self.num_classes=num_classes
         self.dropout = dropout
-        self.use_l2_norm = use_l2_norm
 
         self.output_dim = 512
 
@@ -192,12 +190,8 @@ class ResNet(nn.Module):
             self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
             self.bn_proj = nn.BatchNorm1d(hidden_layer)
             self.fc2 = nn.Linear(hidden_layer, out_dim)
-            self.output_dim=out_dim
-        else:
-            self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
-
-        if self.use_l2_norm:
-            print('==> use l2 norm:{}'.format(self.use_l2_norm))
+        #else:
+        #    self.fc = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
 
         if self.predict_temporal_ds:
             print('==> setting up temporal ds prediction heads')
@@ -311,14 +305,12 @@ class ResNet(nn.Module):
         x = x.view(x.size(0), -1)
         # x = self.fc(x)
         #add projection head
-        output = x
         if self.projection_head:
             #add batchnorm layer
             h = self.fc1(x)
             h = self.bn_proj(h)
             h = self.relu(h)
             h = self.fc2(h)
-            output = h
         
         if self.hyperbolic:
             h = self.e2p(h)
@@ -327,15 +319,14 @@ class ResNet(nn.Module):
             predicted_ds = self.temporal_ds_linear(x)
             return h, predicted_ds
 
-        if self.classifier:        
-            # print('output shape', output.shape)
-            output = output.view(-1, self.output_dim)
-    
-            if self.use_l2_norm:
-                output = F.normalize(output, p=2, dim=1)
-            # print(output.shape)
-            h = self.linear(output)
-        return h
+        if self.classifier:
+            x = x.view(-1, 512)
+            h = self.linear(x)
+
+        if self.projection_head or self.hyperbolic or self.classifier:
+            return h
+        else:
+            return x
 
 
 ## channel-temporal + spatio-temporal attention

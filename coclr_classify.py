@@ -53,10 +53,10 @@ def parse_args():
     parser.add_argument('--batch_size', default=32, type=int, help='batch size per GPU')
     parser.add_argument('--optim', default='adam', type=str)
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
-    parser.add_argument('--schedule', default=[60, 80], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
+    parser.add_argument('--schedule', default=[60, 100], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
     parser.add_argument('--wd', default=1e-3, type=float, help='weight decay')
     parser.add_argument('--dropout', default=0.9, type=float, help='dropout')
-    parser.add_argument('--epochs', default=10, type=int, help='number of total epochs to run')
+    parser.add_argument('--epochs', default=200, type=int, help='number of total epochs to run')
     parser.add_argument('--start_epoch', default=0, type=int, help='manual epoch number (useful on restarts)')
     parser.add_argument('--gpu', default=None, type=str)
     parser.add_argument('--train_what', default='last', type=str)
@@ -144,7 +144,8 @@ def main(args):
     args.num_class = num_class_dict[args.dataset]
 
     if args.train_what == 'last': # for linear probe
-        args.final_bn = True 
+        #args.final_bn = True 
+        args.final_bn = False #Edit 
         args.final_norm = True 
         args.use_dropout = False
     else: # for training the entire network
@@ -170,7 +171,9 @@ def main(args):
         print('=> [optimizer] only train last layer')
         params = []
         for name, param in model.named_parameters():
-            if 'backbone' in name:
+            if cfg.MODEL.ARCH == 's3d' and '0.' in name:
+                param.requires_grad = False 
+            elif cfg.MODEL.ARCH == '3dresnet' and 'linear' not in name:
                 param.requires_grad = False
             else: 
                 params.append({'params': param})
@@ -179,8 +182,11 @@ def main(args):
         print('=> [optimizer] finetune backbone with smaller lr')
         params = []
         for name, param in model.named_parameters():
-            print(name, args.lr)
-            if 'linear' not in name:
+            # print(name, args.lr)
+            if cfg.MODEL.ARCH == 's3d' and '0.' not in name:
+                print(name, args.lr/10)
+                params.append({'params': param, 'lr': args.lr/10})      
+            elif cfg.MODEL.ARCH ==  '3dresnet' and 'linear' not in name:
                 print(name, args.lr/10)
                 params.append({'params': param, 'lr': args.lr/10})
             else:
@@ -204,6 +210,8 @@ def main(args):
 
     if args.optim == 'adam':
         print('==> using Adam optimizer')
+        # print(params)
+        # print(args.lr, args.wd)
         optimizer = optim.Adam(params, lr=args.lr, weight_decay=args.wd)
     elif args.optim == 'sgd':
         print('==> using SDG optimizer')
@@ -236,6 +244,8 @@ def main(args):
             checkpoint = torch.load(args.checkpoint_path, map_location=torch.device('cpu'))
             epoch = checkpoint['epoch']
             state_dict = checkpoint['state_dict']
+            
+            print('loaded checkpoint from epoch:', epoch)
 
             # epoch = args.start_epoch
             # state_dict = checkpoint
@@ -332,6 +342,8 @@ def main(args):
 
             checkpoint = torch.load(args.pretrain, map_location='cpu')
             state_dict = checkpoint['state_dict']
+
+            print('checkpoint epoch:', checkpoint['epoch'])
 
             # new_dict = {}
             # for k,v in state_dict.items():

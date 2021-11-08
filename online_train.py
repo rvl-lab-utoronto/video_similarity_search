@@ -631,7 +631,10 @@ def cluster_and_save(cfg, epoch, embeddings, true_labels, idxs, eval_train_loade
                             cfg.ITERCLUSTER.FINCH_PARTITION)
 
     print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
-
+    if len(cluster_labels.shape) == 1: #inflate single cluster assignmenst to 2D arrays
+        cluster_labels = np.expand_dims(cluster_labels, axis=1)
+    # if cluster_labels.shape[1] 
+    print('cluster_labels shape: {}'.format(cluster_labels.shape))
     for i in range(cluster_labels.shape[1]):
         # Calculate NMI for true labels vs cluster assignments
         #true_labels = train_data.get_total_labels()
@@ -837,8 +840,8 @@ def train(args, cfg):
 
     # ============================= Training loop ==============================
 
-    embeddings_computed = False
-
+    embeddings_computed = False 
+ 
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if (is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))

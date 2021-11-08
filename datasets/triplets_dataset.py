@@ -99,6 +99,7 @@ class TripletsData(data.Dataset):
         
         self.gt_target_type='label'
 
+        print('** target type', self.data[0][self.target_type])
         self.DUAL_CLUST_SAMPLING = type(self.data[0][self.target_type]) is tuple
 
         if self.target_type == 'label':

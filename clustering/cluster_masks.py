@@ -127,10 +127,6 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=2, visual
                 center_img_salient_batch.append(center_img_salient)
             center_img_salient = torch.stack(center_img_salient_batch, dim=0)  # N x 3 channels x 1 frame x H x W
 
-            #print ('Input size', inputs.size())      
-            #print ('salient', center_img_salient.size())    
-            #print(vid_path)
-
             if (visualize):
                 # Visualize mask region (use batch size 1)
                 center_img_salient = center_img_salient.squeeze(0)
@@ -218,8 +214,9 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True,
         c, num_clust, req_c = FINCH(embeddings, distance='cosine')    
 
         PARTITION = finch_partition
-    
-        if type(PARTITION) == int:
+
+        if len(PARTITION) == 1:
+            PARTITION = PARTITION[0]
             if PARTITION == -1:
                 labels = c 
                 n_clusters = num_clust[0]
@@ -241,14 +238,6 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True,
                 print("Fitted " + str(n_cluster) + " clusters with " + str(method))
             labels = np.array(labels)
             labels = np.transpose(labels)
-            # labels_t = []
-            # for j in range(len(labels[0])):
-            #     cur_labels = []
-            #     for i in range(len(labels)):
-            #         cur_labels.append(labels[i][j])
-            #     labels_t.append(cur_labels)
-            # labels = labels_t
-            
 
     elif method == 'OPTICS':
         trained_cluster_obj = OPTICS(min_samples=3, max_eps=0.20, cluster_method='dbscan', metric='cosine', n_jobs=-1).fit(embeddings)

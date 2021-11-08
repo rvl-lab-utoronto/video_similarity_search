@@ -120,25 +120,6 @@ class UCF101():
     def image_name_formatter(self, x):
         return f'image_{x:05d}.jpg'
 
-    def read_cluster_labels(self):
-        if not self.cluster_path:
-            if self.is_master_proc:
-                print('cluster_path not defined....')
-            return None
-        with open(self.cluster_path, 'r') as f:
-            cluster_labels = f.readlines()
-        import re
-        cluster_labels = [re.sub(' +', ' ', id.replace('\n', '')) for id in cluster_labels]
-        cluster_labels = [id.replace(' ', ',') for id in cluster_labels]
-        # print(cluster_labels)
-        # print(json.loads(cluster_labels[0]))
-        cluster_labels = [tuple(json.loads(id)) for id in cluster_labels]
-        print(len(cluster_labels), cluster_labels[0])
-        if self.is_master_proc:
-            print('retrieved {} cluster id from file: {}'.format(len(cluster_labels), self.cluster_path))
-        return cluster_labels
-
-
     def __make_dataset(self, root_path, annotation_path, subset,
             video_path_formatter, sample_duration, is_master_proc):
         with open(annotation_path, 'r') as f:

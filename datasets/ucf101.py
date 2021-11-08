@@ -80,7 +80,7 @@ class UCF101():
                  split, #training, ...
                  sample_duration,
                  channel_ext={},
-                 cluster_path=None,
+                 cluster_labels=None,
                  is_master_proc=True,
                  video_path_formatter=(lambda root_path, label, video_id:
                                        root_path / label / video_id),
@@ -100,8 +100,7 @@ class UCF101():
 
 
         self.channel_ext = channel_ext
-        self.cluster_path = cluster_path
-        self.cluster_labels = self.read_cluster_labels()
+        self.cluster_labels = cluster_labels
 
         self.val_sample = val_sample
 

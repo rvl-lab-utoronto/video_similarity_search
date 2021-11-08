@@ -157,6 +157,7 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     ax1.set_ylabel('Training Loss')
     ax1.set_title('Training Curve')
     ax1.legend(['Training', 'Validation'])
+    plt.grid()
 
     ax2 = plt.subplot(1, num_plots, 2)
     #ax2.plot(np.arange(len(train_acc)), train_acc)
@@ -188,6 +189,7 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
         ax4.set_xlabel('Epoch')
         ax4.set_ylabel('NMI - Cluster Assign. / Labels')
         ax4.set_title('Clustering Quality')
+        plt.grid()
 
         ax5 = plt.subplot(1, num_plots, 5)
         ax5.plot(cluster_interval*np.arange(len(amis)), amis)
@@ -207,7 +209,7 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
         ax6.set_title('FP, Fn v.s. Epochs\n(batch_size=8, pos_sample=0.2)')
         ax6.legend(['False Positive', 'False Negative'])  
 
-    plt.grid()
+        plt.grid()
 
     plot_name = '{}_train_val_loss.png'.format(name)
     f.savefig(plot_name, bbox_inches ='tight')

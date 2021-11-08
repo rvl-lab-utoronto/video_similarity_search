@@ -25,7 +25,8 @@ class VideoDataset(data.Dataset):
                  normalize=None,
                  video_loader=None,
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
-                 sample_duration=16):
+                 sample_duration=16,
+                 flow_only=False):
 
         self.data = data
         self.class_names = class_names
@@ -38,6 +39,7 @@ class VideoDataset(data.Dataset):
         self.normalize=normalize
         self.image_name_formatter = image_name_formatter
         self.sample_duration = sample_duration
+        self.flow_only = flow_only
 
         if video_loader is None:
             self.loader = VideoLoader(image_name_formatter)
@@ -98,7 +100,7 @@ class VideoDataset(data.Dataset):
         clip = construct_net_input(self.loader, self.channel_ext, self.spatial_transform, 
                                     self.normalize, path, frame_indices, 
                                     channel_paths=channel_paths, modality=self.modality,
-                                    split='val')
+                                    split='val', flow_only=self.flow_only)
         if self.target_transform is not None:
             target = self.target_transform(target)
 

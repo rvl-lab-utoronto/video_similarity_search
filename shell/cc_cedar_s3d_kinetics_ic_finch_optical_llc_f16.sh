@@ -1,16 +1,16 @@
 #!/bin/bash
 #SBATCH --account=def-florian7_gpu 
-#SBATCH --time=2-00:00:00
+#SBATCH --time=0-16:00:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=kin_ic_optical_llc_r34
+#SBATCH --job-name=s3d_kin_ic_finch_llc_optical_f16
 #SBATCH --output=%x-%j.out
 #SBATCH --gres=gpu:p100l:4
-#SBATCH --mem=100G
+#SBATCH --mem=250G
 #SBATCH --cpus-per-task=24
 # --wait-all-nodes=1
 
-
+#mem set to 250G
 module load python/3.6
 source /home/cheny257/projects/def-florian7/cheny257/code/resnet_env/bin/activate
 
@@ -36,14 +36,13 @@ ROOTDIR=/home/cheny257/projects/def-florian7/cheny257/code/video_similarity_sear
 
 
 srun python $ROOTDIR/online_train.py \
---cfg $ROOTDIR/config/custom_configs/cc_resnet_kinetics_itercluster_optical_llc_0.5.yaml \
+--cfg $ROOTDIR/config/custom_configs/cc_s3d_kinetics_ic_optical_llc_f32.yaml \
 --gpu 0,1,2,3 \
 --num_data_workers 4 \
---batch_size 52 \
---output '/home/cheny257/projects/def-florian7/cheny257/output/kinetics_ic_finch_optical_llc_f16' \
---checkpoint_path '/home/cheny257/projects/def-florian7/cheny257/output/kinetics_ic_finch_optical_llc_f16/tnet_checkpoints/3dresnet/model_best.pth.tar' \
+--batch_size 100 \
+--output '/home/cheny257/projects/def-florian7/cheny257/output/s3d_kin_ic_finch_llc_optical_f16' \
 --epoch 601 \
 --num_shards 2 \
 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT \
 --compute_canada \
---iterative_cluster \
+--iterative_cluster VAL.BATCH_SIZE 32 ITERCLUSTER.METHOD 'finch' DATA.SAMPLE_DURATION 16

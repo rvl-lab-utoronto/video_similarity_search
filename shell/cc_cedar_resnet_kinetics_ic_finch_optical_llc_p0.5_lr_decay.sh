@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --account=def-florian7_gpu 
-#SBATCH --time=2-00:00:00
+#SBATCH --time=7-00:00:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=kin_ic_optical_llc_r34
+#SBATCH --job-name=kin_ic_optical_llc_r34_lr0.01
 #SBATCH --output=%x-%j.out
 #SBATCH --gres=gpu:p100l:4
 #SBATCH --mem=100G
@@ -41,9 +41,12 @@ srun python $ROOTDIR/online_train.py \
 --num_data_workers 4 \
 --batch_size 52 \
 --output '/home/cheny257/projects/def-florian7/cheny257/output/kinetics_ic_finch_optical_llc_f16' \
---checkpoint_path '/home/cheny257/projects/def-florian7/cheny257/output/kinetics_ic_finch_optical_llc_f16/tnet_checkpoints/3dresnet/model_best.pth.tar' \
+--checkpoint_path '/home/cheny257/projects/def-florian7/cheny257/output/kinetics_ic_finch_optical_llc_f16/tnet_checkpoints/3dresnet/checkpoint.pth.tar' \
 --epoch 601 \
 --num_shards 2 \
 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT \
 --compute_canada \
---iterative_cluster \
+--iterative_cluster OPTIM.LR 0.01 
+
+#learning rate decay
+

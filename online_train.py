@@ -777,7 +777,10 @@ def train(args, cfg):
         print('\n==> Setting criterion...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
 
-    criterion = OnlineTripletLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
+    multi_partition = len(cfg.ITERCLUSTER.PARTITION) > 1
+    if multi_partition and (is_master_proc):
+        print("==> using multiple partition from FINCH")
+    criterion = OnlineTripletLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC, multi_partition=multi_partition).to(device)
     # criterion = MemTripletLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device) #MemTripletLoss
 
     if cfg.OPTIM.OPTIMIZER == 'adam':

@@ -777,9 +777,9 @@ def train(args, cfg):
         print('\n==> Setting criterion...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
 
-    multi_partition = len(cfg.ITERCLUSTER.PARTITION) > 1
+    multi_partition = len(cfg.ITERCLUSTER.FINCH_PARTITION) > 1
     if multi_partition and (is_master_proc):
-        print("==> using multiple partition from FINCH")
+        print("** using multiple partition from FINCH")
     criterion = OnlineTripletLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC, multi_partition=multi_partition).to(device)
     # criterion = MemTripletLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device) #MemTripletLoss
 
@@ -843,7 +843,7 @@ def train(args, cfg):
 
     # ============================= Training loop ==============================
 
-    embeddings_computed = False 
+    embeddings_computed = False
  
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if (is_master_proc):

@@ -215,7 +215,7 @@ class OnlineTripletLoss(nn.Module):
         else:
             # Get list of (anchor idx, postitive idx, negative idx) triplets
             self.triplet_selector = NegativeTripletSelector(self.margin, sampling_strategy, self.dist_metric)
-            triplets = self.triplet_selector.get_triplets(embeddings, labels, self.multi_partition, self.dual_cluster)  # list of dim: [3, batch_size]
+            triplets = self.triplet_selector.get_triplets(embeddings, labels, multi_partition=self.multi_partition, dual_cluster=self.dual_cluster)  # list of dim: [3, batch_size]
             
             #get False Positive and False Negative Count
             gt_labels = gt_labels.reshape((-1, 1))

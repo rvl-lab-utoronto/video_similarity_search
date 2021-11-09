@@ -29,7 +29,7 @@ from models.model_utils import (model_selector, multipathway_input,
 from config.m_parser import load_config, arg_parser
 import misc.distributed_helper as du_helper
 from loss.triplet_loss import OnlineTripletLoss, MemTripletLoss
-from loss.NCE_loss import NCEAverage, NCEAverage_intra_neg, NCESoftmaxLoss
+from loss.NCE_loss import NCEAverage, NCEAverage_intra_neg, NCESoftmaxLoss, MemoryMoCo
 from clustering.cluster_masks import fit_cluster
 from sklearn.metrics import normalized_mutual_info_score, adjusted_mutual_info_score
 
@@ -428,13 +428,15 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
     losses = AverageMeter()
     accs = AverageMeter()
     running_n_triplets = AverageMeter()
+    false_positive = AverageMeter()
+    false_negative = AverageMeter()
     world_size = du_helper.get_world_size()
     # switching to training mode
     model.train()
 
     # Training loop
     start = time.time()
-    for batch_idx, (inputs, targets, idx) in enumerate(train_loader):
+    for batch_idx, (inputs, targets, gt_targets, idx) in enumerate(train_loader):
 
         if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
             anchor, positive, fast_positive = inputs
@@ -456,6 +458,11 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         if cuda:
             targets = targets.to(device)
 
+        a_gt_targets, p_gt_targets = gt_targets
+        gt_targets = torch.cat((a_gt_targets, p_gt_targets), 0)
+        if cuda:
+            gt_targets = gt_targets.to(device)
+
         # Get embeddings of anchors and positives
         if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
             outputs = model(torch.cat((anchor, positive, fast_positive), 0))
@@ -465,7 +472,7 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
             out_fast_pos = outputs[batch_size*2:batch_size*3]
 
             # Regular loss
-            triplet_loss, n_triplets = criterion(out_anchor_positive, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+            triplet_loss, n_triplets = criterion(out_anchor_positive, targets, gt_targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
 
             # Relative speed perception loss
             if cfg.LOSS.DIST_METRIC == 'euclidean':
@@ -493,7 +500,7 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
             out_anc2 = outputs[batch_size*2:batch_size*3]
 
             # Regular loss
-            triplet_loss, n_triplets = criterion(out_anchor_positive, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+            triplet_loss, n_triplets, (FP, FN) = criterion(out_anchor_positive, targets ,gt_targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
 
             # Relative speed perception loss
             if cfg.LOSS.DIST_METRIC == 'euclidean':
@@ -512,49 +519,13 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
             # Combined loss
             llc_lambda = cfg.LOSS.LOCAL_LOCAL_WEIGHT
             loss = triplet_loss + llc_loss * llc_lambda
-        
-        elif cfg.LOSS.INTRA_NEGATIVE:
-            outputs = model(torch.cat((anchor, positive, intra_neg), 0))
-            out_anchor_positive = outputs[:batch_size*2]
-            out_anc = outputs[:batch_size]
-            out_pos = outputs[batch_size:batch_size*2]
-            out_intra_neg = outputs[batch_size*2:batch_size*3]
-
-            # Regular loss
-            triplet_loss, n_triplets = criterion(out_anchor_positive, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
-
-            # Relative speed perception loss
-            if cfg.LOSS.DIST_METRIC == 'euclidean':
-                dist_ap = F.pairwise_distance(out_anc, out_intra_neg, 2)
-                dist_an = F.pairwise_distance(out_anc, out_pos, 2)
-            elif cfg.LOSS.DIST_METRIC == 'cosine':
-                dist_ap = 1 - F.cosine_similarity(out_anc, out_intra_neg, dim=1)
-                dist_an = 1 - F.cosine_similarity(out_anc, out_pos, dim=1)
-
-            intra_neg_criterion = torch.nn.MarginRankingLoss(margin=0.04).to(device)
-            target_intra_neg = torch.FloatTensor(dist_ap.size()).fill_(-1)
-            if cuda:
-                target_llc = target_intra_neg.to(device)
-            intra_neg_loss = intra_neg_criterion(dist_ap, dist_an, target_llc)
-
-            # Combined loss
-            intra_neg_lambda = 0.4
-            loss = triplet_loss + intra_neg_loss * intra_neg_lambda
-
-
-            # h, w, l = anchor[0][0].shape
-            # size = (w, h)
-            # anchor_out = cv2.VideoWriter('pos.avi',cv2.VideoWriter_fourcc(*'DIVX'), 15, size)
-            # for i in range(len(anchor[0])):
-            #     img = np.uint8(anchor[0][i].cpu().detach())
-            #     anchor_out.write(img)
-            # anchor_out.release()
+    
 
             
         else:
             outputs = model(torch.cat((anchor, positive), 0))  # dim: [(batch_size * 2), dim_embedding]
             # Sample negatives from batch for each anchor/positive and compute loss
-            loss, n_triplets = criterion(outputs, targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
+            loss, n_triplets, (FP, FN) = criterion(outputs, targets, gt_targets, sampling_strategy=cfg.DATASET.SAMPLING_STRATEGY)
 
         # Compute gradient and perform optimization step
         optimizer.zero_grad()
@@ -573,6 +544,8 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         # Update running loss
         losses.update(loss.item(), batch_size_world)
         running_n_triplets.update(n_triplets)
+        false_positive.update(FP)
+        false_negative.update(FN)
 
         # Log
         if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
@@ -593,12 +566,14 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
                       'Loss: {:.4f} ({:.4f}) \t'
                       'Triplet loss: {:.4f} \t'
                       'llc loss: {:.4f} \t'
-                      'N_Triplets: {:.1f}'.format(epoch, losses.count,
+                      'N_Triplets: {:.1f} \t'
+                      'FP:{}, FN:{}'.format(epoch, losses.count,
                         len(train_loader.dataset),
                         100. * (losses.count / len(train_loader.dataset)),
                         losses.val, losses.avg,
                         triplet_loss, llc_loss,
-                        running_n_triplets.avg))
+                        running_n_triplets.avg,
+                        false_positive.avg, false_negative.avg))
 
             else:
                 print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
@@ -612,7 +587,7 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
         print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
-            f.write('epoch:{} runtime:{} {:.4f}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg))
+            f.write('epoch:{} runtime:{} {:.4f} {} {}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg, false_positive.avg, false_negative.avg))
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 

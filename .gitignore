@@ -25,3 +25,4 @@ log-eval-linclr/*
 *.csv
 *.pth.tar
 *.out
+*.json

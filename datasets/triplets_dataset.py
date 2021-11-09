@@ -96,6 +96,8 @@ class TripletsData(data.Dataset):
             self.loader = video_loader
 
         self.target_type = target_type
+        
+        self.gt_target_type='label'
 
         self.data_labels = np.array([data[self.target_type] for data in self.data])
 
@@ -123,6 +125,9 @@ class TripletsData(data.Dataset):
             positive = self.data[p_idx]
 
         p_target = positive[self.target_type]
+
+        a_gt_target = anchor[self.gt_target_type]
+        p_gt_target = positive[self.gt_target_type]
 
         if self.split == 'train' and self.predict_temporal_ds: #only applied to train split
             ds_label = random.randint(1, 4) #TODO: make it configurable
@@ -161,13 +166,13 @@ class TripletsData(data.Dataset):
             return (a_clip, p_clip, p_fast_clip), (a_target, p_target), index
 
         elif self.local_local_contrast:
-            return (a_clip, p_clip, a2_clip), (a_target, p_target), index
+            return (a_clip, p_clip, a2_clip), (a_target, p_target), (a_gt_target, p_gt_target), index
         
         elif self.intra_negative:
             return (a_clip, p_clip, intra_n_clip), (a_target, p_target), index
 
         else:
-            return (a_clip, p_clip), (a_target, p_target), index
+            return (a_clip, p_clip), (a_target, p_target), (a_gt_target, p_gt_target), index
 
     def _load_clip(self, data, temporal_transform, use_channel_ext=True, pos_channel_replace=False, intra_negative=False, ds=1):
         path = data['video']

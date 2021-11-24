@@ -7,7 +7,7 @@ pip install -r requirements.txt
 
 
 ## Dataset
-For pre-training, we follow the instruction on [this repo](https://github.com/kenshohara/3D-ResNets-PyTorch) to install and pre-process UCF101, HMDB51, and Kinetics400.
+For pre-training, we follow the instructions on [this repo](https://github.com/kenshohara/3D-ResNets-PyTorch) to install and pre-process UCF101, HMDB51, and Kinetics400.
 
 For fine-tuning, we download the LMDB version for UCF101 from the following links:
 * UCF101

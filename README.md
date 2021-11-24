@@ -1,5 +1,10 @@
 # video_similarity_search
 
+## Environment Setup
+```
+pip install -f requirements.txt
+```
+
 ## Dataset
 * UCF101
   * RGB:  [LMDB](http://thor.robots.ox.ac.uk/~vgg/data/CoCLR/ucf101_rgb_lmdb.tar)

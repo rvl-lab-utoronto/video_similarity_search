@@ -2,10 +2,11 @@
 # video_similarity_search
 
 ## Dataset
+For pre-training, we follow the instruction on [this repo](https://github.com/kenshohara/3D-ResNets-PyTorch) to install and pre-process UCF101, HMDB51, and Kinetics400.
+For evaluation, we download the LMDB version for UCF101 from the following links:
 * UCF101
   * RGB:  [LMDB](http://thor.robots.ox.ac.uk/~vgg/data/CoCLR/ucf101_rgb_lmdb.tar)
   * TVL1 Optical Flow: [LMDB](http://thor.robots.ox.ac.uk/~vgg/data/CoCLR/ucf101_flow_lmdb.tar)
-* Kinetics
 
 ## Pretrain
 * ResNet-18 pretrain on UCF-RGB & Optical Flow w/ Iterative Clustering and Temporal Discrimination Loss

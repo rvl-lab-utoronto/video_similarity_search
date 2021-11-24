@@ -22,6 +22,13 @@ python online_train.py --cfg config/custom_configs/resnet_ucf_itercluster_flow.y
 --gpu 0,1 --batch_size 32 --output ./output/path --iterative_cluster
 ```
 
+* ResNet-18 pretrain on Kinetics-RGB & Optical Flow with Iterative Clustering and Temporal Discrimination Loss
+ 
+```
+python online_train.py --cfg config/custom_configs/resnet_kin_itercluster_flow.yaml \
+--gpu 0,1,2,3,4,5,6,7 --batch_size 104 --output ./output/path --iterative_cluster
+```
+
 ## Finetune (Adapted from CoCLR)
 
 * end-to-end finetune

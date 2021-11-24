@@ -1,0 +1,49 @@
+TRAIN:
+    DATASET: kinetics
+    EPOCHS: 340
+
+DATASET:
+    VID_PATH: /media/diskstation/datasets/kinetics400/frames_shortedge320px_25fps
+    ANNOTATION_PATH: /media/diskstation/datasets/kinetics400/vid_paths_and_labels/frame_paths
+
+    TARGET_TYPE_T: 'cluster_label'
+    TARGET_TYPE_V: 'label'
+
+    SAMPLING_STRATEGY: 'random_semi_hard'
+    POSITIVE_SAMPLING_P: 0.5
+
+    POS_CHANNEL_REPLACE: True
+    PROB_POS_CHANNEL_REPLACE: 0.25
+
+    CHANNEL_EXTENSIONS: 'optical_u'
+    OPTICAL_U_PATH: /media/diskstation/datasets/kinetics400/FLOW/u
+
+MODEL:
+    ARCH: '3dresnet'
+
+RESNET:
+    MODEL_DEPTH: 18
+    N_CLASSES: 2048 #512
+    # N_INPUT_CHANNELS: 3
+    SHORTCUT: 'B'
+    CONV1_T_SIZE: 7
+    CONV1_T_STRIDE: 1
+    NO_MAX_POOl: true
+    WIDEN_FACTOR: 1
+
+DATA:
+    SAMPLE_SIZE: 128
+    SAMPLE_DURATION: 16
+    INPUT_CHANNEL_NUM: 3
+
+LOSS:
+    MARGIN: 0.2
+    LOCAL_LOCAL_CONTRAST: True
+
+OPTIM:
+    LR: 0.1
+    MOMENTUM: 0.5
+    OPTIMIZER: sgd
+
+ITERCLUSTER:
+    METHOD: finch

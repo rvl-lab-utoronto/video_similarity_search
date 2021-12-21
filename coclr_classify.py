@@ -162,7 +162,8 @@ def main(args):
     cfg = get_cfg()
     if args.cfg_file is not None:
         cfg.merge_from_file(args.cfg_file)
-    model=model_selector(cfg, projection_head=args.use_projection_head, classifier=True, dropout=args.dropout, use_l2_norm=args.use_l2_norm, num_classes=class_num)
+    model=model_selector(cfg, projection_head=args.use_projection_head,
+            classifier=True, dropout=args.dropout, num_classes=args.num_class)
 
     model.to(device)
 

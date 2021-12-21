@@ -12,7 +12,7 @@
 
 module load python/3.6
 
-source /home/cheny257/projects/def-florian7/cheny257/vidsim_env/bin/activate
+source /home/cheny257/projects/def-florian7/cheny257/code/resnet_env/bin/activate
 
 
 clush -w $(slurm_hl2hl.py --format PDSH) tar -xf /home/cheny257/projects/def-florian7/datasets/UCF101/jpg.tar.gz -C $SLURM_TMPDIR

@@ -23,3 +23,6 @@ optical_llc_contd.sh
 *.log
 log-eval-linclr/*
 *.csv
+*.pth.tar
+*.out
+*.json

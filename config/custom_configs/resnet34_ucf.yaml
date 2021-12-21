@@ -1,12 +1,12 @@
-OUTPUT_PATH: '/home/sherry/output/hmdb'
+OUTPUT_PATH: '/home/sherry/output/ucf'
 
 TRAIN:
-    DATASET: "hmdb51"
+    DATASET: "ucf101"
 
 DATASET:
-    VID_PATH: '/media/diskstation/datasets/HMDB51/jpg'
-    ANNOTATION_PATH: '/media/diskstation/datasets/HMDB51/json/hmdb51_1.json'
-    # CLUSTER_PATH: '/media/synology/datasets/UCF101/vid_clusters.txt'
+    VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
+    ANNOTATION_PATH: '/media/diskstation/datasets/UCF101/json/ucf101_01.json'
+    CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'
@@ -28,8 +28,8 @@ RESNET:
     WIDEN_FACTOR: 1
 
 DATA:
-    SAMPLE_SIZE: 128
-    SAMPLE_DURATION: 16
+    SAMPLE_SIZE: 112
+    SAMPLE_DURATION: 34
     INPUT_CHANNEL_NUM: 3
 
 LOSS:

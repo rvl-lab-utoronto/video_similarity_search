@@ -182,6 +182,9 @@ class ResNet(nn.Module):
         self.num_classes=num_classes
         self.dropout = dropout
 
+        self.output_dim = 512
+
+        
         if projection_head:
             print('==> setting up non-linear project heads')
             self.fc1 = nn.Linear(block_inplanes[3] * block.expansion, hidden_layer)
@@ -200,14 +203,15 @@ class ResNet(nn.Module):
             self.e2p = ToPoincare(c=1.0, train_c=False, train_x=False)
         
         if self.classifier:
-            print('==> setting up linear layer for classification')
+            print('==> setting up linear layer for classification with input dimension:{}'.format(self.output_dim))
+        
             if self.dropout is not None and self.dropout > 0.0:
                 print('==> setting up Dropout layer')
                 self.linear = nn.Sequential(
                                     nn.Dropout(dropout),
-                                    nn.Linear(512, self.num_classes))
+                                    nn.Linear(self.output_dim, self.num_classes))
             else:
-                self.linear = nn.Linear(512, self.num_classes)
+                self.linear = nn.Linear(self.output_dim, self.num_classes)
             self._initialize_weights(self.linear) #CoCLR does this
 
         for m in self.modules():

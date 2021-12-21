@@ -123,16 +123,25 @@ def build_spatial_transformation(cfg, split, triplets, is_master_proc=True):
 def build_temporal_transformation(cfg, triplets=True, split=None):
     if triplets:
         TempTransform = {}
-        #anchor
+
         anchor_temporal_transform = []
-        anchor_temporal_transform.append(TemporalBeginCrop(cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
+        positive_temporal_transform = []
+        if cfg.DATA.ANCHOR_TEMPORAL_CROP == 'begin':
+            #anchor
+            anchor_temporal_transform.append(TemporalBeginCrop(cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
+            #positive
+            positive_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION,
+                start_index=cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
+        elif cfg.DATA.ANCHOR_TEMPORAL_CROP == 'random':
+            #anchor
+            anchor_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
+            #positive
+            positive_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
+        else:
+            assert False, 'anchor_temporal_crop setting not supported'
+
         anchor_temporal_transform = TemporalCompose(anchor_temporal_transform)
         TempTransform['anchor'] = anchor_temporal_transform
-
-        #positive
-        positive_temporal_transform = []
-        positive_temporal_transform.append(TemporalRandomCrop(cfg.DATA.SAMPLE_DURATION,
-            start_index=cfg.DATA.SAMPLE_DURATION, skip_rate=cfg.DATA.SKIP_RATE))
         positive_temporal_transform = TemporalCompose(positive_temporal_transform)
         TempTransform['positive'] = positive_temporal_transform
 
@@ -215,7 +224,8 @@ def get_channel_extension(cfg):
 # Return a pytorch DataLoader
 def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                       negative_sampling=False, req_spatial_transform=None,
-                      req_train_shuffle=None, val_sample=1, drop_last=True, batch_size=None):
+                      req_train_shuffle=None, val_sample=1, drop_last=True,
+                      batch_size=None, flow_only=False):
 
     # ==================== Transforms and parameter Setup ======================
 
@@ -239,9 +249,10 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     # dictionary and assert that the specified input_channel_num is valid
     
     channel_ext = {}
-    if (triplets and cfg.DATASET.POS_CHANNEL_REPLACE and split == 'train') or not cfg.DATASET.POS_CHANNEL_REPLACE:
+    if (triplets and cfg.DATASET.POS_CHANNEL_REPLACE and split == 'train'
+       ) or not cfg.DATASET.POS_CHANNEL_REPLACE or flow_only:
         channel_ext = get_channel_extension(cfg)
-        assert (cfg.DATASET.MODALITY or cfg.DATASET.POS_CHANNEL_REPLACE or len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
+        assert (flow_only or cfg.DATASET.MODALITY or cfg.DATASET.POS_CHANNEL_REPLACE or len(channel_ext) + 3 == cfg.DATA.INPUT_CHANNEL_NUM)
         if (is_master_proc):
             print('Channel ext:', channel_ext)
   
@@ -251,7 +262,10 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
 
         # Only need cluster labels if sampling triplets
         if triplets:
-            cluster_path = cfg.DATASET.CLUSTER_PATH
+            if not cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+                cluster_path = cfg.DATASET.CLUSTER_PATH
+            else:
+                cluster_path = (cfg.DATASET.CLUSTER_PATH, cfg.DATASET.CLUSTER_PATH_FLOW)
         else:
             cluster_path = None
     else:
@@ -272,7 +286,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     if (is_master_proc):
         print ('Loading', cfg.TRAIN.DATASET, split, 'split...')
 
-    data, (collate_fn, _) = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
+    data, collate_fn = get_data(split, cfg.DATASET.VID_PATH, cfg.DATASET.ANNOTATION_PATH,
                 cfg.TRAIN.DATASET, input_type, file_type, triplets,
                 cfg.DATA.SAMPLE_DURATION, cfg.DATA.SKIP_RATE, spatial_transform, TempTransform, normalize=normalize,
                 channel_ext=channel_ext, cluster_path=cluster_path,
@@ -286,6 +300,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 intra_negative=cfg.LOSS.INTRA_NEGATIVE,
                 modality=cfg.DATASET.MODALITY,
                 predict_temporal_ds=cfg.MODEL.PREDICT_TEMPORAL_DS,
+                flow_only=flow_only,
                 is_master_proc=is_master_proc)
 
     # ============================ Build DataLoader ============================

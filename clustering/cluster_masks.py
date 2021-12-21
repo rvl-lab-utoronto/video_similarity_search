@@ -215,12 +215,18 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True,
 
     elif method == 'finch':
         embeddings = embeddings.detach().cpu().numpy()
-        c, num_clust, req_c = FINCH(embeddings, distance='cosine')
+        c, num_clust, req_c = FINCH(embeddings, distance='cosine')    
 
         PARTITION = finch_partition
-        labels = c[:,PARTITION]
-        n_clusters = num_clust[PARTITION]
-        print('Taking partition {} from finch'.format(PARTITION))
+    
+        if PARTITION == -1:
+            labels = c 
+            n_clusters = num_clust[0]
+
+        else:
+            labels = c[:,PARTITION]
+            n_clusters = num_clust[PARTITION]
+            print('Taking partition {} from finch'.format(PARTITION))
 
     elif method == 'OPTICS':
         trained_cluster_obj = OPTICS(min_samples=3, max_eps=0.20, cluster_method='dbscan', metric='cosine', n_jobs=-1).fit(embeddings)

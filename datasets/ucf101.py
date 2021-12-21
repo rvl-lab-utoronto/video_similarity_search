@@ -80,7 +80,7 @@ class UCF101():
                  split, #training, ...
                  sample_duration,
                  channel_ext={},
-                 cluster_path=None,
+                 cluster_labels=None,
                  is_master_proc=True,
                  video_path_formatter=(lambda root_path, label, video_id:
                                        root_path / label / video_id),
@@ -100,8 +100,7 @@ class UCF101():
 
 
         self.channel_ext = channel_ext
-        self.cluster_path = cluster_path
-        self.cluster_labels = self.read_cluster_labels()
+        self.cluster_labels = cluster_labels
 
         self.val_sample = val_sample
 
@@ -120,19 +119,6 @@ class UCF101():
 
     def image_name_formatter(self, x):
         return f'image_{x:05d}.jpg'
-
-    def read_cluster_labels(self):
-        if not self.cluster_path:
-            if self.is_master_proc:
-                print('cluster_path not defined....')
-            return None
-        with open(self.cluster_path, 'r') as f:
-            cluster_labels = f.readlines()
-        cluster_labels = [int(id.replace('\n', '')) for id in cluster_labels]
-        if self.is_master_proc:
-            print('retrieved {} cluster id from file: {}'.format(len(cluster_labels), self.cluster_path))
-        return cluster_labels
-
 
     def __make_dataset(self, root_path, annotation_path, subset,
             video_path_formatter, sample_duration, is_master_proc):

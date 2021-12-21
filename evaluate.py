@@ -393,13 +393,14 @@ def k_nearest_embeddings(args, model, cuda, device, train_loader, test_loader,
                 exemplar_idx = np.random.randint(0, distance_matrix.shape[0]-1)
                 print('exemplar video id: {}, label:{}'.format(exemplar_idx, test_labels[exemplar_idx]))
                 k_idx = get_closest_data(distance_matrix, exemplar_idx, top_k)
+                print(k_idx)
                 print([train_labels[x] for x in k_idx], len(train_data))
                 k_nearest_data = [train_data[i] for i in k_idx]
                 plot_img(cfg, fig, val_data, train_data, num_exemplar, i, exemplar_idx, k_idx, spatial_transform, temporal_transform, output=evaluate_output)
             # plt.show()
             png_file = os.path.join(evaluate_output, '{}_plot.png'.format(os.path.basename(evaluate_output)))
-            fig.tight_layout(pad=3.5)
-            plt.savefig(png_file, dpi=300)
+            fig.tight_layout(pad=1.5)
+            plt.savefig(png_file, dpi=800)
             service.upload_file_to_gdrive(png_file, 'evaluate')
             print('figure saved to: {}, and uploaded to GoogleDrive'.format(png_file))
 

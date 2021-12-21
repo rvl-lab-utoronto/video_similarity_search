@@ -1,11 +1,10 @@
-
 TRAIN:
-    DATASET: "ucf101"
+    DATASET: kinetics
 
 DATASET:
-    VID_PATH: '/media/diskstation/datasets/UCF101/jpg'
-    ANNOTATION_PATH: /media/diskstation/datasets/UCF101/UCF101_Flow/json/ucf101_01.json
-    CLUSTER_PATH: '/media/diskstation/datasets/UCF101/vid_clusters.txt'
+    VID_PATH: /scratch/ssd004/datasets/kinetics400_RGB/frames_shortedge320px_25fps
+    ANNOTATION_PATH: /scratch/ssd004/datasets/kinetics400_RGB/vid_paths_and_labels/frame_paths
+    #CLUSTER_PATH: '/scratch/ssd004/scratch/salarh/datasets/UCF101/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'
@@ -14,11 +13,8 @@ DATASET:
     POSITIVE_SAMPLING_P: 0.2
 
     POS_CHANNEL_REPLACE: True
-    PROB_POS_CHANNEL_REPLACE: 0.35
-
     CHANNEL_EXTENSIONS: 'optical_u'
-    OPTICAL_U_PATH: /media/diskstation/datasets/UCF101/UCF101_Flow/tvl1_flow/u
-
+    OPTICAL_U_PATH: /scratch/ssd004/datasets/kinetics400_RGB/FLOW/u
 
 MODEL:
     ARCH: '3dresnet'
@@ -33,19 +29,18 @@ RESNET:
     NO_MAX_POOl: true
     WIDEN_FACTOR: 1
 
-ITERCLUSTER:
-    METHOD: 'finch'
-
 DATA:
     SAMPLE_SIZE: 128
     SAMPLE_DURATION: 16
-    INPUT_CHANNEL_NUM: 3 #4
+    INPUT_CHANNEL_NUM: 3
 
 LOSS:
     MARGIN: 0.2
-    LOCAL_LOCAL_CONTRAST: True 
-
+    LOCAL_LOCAL_CONTRAST: True
 
 OPTIM:
     LR: 0.1
     MOMENTUM: 0.5
+
+ITERCLUSTER:
+    METHOD: 'finch'

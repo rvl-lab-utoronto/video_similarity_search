@@ -32,7 +32,9 @@ from models.model_utils import (model_selector, multipathway_input,
                             AverageMeter, accuracy, create_output_dirs)
 from config.m_parser import load_config, arg_parser
 from config.default_params import get_cfg
+from coclr_utils.utils import neq_load_customized
 
+from coclr_utils.utils import neq_load_customized
 
 def train(args, model, criterion, optimizer, device, train_dataloader, writer, epoch):
     torch.set_grad_enabled(True)
@@ -479,6 +481,7 @@ if __name__ == '__main__':
 
     elif args.mode == 'test':  ########### Test #############
         try:
+            # start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path, classifier=True)
             model.load_state_dict(torch.load(args.checkpoint_path))
         except Exception as e:
             print('==> model loading failed, trying again!')
@@ -486,7 +489,9 @@ if __name__ == '__main__':
             epoch = checkpoint['epoch']
             state_dict = checkpoint['state_dict']
             # state_dict = checkpoint
-            model.load_state_dict(state_dict)
+            # model.load_state_dict(state_dict)
+            neq_load_customized(model, state_dict, verbose=True)
+
 
         model = model.cuda(device=device)
 
@@ -527,15 +532,22 @@ if __name__ == '__main__':
         confusion_matrix = confusion_matrix.to_numpy()[:,1:]
 
         acc = np.diagonal(confusion_matrix)/np.sum(confusion_matrix, axis=1)
-        top_k = acc.argsort()[:args.top_k]
+        # top_k = acc.argsort()[:args.top_k]
 
-        print(top_k)
+        # print(top_k)
+        #19,  77, 100, 55, 22, 23, 18, 31
+        top_k = np.array([16, 17, 19, 77, 36, 37, 20, 98, 45, 100, 55, 29, 22, 23, 18, 31, 61,63,66])
         to_print = [(test_dataset.class_idx2label[k+1], acc[k]) for k in top_k]
         pp(to_print)
         idx = top_k
+
+        total_num = []
         for k in top_k:
-            idx = np.concatenate((idx, confusion_matrix[k,:].argsort()[::-1][:4]))
-        idx = np.unique(idx)
+            # idx = np.concatenate((idx, confusion_matrix[k,:].argsort()[::-1][:4]))
+            # print(k, confusion_matrix[k,:].sum())
+            total_num.append(confusion_matrix[k,:].sum())
+            print(k, confusion_matrix[k,:].argsort()[::-1][:4])
+        # idx = np.unique(idx)
 
         to_select = np.ix_(top_k, idx)
         sub_matrix = confusion_matrix[to_select]
@@ -546,7 +558,14 @@ if __name__ == '__main__':
         df_cm.columns = header
         df_cm['classes'] = [x for x in test_dataset.class_idx2label[top_k+1]]
         df_cm.set_index("classes", inplace=True)
-        # print(df_cm)
-        plt.figure(figsize = (19,10))
+        df_cm['others'] = total_num - df_cm.sum(axis=1)
+        print('total_num')
+        print(total_num)
+        print(df_cm.sum(axis=1))
+        print(df_cm['others'])
+
+        plt.figure(figsize = (30,27))
+        # plt.figure()
+        sn.set(font_scale=1.8)
         sn.heatmap(df_cm, annot=True)
         plt.savefig('confusion_matrix.png')

@@ -54,7 +54,6 @@ def parse_args():
     parser.add_argument('--optim', default='adam', type=str)
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
     parser.add_argument('--schedule', default=[60, 100], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
-    #parser.add_argument('--schedule', default=[60, 80], nargs='*', type=int, help='learning rate schedule (when to drop lr by 10x)')
     parser.add_argument('--wd', default=1e-3, type=float, help='weight decay')
     parser.add_argument('--dropout', default=0.9, type=float, help='dropout')
     parser.add_argument('--epochs', default=200, type=int, help='number of total epochs to run')
@@ -65,7 +64,9 @@ def parse_args():
     parser.add_argument('--print_freq', default=5, type=int, help='frequency of printing output during training')
     parser.add_argument('--eval_freq', default=1, type=int)
     parser.add_argument('--reset_lr', action='store_true', help='Reset learning rate when resume training?')
-    
+    parser.add_argument('--use_l2_norm', action='store_true')
+    parser.add_argument('--use_projection_head', action='store_true')
+
     parser.add_argument('--prefix', default='linclr', type=str)
     parser.add_argument('-j', '--workers', default=8, type=int)
     parser.add_argument('--cos', action='store_true', help='use cosine lr schedule')
@@ -161,8 +162,8 @@ def main(args):
     cfg = get_cfg()
     if args.cfg_file is not None:
         cfg.merge_from_file(args.cfg_file)
-    model=model_selector(cfg, projection_head=False, classifier=True,
-            dropout=args.dropout, num_classes=args.num_class)
+    model=model_selector(cfg, projection_head=args.use_projection_head,
+            classifier=True, dropout=args.dropout, num_classes=args.num_class)
 
     model.to(device)
 
@@ -171,7 +172,9 @@ def main(args):
         print('=> [optimizer] only train last layer')
         params = []
         for name, param in model.named_parameters():
-            if 'linear' not in name:
+            if cfg.MODEL.ARCH == 's3d' and '0.' in name:
+                param.requires_grad = False 
+            elif cfg.MODEL.ARCH == '3dresnet' and 'linear' not in name:
                 param.requires_grad = False
             else: 
                 params.append({'params': param})
@@ -180,12 +183,18 @@ def main(args):
         print('=> [optimizer] finetune backbone with smaller lr')
         params = []
         for name, param in model.named_parameters():
-            # print(name)
-            if 'linear' not in name:
+            # print(name, args.lr)
+            if cfg.MODEL.ARCH == 's3d' and '0.' not in name:
+                print(name, args.lr/10)
+                params.append({'params': param, 'lr': args.lr/10})      
+            elif cfg.MODEL.ARCH ==  '3dresnet' and 'linear' not in name:
                 print(name, args.lr/10)
                 params.append({'params': param, 'lr': args.lr/10})
             else:
+                print(name, args.lr)
                 params.append({'params': param})
+            # params.append({'params': param})
+
     
     else: # train all
         params = []
@@ -201,8 +210,12 @@ def main(args):
         print('=================================\n')
 
     if args.optim == 'adam':
+        print('==> using Adam optimizer')
+        # print(params)
+        # print(args.lr, args.wd)
         optimizer = optim.Adam(params, lr=args.lr, weight_decay=args.wd)
     elif args.optim == 'sgd':
+        print('==> using SDG optimizer')
         optimizer = optim.SGD(params, lr=args.lr, weight_decay=args.wd, momentum=0.9)
     else:
         raise NotImplementedError
@@ -663,7 +676,8 @@ def test_retrieval(model, criterion, transforms_cuda, device, epoch, args):
                             transform=transform, 
                             num_frames=args.num_seq*args.seq_len,
                             ds=args.ds,
-                            which_split=1,
+                            # which_split=1,
+                            which_split=args.which_split,
                             return_label=True,
                             return_path=True)
         print('train dataset size: %d' % len(train_dataset))
@@ -672,7 +686,8 @@ def test_retrieval(model, criterion, transforms_cuda, device, epoch, args):
                             transform=transform, 
                             num_frames=args.num_seq*args.seq_len,
                             ds=args.ds,
-                            which_split=1,
+                            # which_split=1,
+                            which_split=args.which_split,
                             return_label=True,
                             return_path=True)
         print('test dataset size: %d' % len(test_dataset))
@@ -826,7 +841,8 @@ def adjust_learning_rate(optimizer, epoch, args):
     ratio = 0.1 if epoch in args.schedule else 1.
     for param_group in optimizer.param_groups:
         param_group['lr'] = param_group['lr'] * ratio
-
+    if epoch in args.schedule:
+        print('==> reducing lr by 0.1')
 
 def get_transform(mode, args):
     if mode == 'train':

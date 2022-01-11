@@ -242,6 +242,8 @@ def extract_feature(args, split='train'):
             test_dataset = UCF101ClipRetrievalDataset('/media/diskstation/datasets/UCF101', args.cl, 10, False, test_transforms)
         elif args.dataset == 'hmdb51':
             test_dataset = HMDB51ClipRetrievalDataset('/media/diskstation/datasets/HMDB51', args.cl, 10, False, test_transforms)
+
+
         test_dataloader = DataLoader(test_dataset, batch_size=args.bs, shuffle=False,
                                         num_workers=args.workers,
                                         pin_memory=True, drop_last=True)
@@ -320,7 +322,7 @@ def parse_args():
     parser.add_argument('--checkpoint_path', type=str, help='checkpoint path')
     parser.add_argument('--bs', type=int, default=16, help='mini-batch size')
     parser.add_argument('--workers', type=int, default=2, help='number of data loading workers')
-    parser.add_argument('--model', type=str, default='ICVR', help='mainly used to differentiate CoCLR model from our model!')
+    parser.add_argument('--model', type=str, default='SLIC', help='mainly used to differentiate CoCLR model from our model!')
     args = parser.parse_args()
     args.feature_dir = os.path.join(args.feature_dir, args.dataset)
     return args

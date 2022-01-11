@@ -5,7 +5,7 @@ from torch import nn, einsum
 import torch.nn.functional as F
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
-from module import Attention, PreNorm, FeedForward
+from .module import Attention, PreNorm, FeedForward
 import numpy as np
 
 class Transformer(nn.Module):
@@ -28,7 +28,8 @@ class Transformer(nn.Module):
 
   
 class ViViT(nn.Module):
-    def __init__(self, image_size, patch_size, num_classes, num_frames, dim = 192, depth = 4, heads = 3, pool = 'mean', in_channels = 3, dim_head = 64, dropout = 0.,
+    def __init__(self, image_size, patch_size, num_frames,
+            num_classes=400, dim = 192, depth = 4, heads = 3, pool = 'mean', in_channels = 3, dim_head = 64, dropout = 0.,
                  emb_dropout = 0., scale_dim = 4, prepend_cls_token=False,
                  projection_head=True, classifier_head=False,
                  proj_head_hidden_layer= 2048,
@@ -79,6 +80,10 @@ class ViViT(nn.Module):
 
 
     def forward(self, x):
+
+        # (batch size, channels, frames, width, height) -> (batch size, frames, channels, width, height)
+        x = x.transpose(1, 2)
+
         x = self.to_patch_embedding(x)
         b, t, n, _ = x.shape
 

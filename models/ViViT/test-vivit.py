@@ -34,7 +34,7 @@ def test():
     #        num_frames=32, dim=1024, depth=24, heads=16, in_channels=3).cuda()
 
     #ViViT-Base factorized encoder model - slic version - replace classifier with projection head
-    model = ViViT(image_size=128, patch_size=16, num_classes=400,
+    model = ViViT(image_size=128, patch_size=16,
             num_frames=32, dim=768, depth=12, heads=12, pool='mean',
             in_channels=3, prepend_cls_token=False, projection_head=True,
             classifier_head=False, proj_head_hidden_layer= 2048,
@@ -47,7 +47,7 @@ def test():
     print('Trainable Parameters: %.3fM' % parameters)
 
     # batch size, frames, channels, width, height
-    img = torch.ones([2, 32, 3, 128, 128]).cuda()
+    img = torch.ones([2, 3, 32, 128, 128]).cuda()
     out = model(img)
     print("Shape of out :", out.shape)      # [B, num_classes]
 

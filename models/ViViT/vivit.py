@@ -1,4 +1,4 @@
-# from https://github.com/rishikksh20/ViViT-pytorch
+# modified from https://github.com/rishikksh20/ViViT-pytorch
 
 import torch
 from torch import nn, einsum
@@ -28,10 +28,13 @@ class Transformer(nn.Module):
 
   
 class ViViT(nn.Module):
-    def __init__(self, image_size, patch_size, num_classes, num_frames, dim = 192, depth = 4, heads = 3, pool = 'cls', in_channels = 3, dim_head = 64, dropout = 0.,
-                 emb_dropout = 0., scale_dim = 4, ):
+    def __init__(self, image_size, patch_size, num_classes, num_frames, dim = 192, depth = 4, heads = 3, pool = 'mean', in_channels = 3, dim_head = 64, dropout = 0.,
+                 emb_dropout = 0., scale_dim = 4, prepend_cls_token=False,
+                 projection_head=True, classifier_head=False,
+                 proj_head_hidden_layer= 2048,
+                 out_dim = 128):
         super().__init__()
-        
+
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
 
@@ -43,7 +46,15 @@ class ViViT(nn.Module):
             nn.Linear(patch_dim, dim),
         )
 
-        self.pos_embedding = nn.Parameter(torch.randn(1, num_frames, num_patches + 1, dim))
+        self.prepend_cls_token = prepend_cls_token
+        self.classifier_head = classifier_head
+        self.projection_head = projection_head
+
+        if self.prepend_cls_token:
+            self.pos_embedding = nn.Parameter(torch.randn(1, num_frames, num_patches + 1, dim))
+        else:
+            self.pos_embedding = nn.Parameter(torch.randn(1, num_frames, num_patches, dim))
+
         self.space_token = nn.Parameter(torch.randn(1, 1, dim))
         self.space_transformer = Transformer(dim, depth, heads, dim_head, dim*scale_dim, dropout)
 
@@ -53,36 +64,71 @@ class ViViT(nn.Module):
         self.dropout = nn.Dropout(emb_dropout)
         self.pool = pool
 
-        self.mlp_head = nn.Sequential(
-            nn.LayerNorm(dim),
-            nn.Linear(dim, num_classes)
-        )
+        if self.projection_head:
+            print('==> setting up non-linear project heads')
+            self.fc1 = nn.Linear(dim, proj_head_hidden_layer)
+            self.bn_proj = nn.BatchNorm1d(proj_head_hidden_layer)
+            self.relu = nn.ReLU(inplace=True)
+            self.fc2 = nn.Linear(proj_head_hidden_layer, out_dim)
+
+        if self.classifier_head:
+            self.mlp_head = nn.Sequential(
+                nn.LayerNorm(dim),
+                nn.Linear(dim, num_classes)
+            )
+
 
     def forward(self, x):
         x = self.to_patch_embedding(x)
         b, t, n, _ = x.shape
 
-        cls_space_tokens = repeat(self.space_token, '() n d -> b t n d', b = b, t=t)
-        x = torch.cat((cls_space_tokens, x), dim=2)
-        x += self.pos_embedding[:, :, :(n + 1)]
+        if self.prepend_cls_token:
+            cls_space_tokens = repeat(self.space_token, '() n d -> b t n d', b = b, t=t)
+            x = torch.cat((cls_space_tokens, x), dim=2)
+            x += self.pos_embedding[:, :, :(n + 1)]
+        else:
+            x += self.pos_embedding[:, :, :n]
+
         x = self.dropout(x)
 
         x = rearrange(x, 'b t n d -> (b t) n d')
-        x = self.space_transformer(x)
-        x = rearrange(x[:, 0], '(b t) ... -> b t ...', b=b)
 
-        cls_temporal_tokens = repeat(self.temporal_token, '() n d -> b n d', b=b)
-        x = torch.cat((cls_temporal_tokens, x), dim=1)
+        x = self.space_transformer(x)
+
+        if self.prepend_cls_token:
+            x = x[:, 0]
+        else:
+            x = x.mean(dim=1)
+
+        x = rearrange(x, '(b t) ... -> b t ...', b=b)
+
+        if self.prepend_cls_token:
+            cls_temporal_tokens = repeat(self.temporal_token, '() n d -> b n d', b=b)
+            x = torch.cat((cls_temporal_tokens, x), dim=1)
 
         x = self.temporal_transformer(x)
-        
 
-        x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
+        if self.pool == 'mean':
+            x = x.mean(dim=1)
+        else:
+            x = x[:, 0]
 
-        return self.mlp_head(x)
-    
-    
-    
+        if self.projection_head:
+            h = self.fc1(x)
+            h = self.bn_proj(h)
+            h = self.relu(h)
+            h = self.fc2(h)
+
+        if self.classifier_head:
+            h = self.mlp_head(x)
+
+        if self.projection_head or self.classifier_head:
+            return h
+        else:
+            return x
+
+
+
 
 if __name__ == "__main__":
     

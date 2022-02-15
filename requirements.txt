@@ -2,7 +2,7 @@ numpy
 scipy
 pandas
 matplotlib
-scikit-learn==0.22.0
+scikit-learn
 scikit-image
 opencv-python
 torch
@@ -26,3 +26,4 @@ tensorboardX
 msgpack==0.6.2
 lmdb
 scikit-video
+einops

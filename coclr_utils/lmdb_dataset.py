@@ -29,6 +29,7 @@ __all__ = [
 
 # rewrite for yourself:
 lmdb_root = '/media/diskstation/datasets/UCF101/LMDB'
+lmdb_root_hmdb = '/media/diskstation/datasets/HMDB51'
 
 # lmdb_root = '/media/synology/datasets/HMDB51/prev_split/'
 def read_file(path):
@@ -273,6 +274,8 @@ class UCF101Flow_LMDB_2CLIP(object):
         video_info = pd.read_csv(os.path.join(root, '%s_split%02d.csv' % (split_mode, which_split)), header=None)
         video_info[2] = video_info[0].str.split('/').str.get(-3)
         video_info[3] = video_info[2]+'/'+video_info[0].str.split('/').str.get(-2)
+        print(len(video_info[2]))
+        print(pd.unique(video_info[2]))
         assert len(pd.unique(video_info[2])) == self.num_class
 
         # load video source to id dictionary #uncomment
@@ -284,6 +287,8 @@ class UCF101Flow_LMDB_2CLIP(object):
         vlen_list_ordered = sorted(list(zip([i.decode() for i in self.db_keys], self.vlen_list)), key=lambda x: x[0])
         vlen_list_ordered = [i[-1] for i in vlen_list_ordered]
         video_info = video_info.merge(pd.DataFrame(zip(vname_list, vlen_list_ordered),columns=[3,4]), left_on=3, right_on=3).dropna()
+
+        #print(video_info)
 
         self.get_video_id = dict(zip([i.decode() for i in self.db_order], 
                                      ['%09d'%i for i in range(len(self.db_order))]))
@@ -399,8 +404,10 @@ class UCF101Flow_LMDB(UCF101Flow_LMDB_2CLIP):
 
 
 class HMDB51Flow_LMDB(UCF101Flow_LMDB):
-    def __init__(self, root='%s/../process_data/data/hmdb51' % os.path.dirname(os.path.abspath(__file__)), 
-                 db_path=os.path.join(lmdb_root, 'HMDB51/lmdb/hmdb51_my_tvl1_frame.lmdb'),
+    def __init__(self, root='/media/diskstation/datasets/HMDB51/csv',
+    #def __init__(self, root='%s/../process_data/data/hmdb51' % os.path.dirname(os.path.abspath(__file__)), 
+                 #db_path=os.path.join(lmdb_root_hmdb, 'HMDB51/lmdb/hmdb51_my_tvl1_frame.lmdb'),
+                 db_path=os.path.join(lmdb_root_hmdb, 'hmdb51_flow_u.lmdb'),
                  **kwargs):
         super(HMDB51Flow_LMDB, self).__init__(root=root, db_path=db_path, **kwargs)
 

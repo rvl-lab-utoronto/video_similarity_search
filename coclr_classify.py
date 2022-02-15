@@ -39,6 +39,9 @@ from sklearn.metrics.pairwise import cosine_distances
 from config.default_params import get_cfg
 from models.model_utils import model_selector
 
+
+from coclr_utils.classifier import LinearClassifier
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--net', default='s3d', type=str)
@@ -162,16 +165,29 @@ def main(args):
     cfg = get_cfg()
     if args.cfg_file is not None:
         cfg.merge_from_file(args.cfg_file)
-    model=model_selector(cfg, projection_head=args.use_projection_head, classifier=True, dropout=args.dropout, use_l2_norm=args.use_l2_norm, num_classes=class_num)
+
+    if cfg.MODEL.ARCH == 's3d':
+        print("USING S3D WITH CoCLR LinearClassifier")
+        model = LinearClassifier(
+                    network=args.net, 
+                    num_class=args.num_class,
+                    dropout=args.dropout,
+                    use_dropout=args.use_dropout,
+                    use_final_bn=args.final_bn,
+                    use_l2_norm=args.final_norm)
+    else:
+        model=model_selector(cfg, projection_head=args.use_projection_head,
+                classifier=True, dropout=args.dropout, num_classes=args.num_class)
 
     model.to(device)
+
 
     ### optimizer ###
     if args.train_what == 'last':
         print('=> [optimizer] only train last layer')
         params = []
         for name, param in model.named_parameters():
-            if cfg.MODEL.ARCH == 's3d' and '0.' in name:
+            if cfg.MODEL.ARCH == 's3d' and 'backbone' in name:
                 param.requires_grad = False 
             elif cfg.MODEL.ARCH == '3dresnet' and 'linear' not in name:
                 param.requires_grad = False
@@ -183,7 +199,7 @@ def main(args):
         params = []
         for name, param in model.named_parameters():
             # print(name, args.lr)
-            if cfg.MODEL.ARCH == 's3d' and '0.' not in name:
+            if cfg.MODEL.ARCH == 's3d' and 'backbone' in name:
                 print(name, args.lr/10)
                 params.append({'params': param, 'lr': args.lr/10})      
             elif cfg.MODEL.ARCH ==  '3dresnet' and 'linear' not in name:
@@ -293,7 +309,7 @@ def main(args):
         elif args.center_crop or args.five_crop or args.ten_crop:
             transform = get_transform('test', args)
             test_dataset = get_data(transform, 'test', args)
-            test_10crop(test_dataset, model, ce_loss, transform_test_cuda, device, epoch, args)
+            test_10crop(test_dataset, model, ce_loss, transform_test_cuda, device, epoch, args, cfg)
         else:
             raise NotImplementedError
         
@@ -345,11 +361,12 @@ def main(args):
 
             print('checkpoint epoch:', checkpoint['epoch'])
 
-            # new_dict = {}
-            # for k,v in state_dict.items():
-            #     k = k.replace('encoder_q.0.', 'backbone.')
-            #     new_dict[k] = v
-            # state_dict = new_dict
+            if cfg.MODEL.ARCH == 's3d':
+                new_dict = {}
+                for k,v in state_dict.items():
+                    k = k.replace('0.', 'backbone.', 1)
+                    new_dict[k] = v
+                    state_dict = new_dict
 
             try: model_without_dp.load_state_dict(state_dict)
             except: neq_load_customized(model_without_dp, state_dict, verbose=True)
@@ -379,10 +396,10 @@ def main(args):
 
         adjust_learning_rate(optimizer, epoch, args)
 
-        train_one_epoch(train_loader, model, ce_loss, optimizer, transform_train_cuda, device, epoch, args)
+        train_one_epoch(train_loader, model, ce_loss, optimizer, transform_train_cuda, device, epoch, args, cfg)
 
         if epoch % args.eval_freq == 0:
-            _, val_acc = validate(val_loader, model, ce_loss, transform_val_cuda, device, epoch, args)
+            _, val_acc = validate(val_loader, model, ce_loss, transform_val_cuda, device, epoch, args, cfg)
 
             # save check_point
             is_best = val_acc > best_acc
@@ -402,7 +419,7 @@ def main(args):
     sys.exit(0)
 
 
-def train_one_epoch(data_loader, model, criterion, optimizer, transforms_cuda, device, epoch, args):
+def train_one_epoch(data_loader, model, criterion, optimizer, transforms_cuda, device, epoch, args, cfg):
     batch_time = AverageMeter('Time',':.2f')
     data_time = AverageMeter('Data',':.2f')
     losses = AverageMeter('Loss',':.4f')
@@ -434,16 +451,19 @@ def train_one_epoch(data_loader, model, criterion, optimizer, transforms_cuda, d
         B = input_seq.size(0)
         input_seq = tr(input_seq.to(device, non_blocking=True))
         target = target.to(device, non_blocking=True)
-        
+
         input_seq = input_seq.squeeze(1) # num_seq is always 1, seqeeze it
-        logit = model(input_seq)
+        if cfg.MODEL.ARCH == 's3d':
+            logit, _ = model(input_seq)
+        else:
+            logit = model(input_seq)
         loss = criterion(logit, target)
         top1, top5 = calc_topk_accuracy(logit, target, (1,5))
-        
+
         losses.update(loss.item(), B)
         top1_meter.update(top1.item(), B)
         top5_meter.update(top5.item(), B)
-        
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -473,7 +493,7 @@ def train_one_epoch(data_loader, model, criterion, optimizer, transforms_cuda, d
     return losses.avg, top1_meter.avg
 
 
-def validate(data_loader, model, criterion, transforms_cuda, device, epoch, args):
+def validate(data_loader, model, criterion, transforms_cuda, device, epoch, args, cfg):
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1_meter = AverageMeter('acc@1', ':.4f')
@@ -494,7 +514,10 @@ def validate(data_loader, model, criterion, transforms_cuda, device, epoch, args
             target = target.to(device, non_blocking=True)
 
             input_seq = input_seq.squeeze(1) # num_seq is always 1, seqeeze it
-            logit = model(input_seq)
+            if cfg.MODEL.ARCH == 's3d':
+                logit, _ = model(input_seq)
+            else:
+                logit = model(input_seq)
             loss = criterion(logit, target)
             top1, top5 = calc_topk_accuracy(logit, target, (1,5))
 
@@ -519,7 +542,7 @@ def validate(data_loader, model, criterion, transforms_cuda, device, epoch, args
     return losses.avg, top1_meter.avg
 
 
-def test_10crop(dataset, model, criterion, transforms_cuda, device, epoch, args):    
+def test_10crop(dataset, model, criterion, transforms_cuda, device, epoch, args, cfg):    
     prob_dict = {}
     model.eval()
 
@@ -579,7 +602,10 @@ def test_10crop(dataset, model, criterion, transforms_cuda, device, epoch, args)
                 for idx, (input_seq, target) in tqdm(enumerate(data_loader), total=len(data_loader)):
                     input_seq = tr(input_seq.to(device, non_blocking=True))
                     input_seq = input_seq.squeeze(1) # num_seq is always 1, seqeeze it
-                    logit = model(input_seq)
+                    if cfg.MODEL.ARCH == 's3d':
+                        logit, _ = model(input_seq)
+                    else:
+                        logit = model(input_seq)
 
                     # average probability along the temporal window
                     prob_mean = F.softmax(logit, dim=-1).mean(0, keepdim=True)

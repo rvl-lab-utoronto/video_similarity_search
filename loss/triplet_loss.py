@@ -328,6 +328,7 @@ class NegativeTripletSelector:
                 triplets_indices[2].extend(triplet_label_pairs[2])
 
         else:
+            '''
             # Get tensor with unique labels (<= (batch_size * 2))
             unique_labels, counts = torch.unique(labels, return_counts=True)
 
@@ -350,6 +351,23 @@ class NegativeTripletSelector:
                 # Sample anchor/positive/negative triplet
                 triplet_label_pairs = self.get_one_one_triplets(
                     label_indices, negative_indices, distance_matrix,
+                )
+                triplets_indices[0].extend(triplet_label_pairs[0])
+                triplets_indices[1].extend(triplet_label_pairs[1])
+                triplets_indices[2].extend(triplet_label_pairs[2])
+            '''
+            for i in range(len(labels)//2):
+                label = labels[i]
+                anchorpos_indices = np.array([i, i+len(labels)//2])
+
+                negative_indices = torch.where(labels != label)[0]
+
+                if negative_indices.shape[0] == 0:  # must have at least one negative
+                    continue
+
+                # Sample anchor/positive/negative triplet
+                triplet_label_pairs = self.get_one_one_triplets(
+                    anchorpos_indices, negative_indices, distance_matrix,
                 )
                 triplets_indices[0].extend(triplet_label_pairs[0])
                 triplets_indices[1].extend(triplet_label_pairs[1])

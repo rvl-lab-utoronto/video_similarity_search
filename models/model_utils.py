@@ -262,6 +262,7 @@ def load_checkpoint(model, checkpoint_path, classifier=False, is_master_proc=Tru
         best_prec1 = checkpoint['best_prec1']
         state_dict = checkpoint['state_dict']
         optim_state_dict = checkpoint['optim_state_dict']
+        sampler_state_dict = checkpoint['sampler']
 
         # create new OrderedDict that does not contain `module.`
         from collections import OrderedDict
@@ -285,7 +286,7 @@ def load_checkpoint(model, checkpoint_path, classifier=False, is_master_proc=Tru
     else:
         if (is_master_proc):
             print("=> no checkpoint found at '{}'".format(checkpoint_path))
-    return start_epoch, best_prec1, optim_state_dict
+    return start_epoch, best_prec1, optim_state_dict, sampler_state_dict
 
 
 class AverageMeter(object):

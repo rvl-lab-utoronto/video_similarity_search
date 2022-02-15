@@ -18,6 +18,8 @@ _C.TRAIN.LOG_INTERVAL = 5 #for print statements
 
 _C.TRAIN.EVAL_BATCH_SIZE = False
 
+_C.TRAIN.CHECKPOINT_FREQ = 1.0 # fraction of epoch at which to checkpoint
+
 # -----------------------------------------------------------------------------
 # Testing options
 # -----------------------------------------------------------------------------

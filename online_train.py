@@ -685,8 +685,8 @@ def train(args, cfg):
     cuda = torch.cuda.is_available()
     device = torch.cuda.current_device()
 
-    if is_master_proc:
-        create_output_dirs(cfg)
+    #if is_master_proc:
+    #    create_output_dirs(cfg)
 
     # ======================== Similarity Network Setup ========================
 
@@ -737,8 +737,10 @@ def train(args, cfg):
     else:
         load_path = args.checkpoint_path
 
+    optim_state_dict = None
+
     if args.checkpoint_path is not None and os.path.exists(load_path):
-        start_epoch, best_acc = load_checkpoint(model, load_path, is_master_proc)
+        start_epoch, best_acc, optim_state_dict = load_checkpoint(model, load_path, is_master_proc)
 
     if cuda:
         model = DDP(model)
@@ -778,6 +780,10 @@ def train(args, cfg):
         optimizer = optim.SGD(model.parameters(), lr=cfg.OPTIM.LR, momentum=cfg.OPTIM.MOMENTUM)
     else:
         print('{} optimizer not supported'.format(cfg.OPTIM.OPTIMIZER))
+
+    if optim_state_dict is not None:
+        print('Loading optimizer state dict')
+        optimizer.load_state_dict(optim_state_dict)
 
     if(is_master_proc):
         print('Using {} optimizer with lr={}'.format(cfg.OPTIM.OPTIMIZER, cfg.OPTIM.LR))
@@ -988,11 +994,16 @@ def train(args, cfg):
         else:
             state_dict = model.state_dict()
 
-        if not args.vector or (args.vector and (epoch % 100 == 0 or is_best or epoch == cfg.TRAIN.EPOCHS - 1)):
+        optim_state_dict = optimizer.state_dict()
+
+        VECTOR_OUTDIR_INTERVAL = 1
+
+        if not args.vector or (args.vector and (epoch % VECTOR_OUTDIR_INTERVAL == 0 or is_best or epoch == cfg.TRAIN.EPOCHS - 1)):
             save_checkpoint({
                 'epoch': epoch+1,
                 'state_dict': state_dict,
                 'best_prec1': best_acc,
+                'optim_state_dict': optim_state_dict,
             }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
 
             if epoch % 100 == 0:
@@ -1001,6 +1012,7 @@ def train(args, cfg):
                     'epoch': epoch+1,
                     'state_dict': state_dict,
                     'best_prec1': best_acc,
+                    'optim_state_dict': optim_state_dict,
                 }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc, filename)
 
         if args.vector:
@@ -1008,6 +1020,7 @@ def train(args, cfg):
                 'epoch': epoch+1,
                 'state_dict': state_dict,
                 'best_prec1': best_acc,
+                'optim_state_dict': optim_state_dict,
             }, is_best, cfg.MODEL.ARCH, args.checkpoint_path, is_master_proc)
 
 
@@ -1017,9 +1030,10 @@ if __name__ == '__main__':
     np.random.seed(7)
     torch.cuda.manual_seed_all(7)
 
-    print ('\n==> Parsing parameters:')
     args = arg_parser().parse_args()
     cfg = load_config(args)
+
+    create_output_dirs(cfg)
 
     if args.vector:
         assert args.checkpoint_path is not None

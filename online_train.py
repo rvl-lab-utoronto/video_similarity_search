@@ -584,6 +584,9 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
                         triplet_loss, llc_loss,
                         running_n_triplets.avg,
                         false_positive.avg, false_negative.avg))
+                with open('{}/epoch-progress.txt'.format(cfg.OUTPUT_PATH), "w") as f:
+                    f.write('Train Epoch: {} [{}/{} | {:.1f}%]'.format(epoch, losses.count,
+                        len(train_loader.dataset), 100. *(losses.count / len(train_loader.dataset))))
 
             else:
                 print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
@@ -595,6 +598,7 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
 
             if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
                 print('%IntersecPos: {:.4f}'.format(running_num_pos_from_dualclust_intersec.avg))
+
 
     if (is_master_proc):
         print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
@@ -1061,6 +1065,7 @@ if __name__ == '__main__':
     print('Learning rate is set to {}'.format(cfg.OPTIM.LR))
     print('Momentum set to {}'.format(cfg.OPTIM.MOMENTUM))
     print('Margin set to {}'.format(cfg.LOSS.MARGIN))
+    print('Clip duration set to {}'.format(cfg.DATA.SAMPLE_DURATION))
 
     # Launch processes for all gpus
     print('\n==> Launching gpu processes...')

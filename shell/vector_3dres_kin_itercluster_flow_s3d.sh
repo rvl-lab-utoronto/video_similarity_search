@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=p06-32f
+#SBATCH --job-name=p05-32f-s3d
 #SBATCH --output=%x-%j.out
 #SBATCH --partition=rtx6000
 #SBATCH --qos=normal
@@ -26,11 +26,14 @@ ln -sfn /checkpoint/${USER}/${SLURM_JOB_ID} $PWD/checkpoint
 # ask the system to preserve the checkpoint directory for 48 hours after job done
 touch /checkpoint/${USER}/${SLURM_JOB_ID}/DELAYPURGE
 
-OUTDIR=$ROOTDIR/output_ucf29-kin-r3d-p06-32f-2
+OUTDIR=$ROOTDIR/output_ucf30-kin-s3d-p05-32f-warmup
 
 #touch $OUTDIR/log.out
 
-srun python -u $ROOTDIR/online_train.py --vector --iterative_cluster --cfg $ROOTDIR/config/custom_configs/resnet_kin_itercluster_flow_vector.yaml --gpu 0,1,2,3 --num_data_workers 4 --batch_size 40 --output $OUTDIR --epoch 401 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT --checkpoint_path $PWD/checkpoint VAL.BATCH_SIZE 40 DATA.SAMPLE_DURATION 32 DATASET.POSITIVE_SAMPLING_P 0.5 
+#bs=10/gpu for s3d on 15G gpu for 32 frames
+#bs=16/gpu for s3d on 24G gpu for 32 frames
+
+python -u $ROOTDIR/online_train.py --vector --iterative_cluster --cfg $ROOTDIR/config/custom_configs/resnet_kin_itercluster_flow_vector.yaml --gpu 0,1,2,3 --num_data_workers 4 --batch_size 64 --output $OUTDIR --epoch 401 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT --checkpoint_path $PWD/checkpoint VAL.BATCH_SIZE 40 DATA.SAMPLE_DURATION 32 DATASET.POSITIVE_SAMPLING_P 0.5 MODEL.ARCH s3d DATA.EVAL_BATCHSIZE_MULTIPLIER 9 
 #--num_shards 2 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT --compute_canada
 #|& tee -a $OUTDIR/log.out
 #--checkpoint_path $ROOTDIR/output_ucf16-adam-32/tnet_checkpoints/3dresnet/checkpoint.pth.tar

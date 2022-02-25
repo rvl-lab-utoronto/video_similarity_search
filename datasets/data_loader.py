@@ -388,8 +388,10 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
     # ============================ Build DataLoader ============================
 
     # Use a DistributedSampler if using more than 1 GPU
-    sampler = DistributedSaveableSampler(data, force_synchronization=True) if cfg.NUM_GPUS > 1 else None
-    #sampler = DistributedSampler(data) if cfg.NUM_GPUS > 1 else None
+    if split == 'train' and triplets:
+        sampler = DistributedSaveableSampler(data, force_synchronization=True) if cfg.NUM_GPUS > 1 else None
+    else:
+        sampler = DistributedSampler(data) if cfg.NUM_GPUS > 1 else None
 
     if is_master_proc:
         if sampler is not None:

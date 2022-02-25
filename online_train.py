@@ -444,8 +444,11 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg,
     start = time.time()
 
     iterator = iter(train_loader)
-    prefetched_num = iterator._send_idx - iterator._rcvd_idx
-    batch_idx = train_loader.sampler._curr_idx//cfg.TRAIN.BATCH_SIZE - prefetched_num - 1
+    if cfg.TRAIN.CHECKPOINT_FREQ != 1.0:
+        prefetched_num = iterator._send_idx - iterator._rcvd_idx
+        batch_idx = train_loader.sampler._curr_idx//cfg.TRAIN.BATCH_SIZE - prefetched_num - 1
+    else:
+        batch_idx = -1
 
     for inputs, targets, gt_targets, idx, pos_from_dualclust_intersec in iterator:
         batch_idx = batch_idx + 1
@@ -626,8 +629,8 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg,
                         running_n_triplets.avg,
                         false_positive.avg, false_negative.avg))
                 with open('{}/epoch-progress.txt'.format(cfg.OUTPUT_PATH), "w") as f:
-                    f.write('Train Epoch: {} [{}/{} | {:.1f}%]'.format(epoch, losses.count,
-                        len(train_loader.dataset), 100. *(losses.count / len(train_loader.dataset))))
+                    f.write('Train Epoch: {} [{}/{} | {:.1f}%]'.format(epoch, batch_idx,
+                        len(train_loader), 100. *(batch_idx / len(train_loader))))
 
             else:
                 print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
@@ -781,7 +784,10 @@ def train(args, cfg):
     optim_state_dict = None
     sampler_state_dict = None
 
-    if args.checkpoint_path is not None and os.path.exists(load_path):
+    if args.checkpoint_path is not None:
+        if not os.path.exists(load_path) and args.vector_init_checkpoint is not None:
+            print('Using vector_init_checkpoint')
+            load_path = args.vector_init_checkpoint
         start_epoch, best_acc, optim_state_dict, sampler_state_dict = load_checkpoint(model, load_path, is_master_proc)
 
     if cuda:
@@ -847,6 +853,8 @@ def train(args, cfg):
             m_iter_cluster = True
             set_cluster_paths(cfg)
 
+    train_sampler = None
+
     if not m_iter_cluster or (start_epoch != 0 and os.path.exists(cfg.DATASET.CLUSTER_PATH)):
         if(is_master_proc):
             print('\n==> Building training data loader (triplet)...')
@@ -891,11 +899,14 @@ def train(args, cfg):
 
         # =================== Compute embeddings and cluster ===================
 
+        if train_sampler is not None:
+            print('sampler index', train_sampler.state_dict()["index"])
+
         if args.iterative_cluster and epoch == cfg.ITERCLUSTER.WARMUP_EPOCHS:
             m_iter_cluster = True
             set_cluster_paths(cfg)
 
-        if (sampler_state_dict is None or sampler_state_dict["index"] == 0) and m_iter_cluster and (epoch % cfg.ITERCLUSTER.INTERVAL == 0 or not os.path.exists(cfg.DATASET.CLUSTER_PATH)):
+        if (train_sampler is None or train_sampler.state_dict()["index"] == 0) and m_iter_cluster and (epoch % cfg.ITERCLUSTER.INTERVAL == 0 or not os.path.exists(cfg.DATASET.CLUSTER_PATH)):
             # Get embeddings using current model
             if is_master_proc:
                 print('\n=> Computing embeddings')
@@ -1005,6 +1016,8 @@ def train(args, cfg):
 
         # Old embeddings are now obsolete
         embeddings_computed = False
+
+        print('sampler index after epoch', train_sampler.state_dict()["index"])
 
         # ============================= Evaluation =============================
 

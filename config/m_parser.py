@@ -28,6 +28,12 @@ def arg_parser():
         help='Path to checkpoint'
     )
     parser.add_argument(
+        '--vector_init_checkpoint',
+        default=None,
+        type=str, action='store',
+        help='Path to initial checkpoint on Vector'
+    )
+    parser.add_argument(
         "--cfg", '-cfg',
         default=None,
         dest="cfg_file", type=str,

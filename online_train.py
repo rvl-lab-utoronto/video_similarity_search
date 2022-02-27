@@ -788,7 +788,8 @@ def train(args, cfg):
         if not os.path.exists(load_path) and args.vector_init_checkpoint is not None:
             print('Using vector_init_checkpoint')
             load_path = args.vector_init_checkpoint
-        start_epoch, best_acc, optim_state_dict, sampler_state_dict = load_checkpoint(model, load_path, is_master_proc)
+        if os.path.exists(load_path):
+            start_epoch, best_acc, optim_state_dict, sampler_state_dict = load_checkpoint(model, load_path, is_master_proc)
 
     if cuda:
         model = DDP(model)

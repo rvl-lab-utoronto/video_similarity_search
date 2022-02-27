@@ -243,7 +243,13 @@ def save_checkpoint(state, is_best, model_name, output_path, is_master_proc=True
     if not os.path.exists(directory):
         os.makedirs(directory)
     filename = directory + filename
-    torch.save(state, filename)
+
+    #generate temporary chkpt first and then swap with actual (to handle
+    #preemption during checkpointing)
+    temp_path = directory + 'temp.pth.tar'
+    torch.save(state, temp_path)
+    os.replace(temp_path, filename)
+
     if (is_master_proc):
         print('\n=> checkpoint:{} saved...'.format(filename))
     if is_best:

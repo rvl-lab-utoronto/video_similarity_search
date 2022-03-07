@@ -576,7 +576,8 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg,
         false_negative.update(FN)
 
         # Save checkpoint mid-epoch if cfg.TRAIN.CHECKPOINT_FREQ < 1
-        if is_master_proc and batch_idx != 0 and (batch_idx %
+        # Also force a save at batch_idx = 1 to avoid redoing clustering
+        if is_master_proc and batch_idx != 0 and (batch_idx == 1 or batch_idx %
                 (int(len(train_loader)*cfg.TRAIN.CHECKPOINT_FREQ)) == 0):
             print('Saving checkpoint mid-epoch at batch idx {}/{}'.format(batch_idx, len(train_loader)))
 

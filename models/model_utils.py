@@ -18,6 +18,8 @@ from models.baselines.inflate_src.i3res import I3ResNet
 from models.baselines.simclr_pytorch.resnet_wider import resnet50x1
 from models.multiview import Multiview
 
+from models.ViViT.vivit import ViViT
+
 def create_output_dirs(cfg):
     if not os.path.exists(cfg.OUTPUT_PATH):
         os.makedirs(cfg.OUTPUT_PATH)
@@ -88,7 +90,7 @@ def model_selector(cfg, projection_head=True, hyperbolic=False, classifier=False
     assert cfg.MODEL.ARCH in ['3dresnet', 'slowfast', 'info_nce', "uber_nce", 's3d', 'r3d',
             'simclr_pretrained_inflated_res50',
             'imagenet_pretrained_inflated_res50',
-            'mocov2_pretrained_inflated_res50']
+            'mocov2_pretrained_inflated_res50', 'vivit']
     print('n input channel: ', cfg.DATA.INPUT_CHANNEL_NUM)
     if cfg.MODEL.ARCH == '3dresnet':
         model=generate_model(model_depth=cfg.RESNET.MODEL_DEPTH,
@@ -125,6 +127,16 @@ def model_selector(cfg, projection_head=True, hyperbolic=False, classifier=False
                         spatio_temporal_attention=cfg.RESNET.ATTENTION)
 
             model = Multiview(encoder1, encoder2, cfg.RESNET.OUT_DIM)
+
+    elif cfg.MODEL.ARCH == 'vivit':
+        #ViViT-Base factorized encoder model - slic version - replace classifier with projection head
+        #TODO:add vivit params to cfg
+        model = ViViT(image_size=cfg.DATA.SAMPLE_SIZE, patch_size=16,
+                num_frames=cfg.DATA.SAMPLE_DURATION, dim=768, depth=12, heads=12, pool='mean',
+                in_channels=cfg.DATA.INPUT_CHANNEL_NUM, prepend_cls_token=False, projection_head=True,
+                classifier_head=False, proj_head_hidden_layer= 2048,
+                out_dim = 128)
+
 
 
     elif cfg.MODEL.ARCH == 's3d':
@@ -231,7 +243,13 @@ def save_checkpoint(state, is_best, model_name, output_path, is_master_proc=True
     if not os.path.exists(directory):
         os.makedirs(directory)
     filename = directory + filename
-    torch.save(state, filename)
+
+    #generate temporary chkpt first and then swap with actual (to handle
+    #preemption during checkpointing)
+    temp_path = directory + 'temp.pth.tar'
+    torch.save(state, temp_path)
+    os.replace(temp_path, filename)
+
     if (is_master_proc):
         print('\n=> checkpoint:{} saved...'.format(filename))
     if is_best:
@@ -249,6 +267,8 @@ def load_checkpoint(model, checkpoint_path, classifier=False, is_master_proc=Tru
         start_epoch = checkpoint['epoch']
         best_prec1 = checkpoint['best_prec1']
         state_dict = checkpoint['state_dict']
+        optim_state_dict = checkpoint['optim_state_dict']
+        sampler_state_dict = checkpoint['sampler']
 
         # create new OrderedDict that does not contain `module.`
         from collections import OrderedDict
@@ -272,7 +292,7 @@ def load_checkpoint(model, checkpoint_path, classifier=False, is_master_proc=Tru
     else:
         if (is_master_proc):
             print("=> no checkpoint found at '{}'".format(checkpoint_path))
-    return start_epoch, best_prec1
+    return start_epoch, best_prec1, optim_state_dict, sampler_state_dict
 
 
 class AverageMeter(object):

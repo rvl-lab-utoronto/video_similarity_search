@@ -142,6 +142,8 @@ def construct_net_input(vid_loader, channel_ext, spatial_transform,
                 channel_clip = [spatial_transform(img) for img in channel_clip]
             clip = [torch.cat((clip[i], channel_clip[i]), dim=0) for i in range(len(clip))]
     clip = [normalize_fn(img) for img in clip]
+    if len(clip) == 0:
+        print('Clip with size 0:', path)
     clip = torch.stack(clip, 0).permute(1, 0, 2, 3) #change to (C, D, H, W)
 
     '''

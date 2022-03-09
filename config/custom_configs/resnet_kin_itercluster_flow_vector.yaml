@@ -4,7 +4,7 @@ TRAIN:
 DATASET:
     VID_PATH: /scratch/ssd004/datasets/kinetics400_RGB/frames_shortedge320px_25fps
     ANNOTATION_PATH: /scratch/ssd004/datasets/kinetics400_RGB/vid_paths_and_labels/frame_paths
-    #CLUSTER_PATH: '/scratch/ssd004/scratch/salarh/datasets/UCF101/vid_clusters.txt'
+    #CLUSTER_PATH: '/scratch/ssd004/scratch/salarh/datasets/kinetics400/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'

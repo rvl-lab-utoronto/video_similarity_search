@@ -424,7 +424,8 @@ def prepare_input(vid_clip, cfg, cuda, device):
     return vid_clip
 
 
-def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, cuda, device, is_master_proc=True):
+def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg,
+        cuda, device, args, best_acc, is_master_proc=True):
     losses = AverageMeter()
     accs = AverageMeter()
     running_n_triplets = AverageMeter()
@@ -435,9 +436,26 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
     # switching to training mode
     model.train()
 
+    if is_master_proc and cfg.TRAIN.CHECKPOINT_FREQ != 1.0:
+        print('# train loader iters:', len(train_loader))
+        print('Will checkpoint mid-epoch every {} iter'.format(int(len(train_loader)*cfg.TRAIN.CHECKPOINT_FREQ)))
+
     # Training loop
     start = time.time()
-    for batch_idx, (inputs, targets, gt_targets, idx, pos_from_dualclust_intersec) in enumerate(train_loader):
+
+    iterator = iter(train_loader)
+    if cfg.TRAIN.CHECKPOINT_FREQ != 1.0:
+        prefetched_num = iterator._send_idx - iterator._rcvd_idx
+        batch_idx = train_loader.sampler._curr_idx//cfg.TRAIN.BATCH_SIZE - prefetched_num - 1
+    else:
+        batch_idx = -1
+
+    for inputs, targets, gt_targets, idx, pos_from_dualclust_intersec in iterator:
+        batch_idx = batch_idx + 1
+
+        #if is_master_proc:
+        #    print(batch_idx)
+        #    print(train_loader.sampler._curr_idx)
 
         if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
             anchor, positive, fast_positive = inputs
@@ -557,16 +575,43 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         false_positive.update(FP)
         false_negative.update(FN)
 
+        # Save checkpoint mid-epoch if cfg.TRAIN.CHECKPOINT_FREQ < 1
+        # Also force a save at batch_idx = 1 to avoid redoing clustering
+        if is_master_proc and batch_idx != 0 and (batch_idx == 1 or batch_idx %
+                (int(len(train_loader)*cfg.TRAIN.CHECKPOINT_FREQ)) == 0):
+            print('Saving checkpoint mid-epoch at batch idx {}/{}'.format(batch_idx, len(train_loader)))
+
+            if not args.vector:
+                save_path = cfg.OUTPUT_PATH
+            else:
+                save_path = args.checkpoint_path
+
+            if torch.cuda.device_count() > 1:
+                state_dict = model.module.state_dict()
+            else:
+                state_dict = model.state_dict()
+
+            optim_state_dict = optimizer.state_dict()
+
+            save_checkpoint({
+                'epoch': epoch,
+                'state_dict': state_dict,
+                'best_prec1': best_acc,
+                'optim_state_dict': optim_state_dict,
+                'sampler' : train_loader.sampler.state_dict(dataloader_iter=iterator),
+            }, False, cfg.MODEL.ARCH, save_path, is_master_proc)
+
+
         # Log
-        if is_master_proc and ((batch_idx + 1) * world_size) % cfg.TRAIN.LOG_INTERVAL == 0:
+        if is_master_proc and batch_idx % cfg.TRAIN.LOG_INTERVAL == 0:
             if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
                 print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                       'Loss: {:.4f} ({:.4f}) \t'
                       'Triplet loss: {:.4f} \t'
                       'RSP loss: {:.4f} \t'
-                      'N_Triplets: {:.1f}'.format(epoch, losses.count,
-                        len(train_loader.dataset),
-                        100. * (losses.count / len(train_loader.dataset)),
+                      'N_Triplets: {:.1f}'.format(epoch, batch_idx,
+                        len(train_loader),
+                        100. * (batch_idx / len(train_loader)),
                         losses.val, losses.avg,
                         triplet_loss, rsp_loss,
                         running_n_triplets.avg))
@@ -577,24 +622,28 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
                       'Triplet loss: {:.4f} \t'
                       'llc loss: {:.4f} \t'
                       'N_Triplets: {:.1f} \t'
-                      'FP:{}, FN:{}'.format(epoch, losses.count,
-                        len(train_loader.dataset),
-                        100. * (losses.count / len(train_loader.dataset)),
+                      'FP:{}, FN:{}'.format(epoch, batch_idx,
+                        len(train_loader),
+                        100. * (batch_idx / len(train_loader)),
                         losses.val, losses.avg,
                         triplet_loss, llc_loss,
                         running_n_triplets.avg,
                         false_positive.avg, false_negative.avg))
+                with open('{}/epoch-progress.txt'.format(cfg.OUTPUT_PATH), "w") as f:
+                    f.write('Train Epoch: {} [{}/{} | {:.1f}%]'.format(epoch, batch_idx,
+                        len(train_loader), 100. *(batch_idx / len(train_loader))))
 
             else:
                 print('Train Epoch: {} [{}/{} | {:.1f}%]\t'
                       'Loss: {:.4f} ({:.4f}) \t'
-                      'N_Triplets: {:.1f}'.format(epoch, losses.count,
-                        len(train_loader.dataset),
-                        100. * (losses.count / len(train_loader.dataset)),
+                      'N_Triplets: {:.1f}'.format(epoch, batch_idx,
+                        len(train_loader),
+                        100. * (batch_idx / len(train_loader)),
                         losses.val, losses.avg, running_n_triplets.avg))
 
             if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
                 print('%IntersecPos: {:.4f}'.format(running_num_pos_from_dualclust_intersec.avg))
+
 
     if (is_master_proc):
         print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
@@ -681,8 +730,8 @@ def train(args, cfg):
     cuda = torch.cuda.is_available()
     device = torch.cuda.current_device()
 
-    if is_master_proc:
-        create_output_dirs(cfg)
+    #if is_master_proc:
+    #    create_output_dirs(cfg)
 
     # ======================== Similarity Network Setup ========================
 
@@ -733,8 +782,15 @@ def train(args, cfg):
     else:
         load_path = args.checkpoint_path
 
-    if args.checkpoint_path is not None and os.path.exists(load_path):
-        start_epoch, best_acc = load_checkpoint(model, load_path, is_master_proc)
+    optim_state_dict = None
+    sampler_state_dict = None
+
+    if args.checkpoint_path is not None:
+        if not os.path.exists(load_path) and args.vector_init_checkpoint is not None:
+            print('Using vector_init_checkpoint')
+            load_path = args.vector_init_checkpoint
+        if os.path.exists(load_path):
+            start_epoch, best_acc, optim_state_dict, sampler_state_dict = load_checkpoint(model, load_path, is_master_proc)
 
     if cuda:
         model = DDP(model)
@@ -775,6 +831,10 @@ def train(args, cfg):
     else:
         print('{} optimizer not supported'.format(cfg.OPTIM.OPTIMIZER))
 
+    if optim_state_dict is not None:
+        print('Loading optimizer state dict')
+        optimizer.load_state_dict(optim_state_dict)
+
     if(is_master_proc):
         print('Using {} optimizer with lr={}'.format(cfg.OPTIM.OPTIMIZER, cfg.OPTIM.LR))
         if cfg.OPTIM.OPTIMIZER == 'adam':
@@ -795,10 +855,15 @@ def train(args, cfg):
             m_iter_cluster = True
             set_cluster_paths(cfg)
 
+    train_sampler = None
+
     if not m_iter_cluster or (start_epoch != 0 and os.path.exists(cfg.DATASET.CLUSTER_PATH)):
         if(is_master_proc):
             print('\n==> Building training data loader (triplet)...')
         train_loader, (_, train_sampler) = data_loader.build_data_loader('train', cfg, is_master_proc, triplets=True)
+        if sampler_state_dict is not None:
+            train_sampler.load_state_dict(sampler_state_dict)
+
 
     if(is_master_proc):
         print('\n==> Building validation data loader (triplet)...')
@@ -836,11 +901,14 @@ def train(args, cfg):
 
         # =================== Compute embeddings and cluster ===================
 
+        if train_sampler is not None:
+            print('sampler index', train_sampler.state_dict()["index"])
+
         if args.iterative_cluster and epoch == cfg.ITERCLUSTER.WARMUP_EPOCHS:
             m_iter_cluster = True
             set_cluster_paths(cfg)
 
-        if m_iter_cluster and (epoch % cfg.ITERCLUSTER.INTERVAL == 0 or not os.path.exists(cfg.DATASET.CLUSTER_PATH)):
+        if (train_sampler is None or train_sampler.state_dict()["index"] == 0) and m_iter_cluster and (epoch % cfg.ITERCLUSTER.INTERVAL == 0 or not os.path.exists(cfg.DATASET.CLUSTER_PATH)):
             # Get embeddings using current model
             if is_master_proc:
                 print('\n=> Computing embeddings')
@@ -914,7 +982,7 @@ def train(args, cfg):
 
             else:
                 triplet_train_epoch(train_loader, model, criterion, optimizer, epoch,
-                                    cfg, cuda, device, is_master_proc)
+                                    cfg, cuda, device, args, best_acc, is_master_proc)
 
         elif cfg.LOSS.TYPE == 'contrastive':
             if (is_master_proc): print('\n==> Training with Contrastive Loss')
@@ -951,6 +1019,8 @@ def train(args, cfg):
         # Old embeddings are now obsolete
         embeddings_computed = False
 
+        print('sampler index after epoch', train_sampler.state_dict()["index"])
+
         # ============================= Evaluation =============================
 
         # Validate with triplet loss and retrieval on val set with query from val set
@@ -984,11 +1054,17 @@ def train(args, cfg):
         else:
             state_dict = model.state_dict()
 
-        if not args.vector or (args.vector and (epoch % 100 == 0 or is_best or epoch == cfg.TRAIN.EPOCHS - 1)):
+        optim_state_dict = optimizer.state_dict()
+
+        VECTOR_OUTDIR_INTERVAL = 1
+
+        if not args.vector or (args.vector and (epoch % VECTOR_OUTDIR_INTERVAL == 0 or is_best or epoch == cfg.TRAIN.EPOCHS - 1)):
             save_checkpoint({
                 'epoch': epoch+1,
                 'state_dict': state_dict,
                 'best_prec1': best_acc,
+                'optim_state_dict': optim_state_dict,
+                'sampler' : train_sampler.state_dict(dataloader_iter=None),
             }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
 
             if epoch % 100 == 0:
@@ -997,6 +1073,8 @@ def train(args, cfg):
                     'epoch': epoch+1,
                     'state_dict': state_dict,
                     'best_prec1': best_acc,
+                    'optim_state_dict': optim_state_dict,
+                    'sampler' : train_sampler.state_dict(dataloader_iter=None),
                 }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc, filename)
 
         if args.vector:
@@ -1004,6 +1082,8 @@ def train(args, cfg):
                 'epoch': epoch+1,
                 'state_dict': state_dict,
                 'best_prec1': best_acc,
+                'optim_state_dict': optim_state_dict,
+                'sampler' : train_sampler.state_dict(dataloader_iter=None),
             }, is_best, cfg.MODEL.ARCH, args.checkpoint_path, is_master_proc)
 
 
@@ -1013,9 +1093,10 @@ if __name__ == '__main__':
     np.random.seed(7)
     torch.cuda.manual_seed_all(7)
 
-    print ('\n==> Parsing parameters:')
     args = arg_parser().parse_args()
     cfg = load_config(args)
+
+    create_output_dirs(cfg)
 
     if args.vector:
         assert args.checkpoint_path is not None
@@ -1061,6 +1142,7 @@ if __name__ == '__main__':
     print('Learning rate is set to {}'.format(cfg.OPTIM.LR))
     print('Momentum set to {}'.format(cfg.OPTIM.MOMENTUM))
     print('Margin set to {}'.format(cfg.LOSS.MARGIN))
+    print('Clip duration set to {}'.format(cfg.DATA.SAMPLE_DURATION))
 
     # Launch processes for all gpus
     print('\n==> Launching gpu processes...')

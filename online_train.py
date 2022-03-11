@@ -786,10 +786,11 @@ def train(args, cfg):
 
     if args.checkpoint_path is not None:
         if not os.path.exists(load_path) and args.vector_init_checkpoint is not None:
-            print('Using vector_init_checkpoint')
+            if is_master_proc:
+                print('Using vector_init_checkpoint')
             load_path = args.vector_init_checkpoint
         if os.path.exists(load_path):
-            start_epoch, best_acc, optim_state_dict, sampler_state_dict = load_checkpoint(model, load_path, is_master_proc)
+            start_epoch, best_acc, optim_state_dict, sampler_state_dict = load_checkpoint(model, load_path, is_master_proc=is_master_proc)
 
     if cuda:
         model = DDP(model)
@@ -831,7 +832,8 @@ def train(args, cfg):
         print('{} optimizer not supported'.format(cfg.OPTIM.OPTIMIZER))
 
     if optim_state_dict is not None:
-        print('Loading optimizer state dict')
+        if is_master_proc:
+            print('Loading optimizer state dict')
         optimizer.load_state_dict(optim_state_dict)
 
     if(is_master_proc):
@@ -900,7 +902,7 @@ def train(args, cfg):
 
         # =================== Compute embeddings and cluster ===================
 
-        if train_sampler is not None:
+        if train_sampler is not None and is_master_proc:
             print('sampler index', train_sampler.state_dict()["index"])
 
         if args.iterative_cluster and epoch == cfg.ITERCLUSTER.WARMUP_EPOCHS:

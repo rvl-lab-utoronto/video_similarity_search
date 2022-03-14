@@ -49,7 +49,7 @@ def parse_args():
     parser.add_argument('--model', default='lincls', type=str)
     parser.add_argument('--dataset', default='ucf101', type=str)
     parser.add_argument('--which_split', default=1, type=int)
-    parser.add_argument('--seq_len', default=16, type=int, help='number of frames in each video block')
+    parser.add_argument('--seq_len', default=32, type=int, help='number of frames in each video block')
     parser.add_argument('--num_seq', default=1, type=int, help='number of video blocks')
     parser.add_argument('--num_fc', default=1, type=int, help='number of fc')
     parser.add_argument('--ds', default=1, type=int, help='frame down sampling rate')
@@ -140,6 +140,8 @@ def main(args):
     args.batch_size = num_gpu * args.batch_size
     print('=> Effective BatchSize = %d' % args.batch_size)
     args.img_path, args.model_path, args.exp_path = set_path(args)
+
+    print('lr schedule:', args.schedule)
     
     ### classifier model ###
     num_class_dict = {'ucf101':   101, 'hmdb51':   51, 'k400': 400,
@@ -947,6 +949,8 @@ train-{args.train_what}{0}'.format(
 
     img_path = os.path.join(exp_path, 'img')
     model_path = os.path.join(exp_path, 'model')
+
+    print('exp_path:', exp_path)
 
     if not os.path.exists(img_path): 
         os.makedirs(img_path)

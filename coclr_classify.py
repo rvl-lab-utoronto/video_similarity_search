@@ -147,13 +147,12 @@ def main(args):
     args.num_class = num_class_dict[args.dataset]
 
     if args.train_what == 'last': # for linear probe
-        #args.final_bn = True 
-        args.final_bn = False #Edit 
-        args.final_norm = True 
+        args.final_bn = True
+        args.final_norm = True
         args.use_dropout = False
     else: # for training the entire network
-        args.final_bn = False 
-        args.final_norm = False 
+        args.final_bn = False
+        args.final_norm = False
         args.use_dropout = True
 
 

@@ -902,14 +902,14 @@ def train(args, cfg):
 
         # =================== Compute embeddings and cluster ===================
 
-        if train_sampler is not None and is_master_proc:
+        if cfg.TRAIN.CHECKPOINT_FREQ != 1.0 and train_sampler is not None and is_master_proc:
             print('sampler index', train_sampler.state_dict()["index"])
 
         if args.iterative_cluster and epoch == cfg.ITERCLUSTER.WARMUP_EPOCHS:
             m_iter_cluster = True
             set_cluster_paths(cfg)
 
-        if (train_sampler is None or train_sampler.state_dict()["index"] == 0) and m_iter_cluster and (epoch % cfg.ITERCLUSTER.INTERVAL == 0 or not os.path.exists(cfg.DATASET.CLUSTER_PATH)):
+        if (cfg.TRAIN.CHECKPOINT_FREQ == 1.0 or train_sampler is None or train_sampler.state_dict()["index"] == 0) and m_iter_cluster and (epoch % cfg.ITERCLUSTER.INTERVAL == 0 or not os.path.exists(cfg.DATASET.CLUSTER_PATH)):
             # Get embeddings using current model
             if is_master_proc:
                 print('\n=> Computing embeddings')
@@ -1020,7 +1020,8 @@ def train(args, cfg):
         # Old embeddings are now obsolete
         embeddings_computed = False
 
-        print('sampler index after epoch', train_sampler.state_dict()["index"])
+        if cfg.TRAIN.CHECKPOINT_FREQ != 1.0:
+            print('sampler index after epoch', train_sampler.state_dict()["index"])
 
         # ============================= Evaluation =============================
 
@@ -1059,13 +1060,17 @@ def train(args, cfg):
 
         VECTOR_OUTDIR_INTERVAL = 1
 
+        sampler_state_d = None
+        if cfg.TRAIN.CHECKPOINT_FREQ != 1.0:
+            sampler_state_d = train_sampler.state_dict(dataloader_iter=None)
+
         if not args.vector or (args.vector and (epoch % VECTOR_OUTDIR_INTERVAL == 0 or is_best or epoch == cfg.TRAIN.EPOCHS - 1)):
             save_checkpoint({
                 'epoch': epoch+1,
                 'state_dict': state_dict,
                 'best_prec1': best_acc,
                 'optim_state_dict': optim_state_dict,
-                'sampler' : train_sampler.state_dict(dataloader_iter=None),
+                'sampler' : sampler_state_d,
             }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc)
 
             if epoch % 100 == 0:
@@ -1075,7 +1080,7 @@ def train(args, cfg):
                     'state_dict': state_dict,
                     'best_prec1': best_acc,
                     'optim_state_dict': optim_state_dict,
-                    'sampler' : train_sampler.state_dict(dataloader_iter=None),
+                    'sampler' : sampler_state_d,
                 }, is_best, cfg.MODEL.ARCH, cfg.OUTPUT_PATH, is_master_proc, filename)
 
         if args.vector:
@@ -1084,7 +1089,7 @@ def train(args, cfg):
                 'state_dict': state_dict,
                 'best_prec1': best_acc,
                 'optim_state_dict': optim_state_dict,
-                'sampler' : train_sampler.state_dict(dataloader_iter=None),
+                'sampler' : sampler_state_d,
             }, is_best, cfg.MODEL.ARCH, args.checkpoint_path, is_master_proc)
 
 

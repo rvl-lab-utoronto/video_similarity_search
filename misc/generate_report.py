@@ -2,6 +2,7 @@ import csv
 import os
 import io
 import pickle
+import glob
 import argparse
 import gspread
 import pandas as pd
@@ -18,8 +19,12 @@ SOURCE_CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 train_progress_file = './tnet_checkpoints/train_loss_and_acc.txt'
 val_progress_file = './tnet_checkpoints/val_loss_and_acc.txt'
 global_retrieval_file = './tnet_checkpoints/global_retrieval_acc.txt'
+# nmi_progress_file = './tnet_checkpoints/NMIs.txt'
+# ami_progress_file = './tnet_checkpoints/AMIs.txt'
+
 nmi_progress_file = './tnet_checkpoints/NMIs.txt'
 ami_progress_file = './tnet_checkpoints/AMIs.txt'
+
 
 def parse():
     parser = argparse.ArgumentParser("Video Similarity Search Training Script")
@@ -41,7 +46,7 @@ def parse():
     return parser.parse_args()
 
 
-def parse_file(result_dir, f_type='train'):
+def parse_file(result_dir, f_type='train', filename=None):
     epoch = []
     losses = []
     acc = []
@@ -50,6 +55,9 @@ def parse_file(result_dir, f_type='train'):
     runtime = []
     nmis = []
     amis = []
+    fp = []
+    fn = []
+
     assert f_type in ['train', 'val', 'global_retrieval', 'nmi', 'ami'], "f_type:{} is not recognized".format(f_type)
     processed_epoch = []
 
@@ -65,6 +73,11 @@ def parse_file(result_dir, f_type='train'):
                 losses.append(float(row[2]))
                 # acc.append(float(row[3]))
                 runtime.append(float(row[1].replace('runtime:', '').replace(',','')))
+                
+                fp.append(float(row[3]))
+                fn.append(float(row[4]))
+
+
     elif f_type=='val':
         with open (os.path.join(result_dir, val_progress_file), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
@@ -77,8 +90,9 @@ def parse_file(result_dir, f_type='train'):
                 acc.append(float(row[2]))
                 top1_acc.append(float(row[3]))
                 top5_acc.append(float(row[4]))
+    
     elif f_type=='nmi':
-        with open (os.path.join(result_dir, nmi_progress_file), newline='') as csvfile:
+        with open (os.path.join(result_dir, filename), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
                 cur_epoch = float(row[0].replace('epoch:', '').replace(',',''))
@@ -92,8 +106,9 @@ def parse_file(result_dir, f_type='train'):
                     continue
                 processed_epoch.append(cur_epoch)
                 nmis.append(float(row[1]))
+    
     elif f_type=='ami':
-        with open (os.path.join(result_dir, ami_progress_file), newline='') as csvfile:
+        with open (os.path.join(result_dir, filename), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
             for row in csv_reader:
                 cur_epoch = float(row[0].replace('epoch:', '').replace(',',''))
@@ -107,6 +122,7 @@ def parse_file(result_dir, f_type='train'):
                     continue
                 processed_epoch.append(cur_epoch)
                 amis.append(float(row[1]))
+    
     else:
         with open (os.path.join(result_dir, global_retrieval_file), newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=' ')
@@ -119,28 +135,55 @@ def parse_file(result_dir, f_type='train'):
                 top1_acc.append(float(row[1]))
                 top5_acc.append(float(row[2]))
 
-    return epoch, runtime, losses, acc, top1_acc, top5_acc, nmis, amis
+    return epoch, runtime, losses, acc, top1_acc, top5_acc, nmis, amis, fp, fn
 
 
 def plot_training_progress(result_dir, name, show_plot=False, service=None):
-    _, _, train_losses, _, _, _, _, _  = parse_file(result_dir, 'train') 
-    _, _, val_losses, val_acc, top1_acc, top5_acc, _, _ = parse_file(result_dir, 'val')
-    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc, _, _ = parse_file(result_dir, 'global_retrieval')
+    _, _, train_losses, _, _, _, _, _, fp, fn  = parse_file(result_dir, 'train') 
+    _, _, val_losses, val_acc, top1_acc, top5_acc, _, _, _, _ = parse_file(result_dir, 'val')
+    top1_5_epoch, _, _, _, global_top1_acc, global_top5_acc, _, _, _, _ = parse_file(result_dir, 'global_retrieval')
 
     num_plots = 3
 
-    if (os.path.exists(os.path.join(result_dir, nmi_progress_file))):
-        _, _, _, _, _, _, nmis, _ = parse_file(result_dir, 'nmi')
-        _, _, _, _, _, _, _, amis = parse_file(result_dir, 'ami')
-        num_plots += 2
+    NMI_files = glob.glob(os.path.join(result_dir, nmi_progress_file))
+    AMI_files = glob.glob(os.path.join(result_dir, ami_progress_file))
+    print(NMI_files)
+    assert len(NMI_files) == len(AMI_files), "check if we have the same number of NMI and AMI files"
+
+    if len(NMI_files) > 1:
+        NMI_files.sort()
+        AMI_files.sort()
+        print(NMI_files)
+        print(AMI_files)
+        partitions = [os.path.basename(nmi_f).replace("NMIs_p", '').replace('.txt', '') for nmi_f in NMI_files]
+
+    else:
+        partitions = [0]
+    
+    num_plots += 2
+
+
+    NMIs, AMIs = [], []
+    for i in range(len(NMI_files)):
+    # if (os.path.exists(os.path.join(result_dir, nmi_progress_file))):
+        _, _, _, _, _, _, nmis, _, _, _ = parse_file('.', 'nmi', filename=NMI_files[i])
+        _, _, _, _, _, _, _, amis, _, _ = parse_file('.', 'ami', filename=AMI_files[i])
+        NMIs.append(nmis)
+        AMIs.append(amis)
+
+    if len(fp) > 0:
+        num_plots += 1
 
     # print(top1_5_epoch)
-    f = plt.figure(figsize=(22,6))
-    #f = plt.figure()
+    f = plt.figure(figsize=(23,6))
 
-    #font = {'size':20}
+    #cvpr plot settings:
+    #f = plt.figure(figsize=(3,3))
+    #font = {'size':13}
     #plt.rc('font', **font)
+    #num_plots=1
 
+    
     ax1 =  plt.subplot(1, num_plots, 1)
     ax1.plot(np.arange(len(train_losses)), train_losses)
     ax1.plot(np.arange(len(val_losses)), val_losses)
@@ -158,7 +201,9 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     ax2.set_title('Val Triplet Acc vs. Epoch')
     #ax2.legend(['Training', 'Validation'])
     plt.grid()
+    '''
 
+    '''
     ax3 = plt.subplot(1, num_plots, 3)
     # ax3.plot(np.arange(len(top1_acc)), top1_acc)
     # ax3.plot(np.arange(len(top5_acc)), top5_acc)
@@ -168,28 +213,69 @@ def plot_training_progress(result_dir, name, show_plot=False, service=None):
     ax3.set_ylabel('Top-k Retrieval Accuracy (%)')
     ax3.set_title('Top-1/5 Retrieval Accuracy')
     ax3.legend(['Top-1', 'Top-5'])
-    plt.grid()
+    #plt.grid()
+    
 
-    if (os.path.exists(os.path.join(result_dir, nmi_progress_file))):
-
-        cluster_interval = round(len(train_losses) / len(nmis))
-
+    
+    cur_plot_idx = 4
+    if len(NMI_files) > 0:
         ax4 = plt.subplot(1, num_plots, 4)
-        ax4.plot(cluster_interval*np.arange(len(nmis)), nmis)
+        cluster_interval = round(len(train_losses) / len(NMIs[0]))
+
+        for nmis in NMIs:
+            ax4.plot(cluster_interval*np.arange(len(nmis)), nmis)
+        #ax4.legend(partitions)
         ax4.set_xlabel('Epoch')
-        ax4.set_ylabel('NMI - Cluster Assign. / Labels')
+        ax4.set_ylabel('NMI')
         ax4.set_title('Clustering Quality')
-        plt.grid()
+        #plt.grid()
+    
+
+    
 
         ax5 = plt.subplot(1, num_plots, 5)
-        ax5.plot(cluster_interval*np.arange(len(amis)), amis)
+        for amis in AMIs:
+            ax5.plot(cluster_interval*np.arange(len(amis)), amis)
+        ax5.legend(partitions)
         ax5.set_xlabel('Epoch')
         ax5.set_ylabel('Cluster Assignment vs True Label AMI')
         ax5.set_title('AMI vs. Epoch')
 
-        plt.grid()
+        cur_plot_idx += 2
+    #plt.grid()
+    
+    
+    if len(fp) > 0:
+        # print(len(fp), fp)
+
+        # if len(partitions) > 1:
+        bs=input("Please specify the batch size: ")
+        bs = float(bs)
+        pos_replace = input("Please specify the positvie sampling rate: ")
+        pos_replace = float(pos_replace)
+
+        if pos_replace == 1.0:
+            pos_replace = 0
+
+        ##update fp & fn
+        fp = np.array(fp)/(bs*(1 - pos_replace))
+        fn = np.array(fn)/bs
+
+        print(fp)
+        ax6 = plt.subplot(1, num_plots, cur_plot_idx)
+        ax6.plot(np.arange(len(fp)), fp*100)
+        ax6.plot(np.arange(len(fn)), fn*100)
+        ax6.set_xlabel('Epoch')
+        ax6.set_ylabel('Error Rate (%)')
+        ax6.set_title('Pos. & Neg. Error Rates')
+        ax6.legend(['False Pos.', 'False Neg.'])
+
+        #plt.grid()
+    
+
 
     plot_name = '{}_train_val_loss.png'.format(name)
+    #f.savefig(plot_name, bbox_inches ='tight', dpi=600)
     f.savefig(plot_name, bbox_inches ='tight')
     print('plots saved to:{}'.format(plot_name))
     if service:

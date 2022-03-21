@@ -61,7 +61,7 @@ class Kinetics():
                  split, #training, ...
                  sample_duration,
                  channel_ext={},
-                 cluster_path=None,
+                 cluster_labels=None,
                  is_master_proc=True,
                  video_path_formatter=(lambda root_path, label, video_id:
                                        root_path / label / video_id)
@@ -69,8 +69,7 @@ class Kinetics():
 
         self.is_master_proc = is_master_proc
         self.channel_ext = channel_ext
-        self.cluster_path = cluster_path
-        self.cluster_labels = self.read_cluster_labels()
+        self.cluster_labels = cluster_labels
 
         self.dataset, self.idx_to_class_map = self.__make_dataset(
             root_path, annotation_path, split, video_path_formatter, sample_duration, is_master_proc)

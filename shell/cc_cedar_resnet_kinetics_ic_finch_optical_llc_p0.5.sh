@@ -3,7 +3,7 @@
 #SBATCH --time=7-00:00:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=kin_ic_optical_llc_r34
+#SBATCH --job-name=kin_ic_optical_llc_r34_mp03
 #SBATCH --output=%x-%j.out
 #SBATCH --gres=gpu:p100l:4
 #SBATCH --mem=100G
@@ -40,9 +40,9 @@ srun python $ROOTDIR/online_train.py \
 --gpu 0,1,2,3 \
 --num_data_workers 4 \
 --batch_size 52 \
---output '/home/cheny257/projects/def-florian7/cheny257/output/kinetics_ic_finch_optical_llc_f16' \
+--output '/home/cheny257/projects/def-florian7/cheny257/output/kinetics_ic_finch_optical_llc_f16_mp03' \
 --epoch 601 \
 --num_shards 2 \
 --ip_address_port tcp://$MASTER_ADDRESS:$MPORT \
 --compute_canada \
---iterative_cluster \
+--iterative_cluster ITERCLUSTER.FINCH_PARTITION [0,3] \

@@ -433,6 +433,7 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
     losses = AverageMeter()
     accs = AverageMeter()
     running_n_triplets = AverageMeter()
+    running_num_pos_from_dualclust_intersec = AverageMeter()
     false_positive = AverageMeter()
     false_negative = AverageMeter()
     world_size = du_helper.get_world_size()
@@ -441,7 +442,7 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
 
     # Training loop
     start = time.time()
-    for batch_idx, (inputs, targets, gt_targets, idx) in enumerate(train_loader):
+    for batch_idx, (inputs, targets, gt_targets, idx, pos_from_dualclust_intersec) in enumerate(train_loader):
 
         if cfg.LOSS.RELATIVE_SPEED_PERCEPTION:
             anchor, positive, fast_positive = inputs
@@ -463,13 +464,15 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         if len(cfg.ITERCLUSTER.FINCH_PARTITION) > 1:
             targets = (torch.cat((a_target[0], p_target[0]), 0),
                        torch.cat((a_target[1], p_target[1]), 0))
+        elif cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+            targets = (torch.cat((a_target[0], p_target[0]), 0),
+                       torch.cat((a_target[1], p_target[1]), 0))
         else:
             targets = torch.cat((a_target, p_target), 0)
             if cuda:
                 targets = targets.to(device)
 
         batch_size = torch.tensor(anchor.size(0)).to(device)
-
 
         a_gt_targets, p_gt_targets = gt_targets
         gt_targets = torch.cat((a_gt_targets, p_gt_targets), 0)
@@ -557,6 +560,8 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
         # Update running loss
         losses.update(loss.item(), batch_size_world)
         running_n_triplets.update(n_triplets)
+        if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+            running_num_pos_from_dualclust_intersec.update(torch.sum(pos_from_dualclust_intersec)/pos_from_dualclust_intersec.shape[0])
         false_positive.update(FP)
         false_negative.update(FN)
 
@@ -596,15 +601,80 @@ def triplet_train_epoch(train_loader, model, criterion, optimizer, epoch, cfg, c
                         100. * (losses.count / len(train_loader.dataset)),
                         losses.val, losses.avg, running_n_triplets.avg))
 
+            if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+                print('%IntersecPos: {:.4f}'.format(running_num_pos_from_dualclust_intersec.avg))
+
     if (is_master_proc):
         print('\nTrain set: Average loss: {:.4f}\n'.format(losses.avg))
         print('epoch:{} runtime:{}'.format(epoch, (time.time()-start)/3600))
         with open('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH), "a") as f:
             f.write('epoch:{} runtime:{} {:.4f} {} {}\n'.format(epoch, round((time.time()-start)/3600,2), losses.avg, false_positive.avg, false_negative.avg))
+
+        if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+            with open('{}/tnet_checkpoints/dualclust_stats.txt'.format(cfg.OUTPUT_PATH), "a") as f:
+                f.write('epoch:{} %IntersecPos: {:.4f}\n'.format(epoch,
+                    running_num_pos_from_dualclust_intersec.avg))
         print('saved to file:{}'.format('{}/tnet_checkpoints/train_loss_and_acc.txt'.format(cfg.OUTPUT_PATH)))
 
 
 # =========================== Running Training Loop ========================== #
+
+
+def cluster_and_save(cfg, epoch, embeddings, true_labels, idxs, eval_train_loader, file_exten=''):
+    # Cluster
+    print('\n=> Clustering')
+    start_time = time.time()
+    print('embeddings shape', embeddings.size(), embeddings.dtype)
+
+    cluster_labels = fit_cluster(embeddings, cfg.ITERCLUSTER.METHOD,
+                            cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE,
+                            cfg.ITERCLUSTER.FINCH_PARTITION)
+
+    print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
+    if len(cluster_labels.shape) == 1: #inflate single cluster assignmenst to 2D arrays
+        cluster_labels = np.expand_dims(cluster_labels, axis=1)
+    # if cluster_labels.shape[1] 
+    print('cluster_labels shape: {}'.format(cluster_labels.shape))
+    for i in range(cluster_labels.shape[1]):
+        # Calculate NMI for true labels vs cluster assignments
+        #true_labels = train_data.get_total_labels()
+        partition = cfg.ITERCLUSTER.FINCH_PARTITION[i]
+        NMI = normalized_mutual_info_score(true_labels, cluster_labels[:,i])
+        print('NMI between true labels and cluster assignments: {:.3f}'.format(NMI))
+        with open('{}/tnet_checkpoints/NMIs_p{}.txt'.format(cfg.OUTPUT_PATH, partition), "a") as f:
+            f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
+
+        # Calculate Adjusted NMI for true labels vs cluster assignements
+        AMI = adjusted_mutual_info_score(true_labels, cluster_labels[:,i])
+        print('AMI between true labels and cluster assignments: {:.3f}\n'.format(AMI))
+        with open('{}/tnet_checkpoints/AMIs_p{}.txt'.format(cfg.OUTPUT_PATH, partition), "a") as f:
+            f.write('epoch:{} {:.3f}\n'.format(epoch, AMI))
+
+        # Update probability of sampling positive from same video using NMI
+        if cfg.ITERCLUSTER.ADAPTIVEP:
+            cfg.DATASET.POSITIVE_SAMPLING_P = float(1.0 - NMI)
+
+    # Get cluster assignments in unshuffled order of dataset
+    cluster_assignments_unshuffled_order = [None] * len(eval_train_loader.dataset)
+    for i in range(len(cluster_labels)):
+        cluster_assignments_unshuffled_order[idxs[i]] = cluster_labels[i]
+
+    # Save cluster assignments corresponding to unshuffled order of dataset
+    cluster_output_path = os.path.join(cfg.OUTPUT_PATH, 'vid_clusters.txt')
+    with open(cluster_output_path, "w") as f:
+        for label in cluster_assignments_unshuffled_order:
+            f.write('{}\n'.format(label))
+    print('Saved cluster labels to', cluster_output_path)
+    return cluster_labels
+
+
+def set_cluster_paths(cfg):
+
+    if not cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+        cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
+    else:
+        cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters_rgb.txt'.format(cfg.OUTPUT_PATH)
+        cfg.DATASET.CLUSTER_PATH_FLOW = '{}/vid_clusters_flow.txt'.format(cfg.OUTPUT_PATH)
 
 
 # Setup training and run training loop
@@ -707,7 +777,10 @@ def train(args, cfg):
         print('\n==> Setting criterion...')
     val_criterion = torch.nn.MarginRankingLoss(margin=cfg.LOSS.MARGIN).to(device)
 
-    criterion = OnlineTripletLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device)
+    multi_partition = len(cfg.ITERCLUSTER.FINCH_PARTITION) > 1
+    if multi_partition and (is_master_proc):
+        print("** using multiple partition from FINCH")
+    criterion = OnlineTripletLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC, multi_partition=multi_partition).to(device)
     # criterion = MemTripletLoss(margin=cfg.LOSS.MARGIN, dist_metric=cfg.LOSS.DIST_METRIC).to(device) #MemTripletLoss
 
     if cfg.OPTIM.OPTIMIZER == 'adam':
@@ -727,7 +800,7 @@ def train(args, cfg):
         print('Using criterion:{} for validation'.format(val_criterion))
 
     # ============================== Data Loaders ==============================
-    
+
     if args.start_epoch != None:
         start_epoch = args.start_epoch
 
@@ -735,7 +808,7 @@ def train(args, cfg):
     if args.iterative_cluster:
         if start_epoch >= cfg.ITERCLUSTER.WARMUP_EPOCHS:
             m_iter_cluster = True
-            cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
+            set_cluster_paths(cfg)
 
     if not m_iter_cluster or (start_epoch != 0 and os.path.exists(cfg.DATASET.CLUSTER_PATH)):
         if(is_master_proc):
@@ -755,6 +828,13 @@ def train(args, cfg):
             cfg, is_master_proc, triplets=False, req_train_shuffle=False,
             drop_last=False)
 
+    if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+        if(is_master_proc):
+            print('\n==> Building training data loader (single video) (flow)...')
+        eval_flow_train_loader, (flow_train_data, _) = data_loader.build_data_loader('train',
+                cfg, is_master_proc, triplets=False, req_train_shuffle=False,
+                drop_last=False, flow_only=True)
+
     if(is_master_proc):
         print('\n==> Building validation data loader (single video)...')
     eval_val_loader, (val_data, _) = data_loader.build_data_loader('val', cfg,
@@ -764,7 +844,7 @@ def train(args, cfg):
     # ============================= Training loop ==============================
 
     embeddings_computed = False
-
+ 
     for epoch in range(start_epoch, cfg.TRAIN.EPOCHS):
         if (is_master_proc):
             print ('\nEpoch {}/{}'.format(epoch, cfg.TRAIN.EPOCHS-1))
@@ -773,7 +853,7 @@ def train(args, cfg):
 
         if args.iterative_cluster and epoch == cfg.ITERCLUSTER.WARMUP_EPOCHS:
             m_iter_cluster = True
-            cfg.DATASET.CLUSTER_PATH = '{}/vid_clusters.txt'.format(cfg.OUTPUT_PATH)
+            set_cluster_paths(cfg)
 
         if m_iter_cluster and (epoch % cfg.ITERCLUSTER.INTERVAL == 0 or not os.path.exists(cfg.DATASET.CLUSTER_PATH)):
             # Get embeddings using current model
@@ -785,55 +865,43 @@ def train(args, cfg):
                 embeddings, true_labels, idxs = get_embeddings_and_labels(args, cfg,
                         encoder, cuda, device, eval_train_loader, split='train',
                         is_master_proc=is_master_proc,
-                        load_pkl=embeddings_computed, save_pkl=False)
+                       load_pkl=embeddings_computed, save_pkl=True)
                 if is_master_proc:
                     print('Time to get embeddings: {:.2f}s'.format(time.time()-start_time))
 
-            #if not is_master_proc:
-            #    del embeddings
+                #embeddings_pkl = os.path.join(cfg.OUTPUT_PATH, 'train_embeddings.pkl')
+                #with open(embeddings_pkl, 'rb') as handle:
+                #    embeddings = torch.load(handle)
+                #print('retrieved train_embeddings', embeddings.size())
+                #true_labels=None
+                #idxs=None
+
+            if cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+                start_time = time.time()
+                flow_embeddings, flow_true_labels, flow_idxs = get_embeddings_and_labels(args, cfg,
+                        encoder, cuda, device, eval_flow_train_loader, split='train',
+                        is_master_proc=is_master_proc,
+                        load_pkl=False, save_pkl=False)
+                if is_master_proc:
+                    print('Time to get embeddings (flow): {:.2f}s'.format(time.time()-start_time))
 
             if is_master_proc:
-                # Cluster
-                print('\n=> Clustering')
-                start_time = time.time()
-                print('embeddings shape', embeddings.size(), embeddings.dtype)
+                if not cfg.ITERCLUSTER.DUAL_MODALITY_CLUSTERS:
+                    _ = cluster_and_save(cfg, epoch, embeddings, true_labels, idxs, eval_train_loader)
+                else:
+                    rgb_clus_labels = cluster_and_save(cfg, epoch, embeddings, true_labels, idxs,
+                                     eval_train_loader, file_exten='_rgb')
+                    flow_clus_labels = cluster_and_save(cfg, epoch, flow_embeddings,
+                                                        flow_true_labels, flow_idxs,
+                                                        eval_flow_train_loader, file_exten='_flow')
 
-                cluster_labels = fit_cluster(embeddings, cfg.ITERCLUSTER.METHOD,
-                                        cfg.ITERCLUSTER.K, cfg.ITERCLUSTER.L2_NORMALIZE,
-                                        cfg.ITERCLUSTER.FINCH_PARTITION)
-
-                print('Time to cluster: {:.2f}s'.format(time.time()-start_time))
-
-                for i in range(cluster_labels.shape[1]):
-                    # Calculate NMI for true labels vs cluster assignments
-                    #true_labels = train_data.get_total_labels()
-                    partition = cfg.ITERCLUSTER.FINCH_PARTITION[i]
-                    NMI = normalized_mutual_info_score(true_labels, cluster_labels[:,i])
-                    print('NMI between true labels and cluster assignments: {:.3f}'.format(NMI))
-                    with open('{}/tnet_checkpoints/NMIs_p{}.txt'.format(cfg.OUTPUT_PATH, partition), "a") as f:
+                    NMI = normalized_mutual_info_score(rgb_clus_labels, flow_clus_labels)
+                    print('NMI between rgb assignments and flow assignments: {:.3f}'.format(NMI))
+                    with open('{}/tnet_checkpoints/dualclust_NMIs.txt'.format(cfg.OUTPUT_PATH), "a") as f:
                         f.write('epoch:{} {:.3f}\n'.format(epoch, NMI))
 
-                    # Calculate Adjusted NMI for true labels vs cluster assignements
-                    AMI = adjusted_mutual_info_score(true_labels, cluster_labels[:,i])
-                    print('AMI between true labels and cluster assignments: {:.3f}\n'.format(AMI))
-                    with open('{}/tnet_checkpoints/AMIs_p{}.txt'.format(cfg.OUTPUT_PATH, partition), "a") as f:
-                        f.write('epoch:{} {:.3f}\n'.format(epoch, AMI))
-
-                    # Update probability of sampling positive from same video using NMI
-                    if cfg.ITERCLUSTER.ADAPTIVEP:
-                        cfg.DATASET.POSITIVE_SAMPLING_P = float(1.0 - NMI)
-
-                # Get cluster assignments in unshuffled order of dataset
-                cluster_assignments_unshuffled_order = [None] * len(eval_train_loader.dataset)
-                for i in range(len(cluster_labels)):
-                    cluster_assignments_unshuffled_order[idxs[i]] = cluster_labels[i]
-
-                # Save cluster assignments corresponding to unshuffled order of dataset
-                cluster_output_path = os.path.join(cfg.OUTPUT_PATH, 'vid_clusters.txt')
-                with open(cluster_output_path, "w") as f:
-                    for label in cluster_assignments_unshuffled_order:
-                        f.write('{}\n'.format(label))
-                print('Saved cluster labels to', cluster_output_path)
+                    #embeddings = torch.cat((embeddings, flow_embeddings), dim=1)
+                    #cluster_and_save(cfg, epoch, embeddings, true_labels, idxs, eval_train_loader)
 
             # Make processes wait for master process to finish with clustering
             if cfg.NUM_GPUS > 1:

@@ -85,11 +85,13 @@ class MemTripletLoss(nn.Module):
 
 
 class OnlineTripletLoss(nn.Module):
-    def __init__(self, margin, dist_metric='cosine'):
+    def __init__(self, margin, dist_metric='cosine', multi_partition=False, dual_cluster=False):
         super(OnlineTripletLoss, self).__init__()
         self.margin = margin
         self.triplet_selector = None
         self.dist_metric = dist_metric
+        self.multi_partition = multi_partition
+        self.dual_cluster = dual_cluster
 
     # embeddings: tensor containing concatenated embeddings of anchors and positives with dim: [(batch_size * 2), dim_embedding]
     # labels: tensor containing concatenated labels of anchors and positives with dim: [(batch_size * 2)]
@@ -213,7 +215,7 @@ class OnlineTripletLoss(nn.Module):
         else:
             # Get list of (anchor idx, postitive idx, negative idx) triplets
             self.triplet_selector = NegativeTripletSelector(self.margin, sampling_strategy, self.dist_metric)
-            triplets = self.triplet_selector.get_triplets(embeddings, labels)  # list of dim: [3, batch_size]
+            triplets = self.triplet_selector.get_triplets(embeddings, labels, multi_partition=self.multi_partition, dual_cluster=self.dual_cluster)  # list of dim: [3, batch_size]
             
             #get False Positive and False Negative Count
             gt_labels = gt_labels.reshape((-1, 1))
@@ -295,7 +297,7 @@ class NegativeTripletSelector:
 
     # embeddings: tensor containing concatenated embeddings of anchors and positives with dim: [(batch_size * 2), dim_embedding]
     # labels: tensor containing concatenated labels of anchors and positives with dim: [(batch_size * 2)]
-    def get_triplets(self, embeddings, labels, distance_matrix=None):
+    def get_triplets(self, embeddings, labels, distance_matrix=None, multi_partition=False, dual_cluster=False):
 
         # Calculate distances between all embeddings to get distance_matrix
         # tensor with dim: [(batch_size * 2), (batch_size * 2)]
@@ -303,7 +305,7 @@ class NegativeTripletSelector:
 
         triplets_indices = [[] for i in range(3)]
 
-        if type(labels) is tuple: #TODO: make it a flag
+        if multi_partition: #TODO: make it a flag
             labels1 = labels[0]
             labels2 = labels[1]
 
@@ -324,6 +326,33 @@ class NegativeTripletSelector:
                 triplets_indices[0].extend(triplet_label_pairs[0])
                 triplets_indices[1].extend(triplet_label_pairs[1])
                 triplets_indices[2].extend(triplet_label_pairs[2])
+        
+        elif dual_cluster: # dual cluster assignments
+            labels1 = labels[0]
+            labels2 = labels[1]
+
+            #for each anchor pos pick neg that doesn't have same rgb or
+            #flow clust label
+            for i in range(len(labels1)//2):
+                label1 = labels1[i]
+                label2 = labels2[i]
+                anchorpos_indices = np.array([i, i+len(labels1)//2])
+
+                where_not_label1 = np.where(labels1 != label1)
+                where_not_label2 = np.where(labels2 != label2)
+                negative_indices = np.intersect1d(where_not_label1, where_not_label2)
+
+                if negative_indices.shape[0] == 0:  # must have at least one negative
+                    continue
+
+                # Sample anchor/positive/negative triplet
+                triplet_label_pairs = self.get_one_one_triplets(
+                    anchorpos_indices, negative_indices, distance_matrix,
+                )
+                triplets_indices[0].extend(triplet_label_pairs[0])
+                triplets_indices[1].extend(triplet_label_pairs[1])
+                triplets_indices[2].extend(triplet_label_pairs[2])
+
         else:
             # Get tensor with unique labels (<= (batch_size * 2))
             unique_labels, counts = torch.unique(labels, return_counts=True)
@@ -331,7 +360,6 @@ class NegativeTripletSelector:
             # Assert that there is no -1 (noise) label
             assert(-1 not in unique_labels)
 
-            triplets_indices = [[] for i in range(3)]
             for label in unique_labels:
 
                 # Get embeddings indices with current label

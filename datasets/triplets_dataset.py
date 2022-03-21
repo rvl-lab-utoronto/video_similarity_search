@@ -118,7 +118,7 @@ class TripletsData(data.Dataset):
                 self.label_to_indices2 = {label: np.where(self.data_labels2 ==
                     label)[0] for label in self.cluster_labels2}
             else:
-                self.data_labels = np.array([data[self.target_type] for data in self.data])
+                self.data_labels = np.array([data[self.target_type][0] for data in self.data]) #TODO: edited by sherry
                 self.cluster_labels = set(self.data_labels)
                 self.label_to_indices = {label: np.where(self.data_labels ==
                     label)[0] for label in self.cluster_labels}

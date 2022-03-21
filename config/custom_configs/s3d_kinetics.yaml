@@ -4,20 +4,20 @@ TRAIN:
 DATASET:
     VID_PATH: .
     ANNOTATION_PATH: /home/cheny257/projects/def-florian7/datasets/kinetics400/vid_paths_and_labels/frame_paths
-    #CLUSTER_PATH: '/home/salar77h/projects/def-florian7/datasets/kinetics400/vid_clusters.txt'
+    CLUSTER_PATH: '/home/cheny257/projects/def-florian7/datasets/kinetics400/vid_clusters.txt'
 
     TARGET_TYPE_T: 'cluster_label'
     TARGET_TYPE_V: 'label'
 
-    SAMPLING_STRATEGY: 'random_semi_hard'
-    POSITIVE_SAMPLING_P: 0.2
+    SAMPLING_STRATEGY: 'random_negative'
+    POSITIVE_SAMPLING_P: 1.0 #EDIT: 0.2
 
     POS_CHANNEL_REPLACE: True
     CHANNEL_EXTENSIONS: 'optical_u'
     OPTICAL_U_PATH: ./u
 
 MODEL:
-    ARCH: '3dresnet'
+    ARCH: 's3d'
 
 RESNET:
     MODEL_DEPTH: 18
@@ -31,7 +31,7 @@ RESNET:
 
 DATA:
     SAMPLE_SIZE: 128
-    SAMPLE_DURATION: 16
+    SAMPLE_DURATION: 32 #16
     INPUT_CHANNEL_NUM: 3
 
 LOSS:
@@ -44,3 +44,5 @@ OPTIM:
 
 ITERCLUSTER:
     METHOD: 'finch'
+
+

@@ -86,6 +86,34 @@ class Kinetics():
     def image_name_formatter(self, x):
         return f'{x:06d}.jpg'
 
+    # def read_cluster_labels(self):
+    #     if not self.cluster_path:
+    #         return None
+    #     with open(self.cluster_path, 'r') as f:
+    #         cluster_labels = f.readlines()
+    #     cluster_labels = [int(id.replace('\n', '')) for id in cluster_labels]
+    #     if self.is_master_proc:
+    #         print('retrieved {} cluster id from file: {}'.format(len(cluster_labels), self.cluster_path))
+    #     return cluster_labels
+
+    def read_cluster_labels(self):
+        if not self.cluster_path:
+            if self.is_master_proc:
+                print('cluster_path not defined....')
+            return None
+        with open(self.cluster_path, 'r') as f:
+            cluster_labels = f.readlines()
+        import re
+        cluster_labels = [re.sub(' +', ' ', id.replace('\n', '')) for id in cluster_labels]
+        cluster_labels = [id.replace(' ', ',') for id in cluster_labels]
+        # print(cluster_labels)
+        # print(json.loads(cluster_labels[0]))
+        cluster_labels = [tuple(json.loads(id)) for id in cluster_labels]
+        print(len(cluster_labels), cluster_labels[0])
+        if self.is_master_proc:
+            print('retrieved {} cluster id from file: {}'.format(len(cluster_labels), self.cluster_path))
+        return cluster_labels
+
     def __make_dataset(self, root_path, annotation_path, split, video_path_formatter, sample_duration, is_master_proc):
         video_ids, video_paths, frame_counts, labels, channel_paths = parse_database(
             root_path, annotation_path, split, video_path_formatter, channel_ext=self.channel_ext)

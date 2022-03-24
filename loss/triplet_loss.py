@@ -7,7 +7,6 @@ import torch.nn.functional as F
 from hyptorch.pmath import dist_matrix, dist
 import numpy as np
 
-
 class MemTripletLoss(nn.Module):
     #outputSize = ndata
     #inputSize = num of features
@@ -86,11 +85,13 @@ class MemTripletLoss(nn.Module):
 
 
 class OnlineTripletLoss(nn.Module):
-    def __init__(self, margin, dist_metric='cosine'):
+    def __init__(self, margin, dist_metric='cosine', multi_partition=False, dual_cluster=False):
         super(OnlineTripletLoss, self).__init__()
         self.margin = margin
         self.triplet_selector = None
         self.dist_metric = dist_metric
+        self.multi_partition = multi_partition
+        self.dual_cluster = dual_cluster
 
     # embeddings: tensor containing concatenated embeddings of anchors and positives with dim: [(batch_size * 2), dim_embedding]
     # labels: tensor containing concatenated labels of anchors and positives with dim: [(batch_size * 2)]
@@ -214,7 +215,9 @@ class OnlineTripletLoss(nn.Module):
         else:
             # Get list of (anchor idx, postitive idx, negative idx) triplets
             self.triplet_selector = NegativeTripletSelector(self.margin, sampling_strategy, self.dist_metric)
-            triplets = self.triplet_selector.get_triplets(embeddings, labels)  # list of dim: [3, batch_size]
+            triplets = self.triplet_selector.get_triplets(embeddings, labels, multi_partition=self.multi_partition, dual_cluster=self.dual_cluster)  # list of dim: [3, batch_size]
+            
+            #get False Positive and False Negative Count
             gt_labels = gt_labels.reshape((-1, 1))
             gt_a = gt_labels[triplets[0],:]
             gt_p = gt_labels[triplets[1],:]
@@ -223,6 +226,7 @@ class OnlineTripletLoss(nn.Module):
             false_positive = (gt_a!=gt_p).sum()
             false_negatvie = (gt_a==gt_n).sum()
 
+            
 
             # Compute anchor/positive and anchor/negative distances. ap_dists and
             # an_dists are tensors with dim: [batch_size]
@@ -293,7 +297,7 @@ class NegativeTripletSelector:
 
     # embeddings: tensor containing concatenated embeddings of anchors and positives with dim: [(batch_size * 2), dim_embedding]
     # labels: tensor containing concatenated labels of anchors and positives with dim: [(batch_size * 2)]
-    def get_triplets(self, embeddings, labels, distance_matrix=None):
+    def get_triplets(self, embeddings, labels, distance_matrix=None, multi_partition=False, dual_cluster=False):
 
         # Calculate distances between all embeddings to get distance_matrix
         # tensor with dim: [(batch_size * 2), (batch_size * 2)]
@@ -301,7 +305,29 @@ class NegativeTripletSelector:
 
         triplets_indices = [[] for i in range(3)]
 
-        if type(labels) is tuple: # dual cluster assignments
+        if multi_partition: #TODO: make it a flag
+            labels1 = labels[0]
+            labels2 = labels[1]
+
+            for i in range(len(labels2)//2):
+                # label1 = labels1[i]
+                label2 = labels2[i]
+                ap_indices = np.array([i, i+len(labels2)//2])
+
+                # where_not_label1 = np.where(labels1 != label1)
+                negative_indices = np.where(labels2 != label2)[0]
+                if negative_indices.shape[0] == 0:
+                    continue
+
+                # Sample anchor/positive/negative triplet
+                triplet_label_pairs = self.get_one_one_triplets(
+                    ap_indices, negative_indices, distance_matrix,
+                )
+                triplets_indices[0].extend(triplet_label_pairs[0])
+                triplets_indices[1].extend(triplet_label_pairs[1])
+                triplets_indices[2].extend(triplet_label_pairs[2])
+        
+        elif dual_cluster: # dual cluster assignments
             labels1 = labels[0]
             labels2 = labels[1]
 

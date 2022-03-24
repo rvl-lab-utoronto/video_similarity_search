@@ -49,6 +49,7 @@ class TripletsData(data.Dataset):
                  intra_negative=False,
                  modality=False,
                  predict_temporal_ds=False,
+                 multi_partition=False, 
                  image_name_formatter=lambda x: f'image_{x:05d}.jpg',
                  target_type='label'):
 
@@ -69,6 +70,7 @@ class TripletsData(data.Dataset):
         self.intra_negative = intra_negative
         self.modality = modality
         self.predict_temporal_ds = predict_temporal_ds
+        self.multi_partition = multi_partition
         self.max_sr = 4
         self.shuffle = Shuffle()
 
@@ -97,22 +99,15 @@ class TripletsData(data.Dataset):
         
         self.gt_target_type='label'
 
+        print('** target type', self.data[0][self.target_type])
         self.DUAL_CLUST_SAMPLING = type(self.data[0][self.target_type]) is tuple
 
         if self.target_type == 'label':
             self.data_labels = np.array([data[self.target_type] for data in self.data])
             self.label_to_indices = {label: np.where(self.data_labels == label)[0] for label in self.class_names.keys()}
-        else: #target_type == cluster_label
-
-            #TODO: FIX THIS FOR DUAL CLUST LABELS
-            #set of cluster labels
-
-            if not self.DUAL_CLUST_SAMPLING:
-                self.data_labels = np.array([data[self.target_type] for data in self.data])
-                self.cluster_labels = set(self.data_labels)
-                self.label_to_indices = {label: np.where(self.data_labels ==
-                    label)[0] for label in self.cluster_labels}
-            else:
+        
+        else: #target_type == cluster_labels
+            if self.multi_partition:
                 self.data_labels1 = np.array([data[self.target_type][0] for data in self.data])
                 self.data_labels2 = np.array([data[self.target_type][1] for data in self.data])
                 self.cluster_labels1 = set(self.data_labels1)
@@ -121,7 +116,23 @@ class TripletsData(data.Dataset):
                     label)[0] for label in self.cluster_labels1}
                 self.label_to_indices2 = {label: np.where(self.data_labels2 ==
                     label)[0] for label in self.cluster_labels2}
-
+            
+            #TODO: FIX THIS FOR DUAL CLUST LABELS
+            #set of cluster labels
+            elif self.DUAL_CLUST_SAMPLING:
+                self.data_labels1 = np.array([data[self.target_type][0] for data in self.data])
+                self.data_labels2 = np.array([data[self.target_type][1] for data in self.data])
+                self.cluster_labels1 = set(self.data_labels1)
+                self.cluster_labels2 = set(self.data_labels2)
+                self.label_to_indices1 = {label: np.where(self.data_labels1 ==
+                    label)[0] for label in self.cluster_labels1}
+                self.label_to_indices2 = {label: np.where(self.data_labels2 ==
+                    label)[0] for label in self.cluster_labels2}
+            else:
+                self.data_labels = np.array([data[self.target_type][0] for data in self.data]) #TODO: edited by sherry
+                self.cluster_labels = set(self.data_labels)
+                self.label_to_indices = {label: np.where(self.data_labels ==
+                    label)[0] for label in self.cluster_labels}
 
     def __getitem__(self, index):
         anchor=self.data[index]
@@ -136,11 +147,21 @@ class TripletsData(data.Dataset):
             positive = anchor.copy()
 
         else: #sample positive from same a_target (of type target_type - 'label' or 'cluster_label')
+            if self.multi_partition and self.target_type != "label":
+                p_idx = np.random.choice(self.label_to_indices1[a_target[0]])
+                while p_idx == index and len(self.label_to_indices1[a_target[0]]) > 1:
+                    p_idx = np.random.choice(self.label_to_indices1[a_target[0]])
 
-            if not self.DUAL_CLUST_SAMPLING:
+
+            elif not self.DUAL_CLUST_SAMPLING:
                 clust_choices = self.label_to_indices[a_target]
 
-            else:
+                p_idx = np.random.choice(clust_choices)
+                # Pick different video from anchor if there is more than 1 video with target a_target
+                while p_idx == index and len(clust_choices) > 1:
+                    p_idx = np.random.choice(clust_choices)
+
+            else: #DUAL CLUST SAMPLING
                 clust_choices1 = self.label_to_indices1[a_target[0]]
                 clust_choices2 = self.label_to_indices2[a_target[1]]
                 clust_choices_intersec = np.intersect1d(clust_choices1, clust_choices2)
@@ -157,10 +178,10 @@ class TripletsData(data.Dataset):
                     else:
                         clust_choices = clust_choices1
 
-            p_idx = np.random.choice(clust_choices)
-            # Pick different video from anchor if there is more than 1 video with target a_target
-            while p_idx == index and len(clust_choices) > 1:
                 p_idx = np.random.choice(clust_choices)
+                # Pick different video from anchor if there is more than 1 video with target a_target
+                while p_idx == index and len(clust_choices) > 1:
+                    p_idx = np.random.choice(clust_choices)
 
             positive = self.data[p_idx]
 

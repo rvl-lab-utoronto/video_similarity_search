@@ -127,10 +127,6 @@ def get_embeddings_mask_regions(model, data, test_loader, log_interval=2, visual
                 center_img_salient_batch.append(center_img_salient)
             center_img_salient = torch.stack(center_img_salient_batch, dim=0)  # N x 3 channels x 1 frame x H x W
 
-            #print ('Input size', inputs.size())      
-            #print ('salient', center_img_salient.size())    
-            #print(vid_path)
-
             if (visualize):
                 # Visualize mask region (use batch size 1)
                 center_img_salient = center_img_salient.squeeze(0)
@@ -218,15 +214,30 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True,
         c, num_clust, req_c = FINCH(embeddings, distance='cosine')    
 
         PARTITION = finch_partition
-    
-        if PARTITION == -1:
-            labels = c 
-            n_clusters = num_clust[0]
+
+        if len(PARTITION) == 1:
+            PARTITION = PARTITION[0]
+            if PARTITION == -1:
+                labels = c 
+                n_clusters = num_clust[0]
+
+            else:
+                labels = c[:,PARTITION]
+                n_clusters = num_clust[PARTITION]
+                print('Taking partition {} from finch'.format(PARTITION))
+            print("Fitted " + str(n_clusters) + " clusters with " + str(method))
 
         else:
-            labels = c[:,PARTITION]
-            n_clusters = num_clust[PARTITION]
-            print('Taking partition {} from finch'.format(PARTITION))
+            labels = []
+            n_clusters = []
+            for p in PARTITION:
+                labels.append(c[:,p])
+                n_cluster = num_clust[p]
+                n_clusters.append(n_cluster)
+                print('Taking partition {} from finch'.format(p))
+                print("Fitted " + str(n_cluster) + " clusters with " + str(method))
+            labels = np.array(labels)
+            labels = np.transpose(labels)
 
     elif method == 'OPTICS':
         trained_cluster_obj = OPTICS(min_samples=3, max_eps=0.20, cluster_method='dbscan', metric='cosine', n_jobs=-1).fit(embeddings)
@@ -237,7 +248,6 @@ def fit_cluster(embeddings, method='Agglomerative', k=1000, l2normalize=True,
         print(labels.shape)
         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
 
-    print("Fitted " + str(n_clusters) + " clusters with " + str(method))
     return labels
 
 

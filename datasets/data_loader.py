@@ -300,6 +300,7 @@ def build_data_loader(split, cfg, is_master_proc=True, triplets=True,
                 intra_negative=cfg.LOSS.INTRA_NEGATIVE,
                 modality=cfg.DATASET.MODALITY,
                 predict_temporal_ds=cfg.MODEL.PREDICT_TEMPORAL_DS,
+                multi_partition=len(cfg.ITERCLUSTER.FINCH_PARTITION) > 1,
                 flow_only=flow_only,
                 is_master_proc=is_master_proc)
 

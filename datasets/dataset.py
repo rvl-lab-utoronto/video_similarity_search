@@ -3,7 +3,7 @@ Modified from https://github.com/kenshohara/3D-ResNets-PyTorch
 """
 from torchvision import get_image_backend
 
-import sys, os
+import sys, os, json
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from torch.utils.data.dataloader import default_collate
@@ -30,23 +30,41 @@ def collate_fn(batch):
     else:
         return default_collate(batch_clips), batch_targets
 
-
-def read_cluster_labels(cluster_path, is_master_proc):
+def read_cluster_labels(cluster_path,  multi_partition, is_master_proc):
     if not cluster_path:
         if is_master_proc:
             print('cluster_path not defined....')
         return None
 
     if type(cluster_path) is not tuple:
-        with open(cluster_path, 'r') as f:
-            cluster_labels = f.readlines()
-        cluster_labels = [int(id.replace('\n', '')) for id in cluster_labels]
-        if is_master_proc:
-            print('retrieved {} cluster id from file: {}'.format(len(cluster_labels), cluster_path))
-        return cluster_labels
+        if multi_partition:
+            print("==> reading cluster assignments from multiple partitions")
+            with open(cluster_path, 'r') as f:
+                cluster_labels = f.readlines()
+            import re
+            cluster_labels = [re.sub(' +', ' ', id.replace('\n', '')) for id in cluster_labels]
+            cluster_labels = [id.replace(' ', ',') for id in cluster_labels]
+            # print(cluster_labels)
+            # print(json.loads(cluster_labels[0]))
+            cluster_labels = [tuple(json.loads(id)) for id in cluster_labels]
+            print(len(cluster_labels), cluster_labels[0])
+            if is_master_proc:
+                print('retrieved {} cluster id from file: {}'.format(len(cluster_labels), cluster_path))
+            return cluster_labels
+        else:
+            print("==> reading single cluster assignments")
+            with open(cluster_path, 'r') as f:
+                cluster_labels = f.readlines()
+            cluster_labels = [id.replace('\n', '') for id in cluster_labels]
+            cluster_labels = [int(json.loads(id)[0]) for id in cluster_labels]
+            # print(cluster_labels)
+            if is_master_proc:
+                print('retrieved {} cluster id from file: {}'.format(len(cluster_labels), cluster_path))
+            return cluster_labels
+        
 
     else:
-
+        print("==> reading dual cluster assignments")
         with open(cluster_path[0], 'r') as f:
             cluster_labels1 = f.readlines()
         with open(cluster_path[1], 'r') as f:
@@ -67,7 +85,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
              negative_sampling=False, positive_sampling_p=1.0,
              pos_channel_replace=False, prob_pos_channel_replace=None, modality=False, predict_temporal_ds=False, 
              relative_speed_perception=False, 
-             local_local_contrast=False, intra_negative=False, flow_only=False, is_master_proc=True):
+             local_local_contrast=False, intra_negative=False, multi_partition=False, flow_only=False, is_master_proc=True):
 
 
     '''
@@ -95,7 +113,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                         label + '/' + video_id)
 
     # read cluster labels, may return list or list of tuples for multiple assignments
-    cluster_labels = read_cluster_labels(cluster_path, is_master_proc)
+    cluster_labels = read_cluster_labels(cluster_path,  multi_partition, is_master_proc)
 
     if dataset_name == 'ucf101':
         split2 = split if split!='test' else 'val'
@@ -147,6 +165,7 @@ def get_data(split, video_path, annotation_path, dataset_name, input_type,
                             prob_pos_channel_replace=prob_pos_channel_replace,
                             modality=modality,
                             sample_duration=sample_duration,
+                            multi_partition=multi_partition, 
                             predict_temporal_ds=predict_temporal_ds,
                             relative_speed_perception=relative_speed_perception,
                             local_local_contrast=local_local_contrast,

@@ -268,8 +268,16 @@ def load_checkpoint(model, checkpoint_path, classifier=False, is_master_proc=Tru
         start_epoch = checkpoint['epoch']
         best_prec1 = checkpoint['best_prec1']
         state_dict = checkpoint['state_dict']
-        optim_state_dict = checkpoint['optim_state_dict']
-        sampler_state_dict = checkpoint['sampler']
+        if 'optim_state_dict' in checkpoint:
+            optim_state_dict = checkpoint['optim_state_dict']
+        else:
+            print('WARNING: no optim state dict in checkpoint')
+            optim_state_dict = None
+        if 'sampler' in checkpoint:
+            sampler_state_dict = checkpoint['sampler']
+        else:
+            print('WARNING: no sampler state dict in checkpoint')
+            sampler_state_dict = None
 
         # create new OrderedDict that does not contain `module.`
         from collections import OrderedDict

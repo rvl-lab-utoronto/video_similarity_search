@@ -174,7 +174,7 @@ def extract_feature(args, split='train'):
 
         # Load similarity network checkpoint if path exists
         if args.checkpoint_path is not None:
-            start_epoch, best_acc = load_checkpoint(model, args.checkpoint_path)
+            start_epoch, best_acc, optim_state_dict, sampler_state_dict = load_checkpoint(model, args.checkpoint_path)
 
     global cuda; cuda = torch.cuda.is_available()
 

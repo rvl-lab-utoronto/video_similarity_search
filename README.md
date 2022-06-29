@@ -5,7 +5,7 @@ Official code repo for SLIC: Self-Supervised Learning with Iterative Clustering 
 ![arch](system_overview.png)
 
 ## Link:
-[[Paper]](https://openaccess.thecvf.com/content/CVPR2022/html/Khorasgani_SLIC_Self-Supervised_Learning_With_Iterative_Clustering_for_Human_Action_Videos_CVPR_2022_paper.html)
+[[Project Page]](https://rvl.cs.toronto.edu/video-similarity/) [[Arxiv]](https://arxiv.org/abs/2206.12534)
 
 ## Environment Setup
 ```

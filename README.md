@@ -1,4 +1,11 @@
-# video_similarity_search
+# SLIC: Self-Supervised Learning with Iterative Clustering for Human Action Videos [CVPR 2022]
+
+Official code repo for SLIC: Self-Supervised Learning with Iterative Clustering for Human Action Videos.
+
+![arch](system_overview.png)
+
+## Link:
+[[Project Page]](https://rvl.cs.toronto.edu/video-similarity/) [[Arxiv]](https://arxiv.org/abs/2206.12534)
 
 ## Environment Setup
 ```

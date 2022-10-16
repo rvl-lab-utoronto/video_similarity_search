@@ -156,6 +156,9 @@ def evaluate(cfg, model, cuda, device, data_loader, split='train', is_master_pro
     labels = []
     idxs = []
     world_size = du_helper.get_world_size()
+
+    torch.cuda.empty_cache()
+
     with torch.no_grad():
         for batch_idx, (input, targets, info, indexes) in enumerate(data_loader):
             if cfg.DATASET.MODALITY == True:

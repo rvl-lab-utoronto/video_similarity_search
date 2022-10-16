@@ -83,6 +83,8 @@ def parse_args():
     parser.add_argument('--center_crop', action='store_true')
     parser.add_argument('--five_crop', action='store_true')
     parser.add_argument('--ten_crop', action='store_true')
+    parser.add_argument('--final_bn', action='store_true')
+    parser.add_argument('--final_norm', action='store_true')
     
     args = parser.parse_args()
     return args
@@ -148,24 +150,28 @@ def main(args):
                       'ucf101-f': 101, 'hmdb51-f': 51, 'k400-f': 400}
     args.num_class = num_class_dict[args.dataset]
 
+    cfg = get_cfg()
+    if args.cfg_file is not None:
+        cfg.merge_from_file(args.cfg_file)
+
     if args.train_what == 'last': # for linear probe
-        args.final_bn = True
+        if cfg.MODEL.ARCH == 's3d':
+            args.final_bn = True
+        else:
+            args.final_bn = False
         args.final_norm = True
         args.use_dropout = False
     else: # for training the entire network
-        args.final_bn = False
-        args.final_norm = False
+        if not args.final_bn:
+            args.final_bn = False
+        if not args.final_norm:
+            args.final_norm = False
         args.use_dropout = True
-
 
     if args.dataset == 'ucf101':
         class_num = 101
     elif args.dataset == 'hmdb51':
         class_num = 51
-
-    cfg = get_cfg()
-    if args.cfg_file is not None:
-        cfg.merge_from_file(args.cfg_file)
 
     if cfg.MODEL.ARCH == 's3d':
         print("USING S3D WITH CoCLR LinearClassifier")

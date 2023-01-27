@@ -1,6 +1,9 @@
 # SLIC: Self-Supervised Learning with Iterative Clustering for Human Action Videos [CVPR 2022]
 
-Official code repo for SLIC: Self-Supervised Learning with Iterative Clustering for Human Action Videos.
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/slic-self-supervised-learning-with-iterative-1/self-supervised-video-retrieval-on-ucf101)](https://paperswithcode.com/sota/self-supervised-video-retrieval-on-ucf101?p=slic-self-supervised-learning-with-iterative-1)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/slic-self-supervised-learning-with-iterative-1/self-supervised-video-retrieval-on-hmdb51)](https://paperswithcode.com/sota/self-supervised-video-retrieval-on-hmdb51?p=slic-self-supervised-learning-with-iterative-1)
+
+Official code repo for [SLIC: Self-Supervised Learning with Iterative Clustering for Human Action Videos](https://arxiv.org/abs/2206.12534).
 
 ![arch](system_overview.png)
 
